@@ -7,6 +7,8 @@ import {onBeforeUnmount, onMounted, ref, watch} from "vue";
 import {createEditorInstance} from "@/views/User/Main/components/Edit/editor/editor.ts";
 import {useCurrentNoteInfoStore} from "@/views/User/Main/components/Edit/Pinia/currentNoteInfo.ts";
 import {getNoteContent} from "@/views/User/Main/components/Edit/service/GetNoteContent.ts";
+import PageRight from "@/views/User/Main/components/Edit/PageRight/PageRight.vue";
+
 
 // 创建 editor 实例
 const editor = createEditorInstance();
@@ -58,7 +60,7 @@ const mainHeight = ref(window.innerHeight - 48);
 
 // 窗口大小变化时重新计算面板宽度
 const onWindowResize = () => {
-  mainHeight.value = window.innerWidth - 48; // 减去分割线宽度
+  mainHeight.value = window.innerHeight - 48; // 减去分割线宽度
 };
 
 // 绑定和移除事件监听
@@ -70,19 +72,26 @@ onBeforeUnmount(() => {
   window.removeEventListener('resize', onWindowResize);
 });
 
+
 </script>
 <template>
   <div class="common-layout">
     <el-container style="height: 100vh">
 
-      <!--  工具栏  -->
+      <!--  标题头  -->
       <el-header class="common-header">
         <PageHeader v-model="editor"/>
       </el-header>
 
       <!--  编辑器  -->
-      <el-main :style="{height: mainHeight + 'px' }" style="padding: 0">
-        <TipTap v-model="editor"/>
+      <el-main :style="{height: mainHeight + 'px' }" style="padding: 0;display: flex">
+
+        <TipTap v-model="editor" />
+
+
+        <PageRight/>
+
+
       </el-main>
 
       <!--      <el-footer style="height: 32px;">-->
@@ -91,8 +100,6 @@ onBeforeUnmount(() => {
 
     </el-container>
   </div>
-
-
 </template>
 
 

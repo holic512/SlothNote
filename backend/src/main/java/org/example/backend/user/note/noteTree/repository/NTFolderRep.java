@@ -45,6 +45,7 @@ public interface NTFolderRep extends JpaRepository<FolderInfo, Long> {
             "where f.userId = :userId And f.parentId = :parentId AND f.isDeleted = 0 ")
     List<NoteTreeDto> findFolderByUserIdAndParentId(@Param("userId") Long userId, @Param("parentId") Long parentId);
 
+    // 查询该文件夹id下的 用户id
     @Query("select f.userId from FolderInfo f where f.id = :id")
     Long findUserIdById(@Param("id") Long id);
 

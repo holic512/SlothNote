@@ -24,8 +24,8 @@ public class UserProfile {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @Column(name = "uid", nullable = false, unique = true)
-    private String uid;
+    @Column(name = "user_id", nullable = false, unique = true)
+    private Long user_id;
 
     @Column(name = "nickname", nullable = false)
     private String nickname;
@@ -60,63 +60,10 @@ public class UserProfile {
         this.updatedAt = LocalDateTime.now();
     }
 
-    public UserProfile() {
-    }
-
-    public static class Builder {
-        private Long id;
-        private String uid;
-        private String nickname;
-        private String gender;
-        private Integer age;
-        private String bio;
-        private String contactInfo;
-
-        public Builder id(Long id) {
-            this.id = id;
-            return this;
-        }
-
-        public Builder uid(String uid) {
-            this.uid = uid;
-            return this;
-        }
-
-        public Builder nickname(String nickname) {
-            this.nickname = nickname;
-            return this;
-        }
-
-        public Builder gender(String gender) {
-            this.gender = gender;
-            return this;
-        }
-
-        public Builder age(Integer age) {
-            this.age = age;
-            return this;
-        }
-
-        public Builder bio(String bio) {
-            this.bio = bio;
-            return this;
-        }
-
-        public Builder contactInfo(String contactInfo) {
-            this.contactInfo = contactInfo;
-            return this;
-        }
-
-        public UserProfile build() {
-            UserProfile profile = new UserProfile();
-            profile.setId(id);
-            profile.setUid(uid);
-            profile.setNickname(nickname);
-            profile.setGender(gender);
-            profile.setAge(age);
-            profile.setBio(bio);
-            profile.setContactInfo(contactInfo);
-            return profile;
-        }
+    // 用于 创建用户时 的 用户信息修改
+    public UserProfile(Long user_id, String nickname, String gender) {
+        this.user_id = user_id;
+        this.nickname = nickname;
+        this.gender = gender;
     }
 }

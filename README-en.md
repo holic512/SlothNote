@@ -30,9 +30,9 @@
 
 ## Development Tasks
 
-- [ ] Optimize table addition functionality
-- [ ] Add comment functionality
-- [ ] Add note presentation mode
+- [x] Optimize table addition functionality
+- [x] Add comment functionality
+- [x] Add note presentation mode
 - [ ] Add bookmark feature
 - [ ] Add import/export feature
 - [ ] Add sharing feature (with local saving)
@@ -49,7 +49,7 @@ Coming soon
 
 ## Technologies Used
 
-- Backend: Java 17 + Spring Boot + Sa-Token
+- Backend: Java 17 + SpringBoot + Sa-token + Mysql + Redis + MongoDb + Swagger
 - Frontend: Vue 3 + TypeScript + Axios + Router + Element Plus + TipTap
 
 ## Links

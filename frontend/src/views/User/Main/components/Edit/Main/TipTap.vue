@@ -67,7 +67,7 @@ watch(() => InputNoteTitle.value, async (newValue) => {
     // 并且更新 page
     currentNoteInfo.noteName = newValue;
 
-    // 刷新笔记树
+    // 刷新笔记
     const isNoteTreeUpdated = useNoteTreeUpdate();
     isNoteTreeUpdated.UpdatedNoteTree();
   }
@@ -79,87 +79,96 @@ const PreferencesStore = useUserPreferencesStore()
 </script>
 
 <template>
-  <!--编辑器 工具-->
-  <div style="height: 100%;display: flex;flex-direction: column;">
-    <!--  横装 工具栏-->
-    <Tools v-model="editor" v-if="PreferencesStore.editorToolbarVisible"/>
+  <div style="position: relative; height: 100%; flex: 1;">
+    <!--编辑器-->
+    <div style="height: 100%; display: flex; flex-direction: column; width: 100%;">
+      <!--  横装 工具栏-->
+      <Tools v-model="editor" v-if="PreferencesStore.editorToolbarVisible"/>
 
-    <!--  笔记内容  -->
-    <el-scrollbar style="flex: 1;">
+      <!--  笔记内容  -->
+      <el-scrollbar style="flex: 1;">
 
-      <!--  封面  -->
-      <img alt="1" :src="'/NoteCover/noteCover' + currentNoteInfo.cover + '.jpg'" style="height: 140px;width: 100%"
-           v-if="currentNoteInfo.cover != null"/>
+        <!--  封面  -->
+        <img alt="1" :src="'/NoteCover/noteCover' + currentNoteInfo.cover + '.jpg'" style="height: 160px;width: 100%"
+             v-if="currentNoteInfo.cover != null"/>
 
-      <!--  当没有 封面 但是有图标的情况下-->
-      <div v-if="currentNoteInfo.cover == null && currentNoteInfo.avatar != null" style="margin-top: 36px"/>
+        <!--  当没有 封面 但是有图标的情况下-->
+        <div v-if="currentNoteInfo.cover == null && currentNoteInfo.avatar != null" style="margin-top: 36px"/>
 
-      <!-- 头像图标 -->
-      <div
-          style="height: 30px;width: 100%;display: flex;justify-content: center;align-items: center;margin-bottom: 4px">
-        <div style="width: 720px;position: relative;top: -15px; /* 向上移动 50px */">
-          <span style="font-size: 54px">{{ currentNoteInfo.avatar }}</span>
-        </div>
-      </div>
-
-      <div class="container-tiptap">
-
-        <!-- 功能 按钮部分 -->
-        <div class="feature">
-          <!--          <div class="feature-div">-->
-          <!--            <el-text>-->
-          <!--              😀 添加图标-->
-          <!--            </el-text>-->
-          <!--          </div>-->
-
-          <div class="feature-div" @click="NoteCoverState.IsNoteCover()">
-            <el-text>
-              <el-icon>
-                <PictureFilled/>
-              </el-icon>
-              添加封面
-            </el-text>
-          </div>
-
-        </div>
-
-
-        <!-- 重命名部分 -->
-        <input class="styled-input" placeholder="新建笔记" v-model="InputNoteTitle">
-
-      </div>
-
-
-      <div class="editor-content" @click="focusOnParagraph" ref="scrollbarRef">
-        <editor-content :editor="editor" class="tiptap-editor"/>
-      </div>
-    </el-scrollbar>
-  </div>
-
-
-  <!--  目录功能  -->
-  <div style="position: absolute; right: 18px; top: 164px; text-align: right;">
-    <el-popover
-        placement="left"
-        title="目录"
-        :width="250"
-        trigger="hover"
-    >
-      <template #reference>
-        <div style="width: 24px;">
-          <div v-for="item in IndexItemsStore.IndexItems" :key="item.id">
-            <hr
-                v-if="item.level >= 1 && item.level <= 6"
-                :style="{ width: `${100 - (item.level - 1) * 10}%`,border: '1px solid #E3E2E0',margin: '4px 0 0 auto'}"
-            />
+        <!-- 头像图标 -->
+        <div
+            style="height: 30px;width: 100%;display: flex;justify-content: center;align-items: center;margin-bottom: 4px">
+          <div style="width: 720px;position: relative;top: -15px; /* 向上移动 50px */">
+            <span style="font-size: 54px">{{ currentNoteInfo.avatar }}</span>
           </div>
         </div>
-      </template>
-      <template #default>
-        <ToCItem v-if="editor" :editor="editor" :items="IndexItemsStore.IndexItems" :scrollbarRef="scrollbarRef"/>
-      </template>
-    </el-popover>
+
+        <div class="container-tiptap">
+
+          <!-- 功能 按钮部分 -->
+          <div class="feature">
+            <!--          <div class="feature-div">-->
+            <!--            <el-text>-->
+            <!--              😀 添加图标-->
+            <!--            </el-text>-->
+            <!--          </div>-->
+
+            <div class="feature-div" @click="NoteCoverState.IsNoteCover()">
+              <el-text>
+                <el-icon>
+                  <PictureFilled/>
+                </el-icon>
+                添加封面
+              </el-text>
+            </div>
+
+          </div>
+
+
+          <!-- 重命名部分 -->
+          <input class="styled-input" placeholder="新建笔记" v-model="InputNoteTitle">
+
+        </div>
+
+
+        <div class="editor-content" @click="focusOnParagraph" ref="scrollbarRef">
+          <editor-content :editor="editor" class="tiptap-editor"/>
+        </div>
+      </el-scrollbar>
+    </div>
+
+
+    <!--  目录功能  -->
+    <div style="
+    position: absolute;
+    right: 24px;
+    top: 25%;
+    text-align: right;
+    z-index: 10;
+  ">
+      <el-popover
+          placement="left"
+          title="目录"
+          :width="250"
+          trigger="hover"
+      >
+        <template #reference>
+          <div style="width: 24px;">
+            <div v-for="item in IndexItemsStore.IndexItems" :key="item.id">
+              <hr
+                  v-if="item.level >= 1 && item.level <= 6"
+                  :style="{ width: `${100 - (item.level - 1) * 10}%`,border: '1px solid #E3E2E0',margin: '4px 0 0 auto'}"
+              />
+            </div>
+          </div>
+        </template>
+        <template #default>
+          <ToCItem v-if="editor" :editor="editor" :items="IndexItemsStore.IndexItems" :scrollbarRef="scrollbarRef"/>
+        </template>
+      </el-popover>
+    </div>
   </div>
+
 
   <!--  选中浮动菜单  -->
   <BubbleMenu v-model="editor"/>
@@ -214,7 +223,7 @@ const PreferencesStore = useUserPreferencesStore()
 }
 
 .container-tiptap:hover .feature {
-  opacity: 1; /* 当悬停在最外层容器上时，显示功能部分 */
+  opacity: 1; /* ���悬停在最外层容器上时，显示功能部分 */
 }
 
 .feature-div {
@@ -258,7 +267,7 @@ const PreferencesStore = useUserPreferencesStore()
 
 /* 设置编辑器内容的样式 */
 .tiptap-editor {
-  width: 750px; /* 设置编辑区域的宽度 */
+  width: 750px; /* 设置编辑区域的度 */
   font-family: 'alibabaFy', serif; /* 使用自定义字体 */
   font-size: 20px; /* 设置字体大小 */
   line-height: 1; /* 确保文字与背景有良好对比 */
@@ -305,7 +314,7 @@ const PreferencesStore = useUserPreferencesStore()
   }
 
   h5 {
-    font-size: 25px; /* 设置字体大小 */
+    font-size: 25px; /* 设置字��大小 */
     margin-bottom: 8px;
   }
 
@@ -377,15 +386,18 @@ const PreferencesStore = useUserPreferencesStore()
     }
   }
 
+  /* 表格外边框 样式 */
+  .tableWrapper {
+    width: 100%;
+    margin-left: 16px;
+  }
+
   /* 表格样式 */
   table {
     border-collapse: collapse;
-
-    margin: 0 0 0 16px;
+    margin: 0;
     overflow: hidden;
     table-layout: fixed;
-
-    width: 90%;
 
 
     td,
@@ -436,14 +448,10 @@ const PreferencesStore = useUserPreferencesStore()
 
       cursor: grab;
     }
-    .column-resize-handle:active{
+
+    .column-resize-handle:active {
       cursor: grabbing;
     }
-  }
-
-  .tableWrapper {
-    margin: 1.5rem 0;
-    overflow-x: auto;
   }
 
 

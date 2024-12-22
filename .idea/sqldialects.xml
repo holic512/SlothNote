@@ -3,6 +3,7 @@
   <component name="SqlDialectMappings">
     <file url="file://$PROJECT_DIR$/backend/src/main/resources/sql/InitSql/init_create_table.sql" dialect="MySQL" />
     <file url="file://$PROJECT_DIR$/backend/src/main/resources/sql/devSql/create_admins_table.sql" dialect="MySQL" />
+    <file url="file://$PROJECT_DIR$/backend/src/main/resources/sql/devSql/create_comments_table.sql" dialect="MySQL" />
     <file url="file://$PROJECT_DIR$/backend/src/main/resources/sql/devSql/create_folder_info_table.sql" dialect="MySQL" />
     <file url="file://$PROJECT_DIR$/backend/src/main/resources/sql/devSql/create_mail_server_settings_table.sql" dialect="MySQL" />
     <file url="file://$PROJECT_DIR$/backend/src/main/resources/sql/devSql/create_note_info_table.sql" dialect="MySQL" />

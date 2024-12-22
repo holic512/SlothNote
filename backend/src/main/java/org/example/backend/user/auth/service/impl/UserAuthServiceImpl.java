@@ -246,17 +246,17 @@ public class UserAuthServiceImpl implements UserAuthService {
                 .email(map.get("email"))
                 .build();
 
-        // 保存用户授权信息
-        userRepository.save(user);
+        // 保存用户
+        user = userRepository.save(user);  // save() 会返回保存后的实体对象
+
+        // 获取生成的主键
+        Long userId = user.getId();  // 获取数据库自动生成的主键（id）
 
         // 生成用户随机详细信息 并根据uid插入
         String nickName = NicknameGenerator.generateNickname();
 
-        UserProfile userProfile = new UserProfile.Builder()
-                .uid(uid)
-                .nickname(nickName)
-                .gender(UserGenderEnum.OTHER.getValue())
-                .build();
+        UserProfile userProfile = new UserProfile(userId,nickName,UserGenderEnum.OTHER.getValue());
+
         // 保存用户详情信息
         profileRepository.save(userProfile);
 

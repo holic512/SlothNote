@@ -31,9 +31,9 @@
 
 ## 开发计划事项
 
-- [ ] 优化emoji选择器
-- [ ] 优化表格添加功能
-- [ ] 新增评论功能
+- [x] 优化emoji选择器
+- [x] 优化表格添加功能
+- [x] 新增评论功能
 - [ ] 新增笔记演示模式
 - [ ] 新增收藏功能
 - [ ] 新增导入导出功能
@@ -54,7 +54,7 @@
 
 ## 所用技术
 
-- 后端: Java 17 + SpringBoot + Sa-token
+- 后端: Java 17 + SpringBoot + Sa-token + Mysql + Redis + MongoDb + Swagger
 - 前端: Vue3 + Ts + Axios + Router + ElementPlus + TipTap
 
 ## 链接

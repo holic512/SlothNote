@@ -1,4 +1,4 @@
-// 用于保存笔记目录
+// 用于 保存笔记内容标题目录 生成目录索引
 import {defineStore} from "pinia";
 import {TableOfContentData} from "@tiptap-pro/extension-table-of-contents";
 

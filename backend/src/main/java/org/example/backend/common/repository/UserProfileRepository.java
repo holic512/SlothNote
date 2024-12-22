@@ -16,13 +16,8 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
 public interface UserProfileRepository extends JpaRepository<UserProfile, Long> {
-    /**
-     *
-     * 获取用户uid
-     *
-     * @param uid
-     * @return
-     */
-    UserProfile findByUid(String uid);
+
+    @Query("SELECT up from UserProfile up where up.user_id = :UserId")
+    UserProfile findByUserId(@Param("UserId") Long UserId);
 
 }
