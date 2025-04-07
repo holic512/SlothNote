@@ -17,7 +17,7 @@ public class User {
     @Column(nullable = false, updatable = false)
     private Long id;
 
-    @Column(unique = true, nullable = false, length = 50)
+    @Column(name = "uid", unique = true, nullable = false, length = 50)
     private String uid;
 
     @Column(unique = true, nullable = false, length = 50)
@@ -31,6 +31,9 @@ public class User {
 
     @Column(nullable = false)
     private Integer status;
+
+    @Column(name = "has_profile")
+    private Integer hasProfile;
 
     @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;

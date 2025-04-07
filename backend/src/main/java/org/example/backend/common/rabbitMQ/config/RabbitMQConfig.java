@@ -54,9 +54,6 @@ public class RabbitMQConfig {
     // 邮件队列
     @Bean
     public Queue emailQueue() {
-        // Map<String, Object> args = new HashMap<>();
-        // // 设置消息的 TTL 为 10 分钟 (600000 毫秒)
-        // args.put("x-message-ttl", 600000);
         return new Queue(MQQueueName.EMAIL_QUEUE.getValue(), true, false, false);
     }
 

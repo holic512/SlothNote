@@ -9,6 +9,8 @@ import Setting from "./components/Setting/index.vue"
 import {useUserPreferencesStore} from "@/views/User/Main/Pinia/userPreferencesStore";
 import Button from "primevue/button";
 import SidebarM from "@/views/User/Main/components/SidebarM/SidebarM.vue";
+import {useUserInfoInitialized} from "@/views/User/Main/Pinia/UserInfoInitialized";
+import UserProfileInit from "@/views/User/Main/components/UserProfileInit/UserProfileInit.vue";
 
 // 控制设置是否显示
 const SettingVisible = ref<boolean>(false);
@@ -106,6 +108,31 @@ watch(() => LeftPanelState.LeftPanelVis, (newValue) => {
   }
 })
 
+// ============== 用户信息初始化 ==============
+
+// pinia
+const UserInfoInitialized = useUserInfoInitialized();
+
+// 变量
+// 用于存储用户的个人信息 来判断
+const InfoInitializedVisible = ref(false);
+
+// 钩子函数 - 在页面加载的时候判断用户是否完成初始化
+onMounted(async () => {
+  // 当用户初始化状态显示未初始化时调用
+  // 如果查询数据库也是没有初始化 则显示初始化页面
+  if (UserInfoInitialized.isInfoInitialized) return;
+
+  const result = await UserInfoInitialized.checkUserInfo();
+
+  if (result) {
+    // 数据库查询已经初始化了
+    UserInfoInitialized.completeInfoInitialized()
+  } else {
+    // 数据库查询没有初始化
+    InfoInitializedVisible.value = true;
+  }
+})
 
 </script>
 
@@ -114,8 +141,8 @@ watch(() => LeftPanelState.LeftPanelVis, (newValue) => {
 
     <!-- 左侧面板 -->
     <div class="panel1" :style="{ width: panel1Width + 'px' }">
-        <Sidebar v-model="SettingVisible" v-if="leftPanelVis"/>
-        <SidebarM v-if="!leftPanelVis"/>
+      <Sidebar v-model="SettingVisible" v-if="leftPanelVis"/>
+      <SidebarM v-if="!leftPanelVis"/>
     </div>
 
 
@@ -151,9 +178,11 @@ watch(() => LeftPanelState.LeftPanelVis, (newValue) => {
 
   </div>
 
-
-  <!--设置动态框-->
+  <!--  设置动态框  -->
   <Setting v-model="SettingVisible"/>
+
+  <!--  用户个人信息初始化  动态框-->
+  <UserProfileInit v-model="InfoInitializedVisible"/>
 
 </template>
 

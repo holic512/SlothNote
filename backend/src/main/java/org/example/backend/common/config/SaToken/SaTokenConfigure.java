@@ -127,8 +127,7 @@ public class SaTokenConfigure implements WebMvcConfigurer {
                     SaRouter.match(SaHttpMethod.OPTIONS)
                             // .free(r -> System.out.println("--------OPTIONS预检请求，不做处理"))
                             .back();
-                })
-                ;
+                });
     }
 
 

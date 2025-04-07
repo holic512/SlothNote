@@ -142,6 +142,8 @@ public class UserAuthServiceImpl implements UserAuthService {
             return new Pair<>(AuthServiceEnum.LogIdNotFound, null);
         }
 
+        System.out.println(userInfoJson);
+
         AuthDto authDto = objectMapper.readValue(userInfoJson, AuthDto.class);
 
         if (!authDto.getCode().equals(code)) {
@@ -254,9 +256,7 @@ public class UserAuthServiceImpl implements UserAuthService {
 
         // 生成用户随机详细信息 并根据uid插入
         String nickName = NicknameGenerator.generateNickname();
-
         UserProfile userProfile = new UserProfile(userId,nickName,UserGenderEnum.OTHER.getValue());
-
         // 保存用户详情信息
         profileRepository.save(userProfile);
 
