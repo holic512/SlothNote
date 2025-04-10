@@ -86,10 +86,10 @@ onBeforeUnmount(() => {
       <!--  编辑器  -->
       <el-main :style="{height: mainHeight + 'px' }" style="padding: 0;display: flex">
 
-        <TipTap v-model="editor" />
+        <TipTap v-model="editor"/>
 
 
-        <PageRight/>
+        <PageRight v-model="editor"/>
 
 
       </el-main>

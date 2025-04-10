@@ -2,8 +2,11 @@
 import {RightPageModeEnum, useRightPageState} from "@/views/User/Main/components/Edit/Pinia/RightPageState";
 import {onMounted, ref, watch} from "vue";
 import NoteComment from "@/views/User/Main/components/Edit/PageRight/components/NoteComment/NoteComment.vue";
+import NoteAI from "@/views/User/Main/components/Edit/PageRight/components/NoteAi/NoteAi.vue"
 // 控制右侧边栏状态
 const rightPageState = useRightPageState();
+
+const editor = defineModel()
 
 // 用于存储 侧边栏长度
 let RightPageWidth = ref(0);
@@ -17,6 +20,9 @@ watch(() => rightPageState.model, (newValue) => {
     case RightPageModeEnum.comment:
       RightPageWidth.value = 380;
       break;
+    case RightPageModeEnum.Ai:
+      RightPageWidth.value = 380; // Same width as comments or adjust as needed
+      break;
   }
 
 })
@@ -28,7 +34,9 @@ watch(() => rightPageState.model, (newValue) => {
 
       <NoteComment v-if="rightPageState.model == RightPageModeEnum.comment"/>
 
+      <NoteAI v-if="rightPageState.model == RightPageModeEnum.Ai" v-model="editor"/>
   </div>
+
 </template>
 
 <style scoped>

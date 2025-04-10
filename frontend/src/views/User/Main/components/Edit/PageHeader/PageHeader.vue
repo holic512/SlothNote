@@ -6,6 +6,7 @@ import SaveNoteState from "@/views/User/Main/components/Edit/PageHeader/componen
 import {useCurrentNoteInfoStore} from "@/views/User/Main/components/Edit/Pinia/currentNoteInfo";
 import {useRightPageState} from "@/views/User/Main/components/Edit/Pinia/RightPageState";
 import Comment from "@/views/User/Main/components/Edit/PageHeader/components/Comment/comment.vue";
+import Ai from "@/views/User/Main/components/Edit/PageHeader/components/Ai/Ai.vue";
 
 const editor = defineModel()
 
@@ -102,7 +103,10 @@ const currentNoteInfo = useCurrentNoteInfoStore()
           </el-icon>
         </el-button>
 
+
       </el-tooltip>
+
+      <Ai/>
 
       <el-tooltip
           class="box-item"

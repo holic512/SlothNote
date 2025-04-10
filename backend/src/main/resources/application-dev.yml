@@ -1,11 +1,11 @@
 # 开发环境变量
 spring:
 
-  # 数据库初始化
-  sql:
-    init:
-      mode: always
-      schema-locations: classpath*:sql/InitSql/init_create_table.sql
+#  # 数据库初始化
+#  sql:
+#    init:
+#      mode: always
+#      schema-locations: classpath*:sql/InitSql/init_create_table.sql
 
   # 数据库设置
   datasource:
@@ -19,22 +19,25 @@ spring:
     redis:
       host: localhost
       port: 6379
-      password: 123456
+#      password: 123456
 
     # mongodb配置
     mongodb:
-      host: 192.168.188.36
+      host: localhost
       port: 27017
       database: SlothNote
-      username: mongo_holic
-      password: mongo_holic
+#      username: mongo_holic
+#      password: mongo_holic
       authentication-database: admin
 
   # rabbit 配置
   rabbitmq:
     port: 5672
-    host: 192.168.188.36
-    username: rabbitmq
-    password: rabbitmq
+    host: localhost
+    username: guest
+    password: guest
+
+
+
 
 

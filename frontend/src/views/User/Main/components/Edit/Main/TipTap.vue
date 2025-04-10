@@ -327,6 +327,10 @@ const PreferencesStore = useUserPreferencesStore()
     max-width: 100%;
   }
 
+  span {
+    line-height: 30px;
+  }
+
   // 引用块
   blockquote {
     border-left: 4px solid #555; /* 更粗的边框和更深的颜色 */

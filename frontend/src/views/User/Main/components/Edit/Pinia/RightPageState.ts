@@ -5,6 +5,7 @@ import {defineStore} from "pinia";
 export enum RightPageModeEnum {
     null,
     comment,
+    Ai,
 
 }
 
@@ -21,11 +22,22 @@ export const useRightPageState = defineStore('RightPageState', {
 
         // 切换评论
         toComment() {
-            if (this.model == RightPageModeEnum.null) {
-                this.model = RightPageModeEnum.comment
-            } else {
+            if (this.model === RightPageModeEnum.comment) {
                 this.model = RightPageModeEnum.null
+            } else {
+                this.model = RightPageModeEnum.comment
+            }
+        },
+        OpenAi() {
+            this.model = RightPageModeEnum.Ai;
+        },
+        SwitchAi() {
+            if (this.model === RightPageModeEnum.Ai) {
+                this.model = RightPageModeEnum.null
+            } else {
+                this.model = RightPageModeEnum.Ai
             }
         }
+
     },
 })
