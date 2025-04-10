@@ -4,4 +4,5 @@ export interface Tree {
     type: string;
     children?: Tree[] | null;
     avatar?: string;
+    uniqueId?: string;
 }

@@ -134,6 +134,10 @@ onMounted(async () => {
   }
 })
 
+// 引入移动对话框组件
+import MoveToDialog from "@/views/User/Main/components/Sidebar/RightMenu/components/MoveToDialog.vue";
+import { moveDialogVisible, moveItemType, moveItemId, currentFolderId, handleMoveToFolder, closeMoveDialog } from "@/views/User/Main/components/Sidebar/RightMenu/Service/onRightNFMove";
+
 </script>
 
 <template>
@@ -183,6 +187,17 @@ onMounted(async () => {
 
   <!--  用户个人信息初始化  动态框-->
   <UserProfileInit v-model="InfoInitializedVisible"/>
+
+  <!-- 移动对话框组件 -->
+  <MoveToDialog
+    :visible="moveDialogVisible"
+    :type="moveItemType"
+    :itemId="moveItemId"
+    :currentFolderId="currentFolderId"
+    @select="handleMoveToFolder"
+    @close="closeMoveDialog"
+    @cancel="closeMoveDialog"
+  />
 
 </template>
 

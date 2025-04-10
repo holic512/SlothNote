@@ -148,4 +148,78 @@ public class PostNoteTreeController {
                     .build());
         }
     }
+
+    // 移动笔记
+    @PostMapping("/moveNote")
+    public ResponseEntity<Object> moveNote(@RequestBody Map<String, String> requestBody) {
+        // 获取前端传来的笔记ID和目标文件夹ID
+        String noteIdStr = requestBody.get("NoteId");
+        String targetFolderIdStr = requestBody.get("TargetFolderId");
+
+        // 验证参数是否为null或空
+        if (noteIdStr == null || noteIdStr.trim().isEmpty()) {
+            return ResponseEntity.badRequest().body("NoteId cannot be null or empty");
+        }
+        if (targetFolderIdStr == null || targetFolderIdStr.trim().isEmpty()) {
+            return ResponseEntity.badRequest().body("TargetFolderId cannot be null or empty");
+        }
+
+        Long noteId = Long.parseLong(noteIdStr);
+        Long targetFolderId = Long.parseLong(targetFolderIdStr);
+
+        // 获取user id
+        long userId = (long) StpKit.USER.getSession().get("id");
+
+        // 执行服务层的移动笔记方法
+        boolean success = pNoteTreeService.moveNote(noteId, targetFolderId, userId);
+
+        if (success) {
+            return ResponseEntity.ok(new ApiResponse.Builder<>()
+                    .status(200)
+                    .message("移动笔记成功")
+                    .build());
+        } else {
+            return ResponseEntity.badRequest().body(new ApiResponse.Builder<>()
+                    .status(400)
+                    .message("移动笔记失败")
+                    .build());
+        }
+    }
+
+    // 移动文件夹
+    @PostMapping("/moveFolder")
+    public ResponseEntity<Object> moveFolder(@RequestBody Map<String, String> requestBody) {
+        // 获取前端传来的文件夹ID和目标文件夹ID
+        String folderIdStr = requestBody.get("FolderId");
+        String targetFolderIdStr = requestBody.get("TargetFolderId");
+
+        // 验证参数是否为null或空
+        if (folderIdStr == null || folderIdStr.trim().isEmpty()) {
+            return ResponseEntity.badRequest().body("FolderId cannot be null or empty");
+        }
+        if (targetFolderIdStr == null || targetFolderIdStr.trim().isEmpty()) {
+            return ResponseEntity.badRequest().body("TargetFolderId cannot be null or empty");
+        }
+
+        Long folderId = Long.parseLong(folderIdStr);
+        Long targetFolderId = Long.parseLong(targetFolderIdStr);
+
+        // 获取user id
+        long userId = (long) StpKit.USER.getSession().get("id");
+
+        // 执行服务层的移动文件夹方法
+        boolean success = pNoteTreeService.moveFolder(folderId, targetFolderId, userId);
+
+        if (success) {
+            return ResponseEntity.ok(new ApiResponse.Builder<>()
+                    .status(200)
+                    .message("移动文件夹成功")
+                    .build());
+        } else {
+            return ResponseEntity.badRequest().body(new ApiResponse.Builder<>()
+                    .status(400)
+                    .message("移动文件夹失败")
+                    .build());
+        }
+    }
 }

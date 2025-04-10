@@ -103,7 +103,7 @@ const RightId = useRightSelectNodeId();
 // 节点 被右键点击的时候 触发
 const handleNodeRightClick = async (event: MouseEvent, data: Tree, node: Node) => {
   // 判断右键的是笔记还是文件夹
-  if (data.type == "NOTE") {
+  if (data.type === "NOTE") {
     // 启用右键菜单
     NodeMenuOption.value.show = true;
     // 设置右键菜单位置为鼠标点击的位置
@@ -112,7 +112,7 @@ const handleNodeRightClick = async (event: MouseEvent, data: Tree, node: Node) =
 
     // 存储 笔记 父 文件夹 的 Id
     RightId.SetSelectNodeId(await getFolderIdByNoteId(data));
-  } else {
+  } else if (data.type === "FOLDER") {
     // 启用右键菜单s
     FolderMenuOption.value.show = true;
     // 设置右键菜单位置为鼠标点击的位置
@@ -204,28 +204,25 @@ const handleNodeCollapse = (data) => {
             class="el-tree"
             :props="props"
             :data="NoteTreeData"
-
             :default-expanded-keys="expandedKey"
             node-key="uniqueId"
-
             @node-click="handleNodeClick"
             @node-contextmenu="handleNodeRightClick"
             @node-expand="handleNodeExpand"
             @node-collapse="handleNodeCollapse"
         >
-
           <template #default="{node,data}">
             <div class="NoteTree"
                  style="display: flex; justify-content: space-between; align-items: center;width: 100%">
               <div style="display: flex; justify-content: left; align-items: center;width: 100%;">
                 <!--  判断是否使用自定义图标 -->
-                <div v-if="data.avatar == null||data.avatar == '' " style="margin: 6px 2px 0 2px">
-                  <div v-if='data.type == "NOTE" '>
+                <div v-if="!data.avatar || data.avatar === ''" style="margin: 6px 2px 0 2px">
+                  <div v-if="data.type === 'NOTE'">
                     <el-icon size="16">
                       <Notebook/>
                     </el-icon>
                   </div>
-                  <div v-else-if='data.type == "FOLDER" '>
+                  <div v-else-if="data.type === 'FOLDER'">
                     <el-icon size="16">
                       <Folder/>
                     </el-icon>
@@ -236,17 +233,14 @@ const handleNodeCollapse = (data) => {
                   {{ data.avatar }}
                 </div>
 
-
                 <el-text style="margin-left: 4px;">
-                  {{ (data.label == null || data.label == '') ? "新建文档" : data.label }}
+                  {{ (data.label == null || data.label == '') ? (data.type == 'FOLDER' ? "新建文件夹" : "新建文档") : data.label }}
                 </el-text>
               </div>
 
               <div class="NoteTreeButton">
                 <Button class="sidebar-button" text icon="pi pi-ellipsis-h" size="small" severity="secondary"/>
               </div>
-
-
             </div>
           </template>
         </el-tree>

@@ -4,6 +4,7 @@ import {ContextMenu, ContextMenuGroup, ContextMenuItem, ContextMenuSeparator} fr
 import {onRightNFAddNote} from "@/views/User/Main/components/Sidebar/RightMenu/Service/onRightNFAddNote";
 import {onRightNFAddFolder} from "@/views/User/Main/components/Sidebar/RightMenu/Service/onRightNFAddFolder";
 import {onRightNFDeleteFolder} from "@/views/User/Main/components/Sidebar/RightMenu/Service/onRightNFDelete";
+import {onRightNFMoveFolder} from "@/views/User/Main/components/Sidebar/RightMenu/Service/onRightNFMove";
 import {useRenameData} from "@/views/User/Main/components/Sidebar/Pinia/RenameData";
 import {useDetailsState} from "@/views/User/Main/components/Sidebar/Pinia/DetailsState";
 import {useDescriptionState} from "@/views/User/Main/components/Sidebar/Pinia/DescriptionState";
@@ -40,7 +41,7 @@ const DescriptionState = useDescriptionState();
 
     <context-menu-item label="重命名" @click="IsRename.IsRename()"/>
     <context-menu-item label="编辑简介" @click="DescriptionState.IsDescription"/>
-    <context-menu-item label="移动至"/>
+    <context-menu-item label="移动至" @click="onRightNFMoveFolder()"/>
     <context-menu-item label="复制到"/>
 
     <context-menu-separator/>
