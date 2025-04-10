@@ -85,4 +85,67 @@ public class PostNoteTreeController {
                 .build());
     }
 
+    // 删除笔记（假删除）
+    @PostMapping("/deleteNote")
+    public ResponseEntity<Object> deleteNote(@RequestBody Map<String, String> requestBody) {
+        // 获取前端传来的笔记ID
+        String noteIdStr = requestBody.get("NoteId");
+
+        // 验证笔记ID是否为null或空
+        if (noteIdStr == null || noteIdStr.trim().isEmpty()) {
+            return ResponseEntity.badRequest().body("NoteId cannot be null or empty");
+        }
+
+        Long noteId = Long.parseLong(noteIdStr);
+
+        // 获取user id
+        long userId = (long) StpKit.USER.getSession().get("id");
+
+        // 执行服务层的删除笔记方法（伪删除）
+        boolean success = pNoteTreeService.deleteNote(noteId, userId);
+
+        if (success) {
+            return ResponseEntity.ok(new ApiResponse.Builder<>()
+                    .status(200)
+                    .message("删除笔记成功")
+                    .build());
+        } else {
+            return ResponseEntity.badRequest().body(new ApiResponse.Builder<>()
+                    .status(400)
+                    .message("删除笔记失败")
+                    .build());
+        }
+    }
+
+    // 删除文件夹（假删除）
+    @PostMapping("/deleteFolder")
+    public ResponseEntity<Object> deleteFolder(@RequestBody Map<String, String> requestBody) {
+        // 获取前端传来的文件夹ID
+        String folderIdStr = requestBody.get("FolderId");
+
+        // 验证文件夹ID是否为null或空
+        if (folderIdStr == null || folderIdStr.trim().isEmpty()) {
+            return ResponseEntity.badRequest().body("FolderId cannot be null or empty");
+        }
+
+        Long folderId = Long.parseLong(folderIdStr);
+
+        // 获取user id
+        long userId = (long) StpKit.USER.getSession().get("id");
+
+        // 执行服务层的删除文件夹方法（伪删除）
+        boolean success = pNoteTreeService.deleteFolder(folderId, userId);
+
+        if (success) {
+            return ResponseEntity.ok(new ApiResponse.Builder<>()
+                    .status(200)
+                    .message("删除文件夹成功")
+                    .build());
+        } else {
+            return ResponseEntity.badRequest().body(new ApiResponse.Builder<>()
+                    .status(400)
+                    .message("删除文件夹失败")
+                    .build());
+        }
+    }
 }

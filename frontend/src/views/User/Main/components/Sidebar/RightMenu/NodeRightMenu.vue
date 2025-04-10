@@ -3,6 +3,7 @@
 import {ContextMenu, ContextMenuGroup, ContextMenuItem, ContextMenuSeparator} from "@imengyu/vue3-context-menu";
 import {onRightNFAddNote} from "@/views/User/Main/components/Sidebar/RightMenu/Service/onRightNFAddNote";
 import {onRightNFAddFolder} from "@/views/User/Main/components/Sidebar/RightMenu/Service/onRightNFAddFolder";
+import {onRightNFDeleteNote} from "@/views/User/Main/components/Sidebar/RightMenu/Service/onRightNFDelete";
 import {useRenameData} from "@/views/User/Main/components/Sidebar/Pinia/RenameData";
 import {useDetailsState} from "@/views/User/Main/components/Sidebar/Pinia/DetailsState";
 import {useDescriptionState} from "@/views/User/Main/components/Sidebar/Pinia/DescriptionState";
@@ -33,7 +34,7 @@ const DescriptionState = useDescriptionState();
 
     <context-menu-separator/>
 
-    <context-menu-item label="删除"/>
+    <context-menu-item label="删除" @click="onRightNFDeleteNote()"/>
 
     <context-menu-separator/>
 

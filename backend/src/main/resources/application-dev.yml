@@ -37,6 +37,11 @@ spring:
     username: guest
     password: guest
 
+xfyun:
+  spark:
+    api-key: ajzyauyyoqVTxpYznyTB:edjXfunfXVrpUbRCliVS
+    api-url: https://spark-api-open.xf-yun.com/v1/chat/completions
+    model: generalv3.5
 
 
 

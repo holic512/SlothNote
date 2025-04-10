@@ -6,7 +6,8 @@ export const useSaveNoteState = defineStore('SaveNoteState', {
     // Define state variables
     state() {
         return {
-            isSaved: ref(true) as Ref<boolean>,                   // Whether content is saved
+            isSaved: ref(true) as Ref<boolean>,
+            // Whether content is saved
         }
     },
 

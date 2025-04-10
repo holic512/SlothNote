@@ -142,6 +142,9 @@ export function createEditorInstance() {
         if ((event.ctrlKey || event.metaKey) && event.key === 's') {
             event.preventDefault();  // 阻止默认保存行为
 
+            // 检测笔记状态
+            const SaveNoteState = useSaveNoteState();
+            if (SaveNoteState.isSaved == true) return
             // 调用保存
             SaveNote(<Editor>editor.value).then(r => {
             })
