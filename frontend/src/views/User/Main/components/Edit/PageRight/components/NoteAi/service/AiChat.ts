@@ -14,6 +14,21 @@ export const useAiChatStore = defineStore('aiChat', () => {
     const loading = ref(false);
     const currentMessageId = ref<string | null>(null);
     const abortController = ref<AbortController | null>(null);
+    const selectedText = ref<string>(''); // 存储从编辑器选中的文本
+
+    /**
+     * 设置选中的文本
+     */
+    const setSelectedText = (text: string) => {
+        selectedText.value = text;
+    };
+
+    /**
+     * 获取选中的文本
+     */
+    const getSelectedText = () => {
+        return selectedText.value;
+    };
 
     /**
      * 添加用户消息
@@ -58,14 +73,285 @@ export const useAiChatStore = defineStore('aiChat', () => {
     };
 
     /**
+     * 发送解释请求
+     */
+    const explainText = async () => {
+        if (!selectedText.value) {
+            return;
+        }
+        
+        try {
+            loading.value = true;
+            // 添加用户消息
+            addUserMessage(`请解释以下文本：\n${selectedText.value}`);
+            // 先创建一个空的AI回复消息
+            addAssistantMessage('');
+
+            // 创建新的 AbortController
+            abortController.value = new AbortController();
+
+            const response = await fetch('http://localhost:8080/user/ai/chat', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    text: `请解释以下文本：\n${selectedText.value}`,
+                    user: '123456' // 替换为实际的用户ID
+                }),
+                signal: abortController.value.signal
+            });
+
+            if (!response.ok) {
+                throw new Error(`HTTP error! status: ${response.status}`);
+            }
+
+            const reader = response.body?.getReader();
+            if (!reader) {
+                throw new Error('无法获取响应流');
+            }
+
+            // 用于累积完整内容
+            let fullContent = '';
+            const decoder = new TextDecoder();
+
+            // 读取流
+            while (true) {
+                const { done, value } = await reader.read();
+                if (done) break;
+
+                // 解码新收到的数据
+                const chunk = decoder.decode(value, { stream: true });
+                
+                // 分割并处理每一行
+                const lines = chunk.split('\n');
+                
+                for (const line of lines) {
+                    if (line.startsWith('data:')) {
+                        try {
+                            const jsonData = line.slice(5).trim();
+                            if (jsonData && jsonData !== '[DONE]') {
+                                const data = JSON.parse(jsonData);
+                                
+                                // 处理从后端接收的数据
+                                if (data.role === 'assistant' && data.content) {
+                                    // 这是带有角色信息的响应
+                                    fullContent += data.content;
+                                    updateAssistantMessage(fullContent);
+                                } else if (data.choices && data.choices[0] && data.choices[0].delta) {
+                                    // 处理原始的科大讯飞响应格式
+                                    const deltaContent = data.choices[0].delta.content || '';
+                                    fullContent += deltaContent;
+                                    updateAssistantMessage(fullContent);
+                                }
+                            }
+                        } catch (e) {
+                            console.error('处理响应数据失败:', e, line);
+                        }
+                    }
+                }
+            }
+            
+        } catch (error) {
+            console.error('解释请求出错:', error);
+            updateAssistantMessage('解释请求处理出错，请重试。');
+        } finally {
+            loading.value = false;
+            abortController.value = null;
+        }
+    };
+
+    /**
+     * 发送润色请求
+     */
+    const polishText = async () => {
+        if (!selectedText.value) {
+            return;
+        }
+        
+        try {
+            loading.value = true;
+            // 添加用户消息
+            addUserMessage(`请润色以下文本：\n${selectedText.value}`);
+            // 先创建一个空的AI回复消息
+            addAssistantMessage('');
+
+            // 创建新的 AbortController
+            abortController.value = new AbortController();
+
+            const response = await fetch('http://localhost:8080/user/ai/chat', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    text: `请润色以下文本：\n${selectedText.value}`,
+                    user: '123456' // 替换为实际的用户ID
+                }),
+                signal: abortController.value.signal
+            });
+
+            if (!response.ok) {
+                throw new Error(`HTTP error! status: ${response.status}`);
+            }
+
+            const reader = response.body?.getReader();
+            if (!reader) {
+                throw new Error('无法获取响应流');
+            }
+
+            // 用于累积完整内容
+            let fullContent = '';
+            const decoder = new TextDecoder();
+
+            // 读取流
+            while (true) {
+                const { done, value } = await reader.read();
+                if (done) break;
+
+                // 解码新收到的数据
+                const chunk = decoder.decode(value, { stream: true });
+                
+                // 分割并处理每一行
+                const lines = chunk.split('\n');
+                
+                for (const line of lines) {
+                    if (line.startsWith('data:')) {
+                        try {
+                            const jsonData = line.slice(5).trim();
+                            if (jsonData && jsonData !== '[DONE]') {
+                                const data = JSON.parse(jsonData);
+                                
+                                // 处理从后端接收的数据
+                                if (data.role === 'assistant' && data.content) {
+                                    // 这是带有角色信息的响应
+                                    fullContent += data.content;
+                                    updateAssistantMessage(fullContent);
+                                } else if (data.choices && data.choices[0] && data.choices[0].delta) {
+                                    // 处理原始的科大讯飞响应格式
+                                    const deltaContent = data.choices[0].delta.content || '';
+                                    fullContent += deltaContent;
+                                    updateAssistantMessage(fullContent);
+                                }
+                            }
+                        } catch (e) {
+                            console.error('处理响应数据失败:', e, line);
+                        }
+                    }
+                }
+            }
+            
+        } catch (error) {
+            console.error('润色请求出错:', error);
+            updateAssistantMessage('润色请求处理出错，请重试。');
+        } finally {
+            loading.value = false;
+            abortController.value = null;
+        }
+    };
+
+    /**
+     * 发送生成简介请求
+     */
+    const generateSummary = async () => {
+        if (!selectedText.value) {
+            return;
+        }
+        
+        try {
+            loading.value = true;
+            // 添加用户消息
+            addUserMessage(`请为以下文本生成简介：\n${selectedText.value}`);
+            // 先创建一个空的AI回复消息
+            addAssistantMessage('');
+
+            // 创建新的 AbortController
+            abortController.value = new AbortController();
+
+            const response = await fetch('http://localhost:8080/user/ai/chat', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    text: `请用简洁的语言为以下文本生成一段不超过200字的简介，概括其主要内容：\n${selectedText.value}`,
+                    user: '123456' // 替换为实际的用户ID
+                }),
+                signal: abortController.value.signal
+            });
+
+            if (!response.ok) {
+                throw new Error(`HTTP error! status: ${response.status}`);
+            }
+
+            const reader = response.body?.getReader();
+            if (!reader) {
+                throw new Error('无法获取响应流');
+            }
+
+            // 用于累积完整内容
+            let fullContent = '';
+            const decoder = new TextDecoder();
+
+            // 读取流
+            while (true) {
+                const { done, value } = await reader.read();
+                if (done) break;
+
+                // 解码新收到的数据
+                const chunk = decoder.decode(value, { stream: true });
+                
+                // 分割并处理每一行
+                const lines = chunk.split('\n');
+                
+                for (const line of lines) {
+                    if (line.startsWith('data:')) {
+                        try {
+                            const jsonData = line.slice(5).trim();
+                            if (jsonData && jsonData !== '[DONE]') {
+                                const data = JSON.parse(jsonData);
+                                
+                                // 处理从后端接收的数据
+                                if (data.role === 'assistant' && data.content) {
+                                    // 这是带有角色信息的响应
+                                    fullContent += data.content;
+                                    updateAssistantMessage(fullContent);
+                                } else if (data.choices && data.choices[0] && data.choices[0].delta) {
+                                    // 处理原始的科大讯飞响应格式
+                                    const deltaContent = data.choices[0].delta.content || '';
+                                    fullContent += deltaContent;
+                                    updateAssistantMessage(fullContent);
+                                }
+                            }
+                        } catch (e) {
+                            console.error('处理响应数据失败:', e, line);
+                        }
+                    }
+                }
+            }
+            
+        } catch (error) {
+            console.error('生成简介请求出错:', error);
+            updateAssistantMessage('生成简介请求处理出错，请重试。');
+        } finally {
+            loading.value = false;
+            abortController.value = null;
+        }
+    };
+
+    /**
      * 发送消息到AI
      */
     const sendMessage = async (content: string) => {
         try {
             loading.value = true;
-            addUserMessage(content);
-            // 先创建一个空的AI回复消息
-            addAssistantMessage('');
+            
+            // 如果没有用户消息，则添加
+            if (!messages.value.length || messages.value[messages.value.length - 1].role !== 'user') {
+                addUserMessage(content);
+                // 先创建一个空的AI回复消息
+                addAssistantMessage('');
+            }
 
             // 创建新的 AbortController
             abortController.value = new AbortController();
@@ -172,12 +458,19 @@ export const useAiChatStore = defineStore('aiChat', () => {
     const clearMessages = () => {
         messages.value = [];
         currentMessageId.value = null;
+        selectedText.value = ''; // 清空选中的文本
     };
 
     return {
         messages,
         loading,
+        selectedText,
+        setSelectedText,
+        getSelectedText,
         sendMessage,
+        explainText,
+        polishText,
+        generateSummary,
         stopChat,
         clearMessages
     };

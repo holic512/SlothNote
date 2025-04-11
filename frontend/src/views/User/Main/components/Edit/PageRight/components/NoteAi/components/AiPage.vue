@@ -1,25 +1,90 @@
 <script setup lang="ts">
 import { useAiChatStore } from '@/views/User/Main/components/Edit/PageRight/components/NoteAi/service/AiChat'
 import { computed, ref, watch, nextTick, onMounted, inject } from 'vue'
-import { CircleCheck, Loading, Plus, Delete, Position, ChatLineSquare, MagicStick } from '@element-plus/icons-vue'
+import { CircleCheck, Loading, Plus, Delete, Position, ChatLineSquare, MagicStick, Edit, Document, ArrowRight, VideoPause, InfoFilled } from '@element-plus/icons-vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
+import MarkdownIt from 'markdown-it'
+import SaveSummaryButton from './SaveSummaryButton.vue'
+import { useCurrentNoteInfoStore } from "@/views/User/Main/components/Edit/Pinia/currentNoteInfo";
+
+// 初始化markdown-it解析器
+const md = new MarkdownIt({
+  breaks: true,       // 将\n转换为<br>
+  html: true,         // 允许HTML标签
+  linkify: true,      // 自动将URL转换为链接
+  typographer: true   // 启用一些语言中性的替换 + 引号美化
+})
 
 const aiChat = useAiChatStore()
 const scrollbarRef = ref()
 const inputRef = ref()
-const inputText = ref('');
+const inputText = ref('')
+const selectedAction = ref(null)
+const isLoading = ref(false)
+const hasSelectedText = computed(() => !!aiChat.getSelectedText())
+
+// 添加计算属性获取当前选中功能的显示文本
+const selectedActionText = computed(() => {
+  switch (selectedAction.value) {
+    case 'explain':
+      return '解释'
+    case 'polish':
+      return '润色'
+    case 'summary':
+      return '生成简介'
+    default:
+      return 'AI功能'
+  }
+})
+
+// 添加计算属性，截取选中文本前15个字符，超出部分用省略号表示
+const truncatedSelectedText = computed(() => {
+  const text = aiChat.getSelectedText();
+  // 计算字符数，中文和全角字符算1个，英文和半角字符算0.5个
+  let count = 0;
+  let index = 0;
+  
+  while (count < 10 && index < text.length) {
+    // 使用Unicode范围判断是否为中文或全角字符
+    const charCode = text.charCodeAt(index);
+    // 如果是中文或其他全角字符
+    if (charCode >= 0x4E00 && charCode <= 0x9FFF || charCode >= 0xFF00 && charCode <= 0xFFEF) {
+      count += 1;
+    } else {
+      count += 0.5;
+    }
+    index++;
+  }
+  
+  if (index >= text.length) return text;
+  return text.substring(0, index) + '...';
+});
+
+// 控制选中文本弹窗的显示
+const selectedTextPopoverVisible = ref(false)
 
 const isEmpty = computed(() => aiChat.messages.length === 0)
-const isLoading = computed(() => aiChat.loading)
 
 // 判断是否为开发环境
 const isDev = computed(() => {
-  // 可以通过其他方式判断，或者设为 false
-  // 如果你的项目中有定义环境变量，可以使用 import.meta.env.DEV
-  return false; // 生产环境下不显示调试信息
+  return false;
 })
 
 const editor = defineModel()
+
+// 获取当前笔记信息
+const currentNoteInfo = useCurrentNoteInfoStore();
+
+// 判断消息是否为简介消息
+const isSummaryMessage = (message) => {
+  if (message.role !== 'assistant') return false;
+  // 从消息历史判断是否为简介请求
+  const index = aiChat.messages.findIndex(m => m.id === message.id);
+  if (index > 0 && aiChat.messages[index-1].role === 'user') {
+    return aiChat.messages[index-1].content.includes('请为以下文本生成简介');
+  }
+  return false;
+};
 
 // --- Header Logic ---
 const handleClear = () => {
@@ -39,10 +104,41 @@ const handleClear = () => {
 
 // --- Input Logic ---
 const handleSend = () => {
-  if (inputText.value.trim() && !isLoading.value) {
-    aiChat.sendMessage(inputText.value);
-    inputText.value = '';
+  if (isLoading.value) {
+    return;
   }
+
+  // 获取选中文本
+  const selectedText = aiChat.getSelectedText();
+  console.log("选中文本检查:", selectedText);
+
+  if (selectedAction.value === 'explain') {
+    aiChat.explainText();
+  } else if (selectedAction.value === 'polish') {
+    aiChat.polishText();
+  } else if (selectedAction.value === 'summary') {
+    aiChat.generateSummary();
+  } else if (inputText.value.trim()) {
+    // 如果有输入内容
+    if (selectedText) {
+      // 有选中文本，将用户问题和选中文本一起发送
+      console.log("发送选中文本:", selectedText);
+      
+      // 构建消息：用户问题 + 选中文本
+      const message = `${inputText.value.trim()}\n\n选中文本：\n${selectedText}`;
+      console.log("发送的完整消息:", message);
+      
+      // 直接发送消息到AI，不要手动添加用户消息（这会导致冲突）
+      aiChat.sendMessage(message);
+    } else {
+      // 没有选中文本，只发送输入框内容
+      aiChat.sendMessage(inputText.value);
+    }
+  }
+  
+  // 发送后清空输入框
+  inputText.value = '';
+  selectedAction.value = null;
 };
 
 const handleStop = () => {
@@ -50,19 +146,16 @@ const handleStop = () => {
 };
 
 const handleKeydown = (e: KeyboardEvent) => {
-  // 按下回车键但没有按下 Ctrl 或 Meta 键时发送消息
   if (e.key === 'Enter' && !e.ctrlKey && !e.metaKey && !e.shiftKey) {
-    e.preventDefault(); // 阻止默认的换行行为
+    e.preventDefault();
     handleSend();
   }
-  // Ctrl+Enter 或 Shift+Enter 允许换行
-  // 不阻止默认行为，自动插入换行符
 };
 
 const adjustHeight = (el: HTMLTextAreaElement) => {
   if (el) {
     el.style.height = 'auto';
-    el.style.height = Math.min(el.scrollHeight, 120) + 'px'; // 限制最大高度
+    el.style.height = Math.min(el.scrollHeight, 120) + 'px';
   }
 };
 
@@ -79,10 +172,54 @@ const scrollToBottom = () => {
   }
 }
 
+// 修改插入文本的方法，支持Markdown
 const insertText = (content: string) => {
   if (editor) {
-    editor.value.commands.insertContent(content)
-    ElMessage.success('文本已插入到笔记中')
+    try {
+      console.log("原始内容:", content);
+      
+      // 尝试直接使用编辑器命令处理Markdown
+      let processedContent = content;
+      
+      // 逐行处理内容，确保标题能被正确识别
+      const lines = processedContent.split('\n');
+      const processedLines = lines.map(line => {
+        // 处理标题 (# ## ### #### ##### #####)
+        const headingMatch = line.match(/^(#{1,6})\s+(.+)$/);
+        if (headingMatch) {
+          const level = headingMatch[1].length;
+          const text = headingMatch[2];
+          console.log(`检测到标题: 级别=${level}, 文本=${text}`);
+          return `<h${level}>${text}</h${level}>`;
+        }
+        return line;
+      });
+      
+      processedContent = processedLines.join('\n');
+      
+      // 处理代码块
+      processedContent = processedContent.replace(/```([\s\S]*?)```/g, '<pre><code>$1</code></pre>');
+      
+      // 处理列表
+      processedContent = processedContent.replace(/^\s*-\s+(.+)$/gm, '<ul><li>$1</li></ul>');
+      processedContent = processedContent.replace(/^\s*\d+\.\s+(.+)$/gm, '<ol><li>$1</li></ol>');
+      
+      // 处理粗体
+      processedContent = processedContent.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
+      
+      // 处理斜体
+      processedContent = processedContent.replace(/\*(.*?)\*/g, '<em>$1</em>');
+      
+      console.log("处理后内容:", processedContent);
+      
+      // 使用editor的insertContent插入HTML内容
+      editor.value.commands.insertContent(processedContent);
+      ElMessage.success('Markdown文本已插入到笔记中');
+    } catch (error) {
+      console.error('Markdown转换失败，使用纯文本插入', error);
+      editor.value.commands.insertContent(content);
+      ElMessage.success('文本已插入到笔记中');
+    }
   }
 }
 
@@ -94,13 +231,55 @@ watch(() => aiChat.messages[aiChat.messages.length - 1]?.content, () => {
   scrollToBottom()
 })
 
+// 监听选中文本的变化
+watch(() => aiChat.getSelectedText(), (newText) => {
+  if (newText) {
+    // 不再自动填充到输入框
+    // inputText.value = newText;
+  }
+}, { immediate: true });
+
+// 监听aiChat的loading状态
+watch(() => aiChat.loading, (newLoadingStatus) => {
+  isLoading.value = newLoadingStatus;
+  console.log('AI加载状态变化:', isLoading.value);
+});
+
 onMounted(() => {
+  // 初始化isLoading状态
+  isLoading.value = aiChat.loading;
+  
   scrollToBottom()
-  // Adjust height on mount if needed
   if (inputRef.value) {
     adjustHeight(inputRef.value.$el.querySelector('textarea'))
   }
 })
+
+// --- 功能按钮逻辑 ---
+const handleExplain = () => {
+  if (!hasSelectedText.value) {
+    ElMessage.warning('请先选中需要解释的文本')
+    return
+  }
+  selectedAction.value = selectedAction.value === 'explain' ? null : 'explain';
+}
+
+const handlePolish = () => {
+  if (!hasSelectedText.value) {
+    ElMessage.warning('请先选中需要润色的文本')
+    return
+  }
+  selectedAction.value = selectedAction.value === 'polish' ? null : 'polish';
+}
+
+// 新增的生成简介处理函数
+const handleSummary = () => {
+  if (!hasSelectedText.value) {
+    ElMessage.warning('请先选中需要生成简介的文本')
+    return
+  }
+  selectedAction.value = selectedAction.value === 'summary' ? null : 'summary';
+}
 </script>
 
 <template>
@@ -115,7 +294,7 @@ onMounted(() => {
             text
             class="clear-button"
             @click="handleClear"
-            :disabled="aiChat.loading"
+            :disabled="isLoading"
         >
           <el-icon>
             <Delete />
@@ -146,7 +325,13 @@ onMounted(() => {
                 <el-icon><Plus /></el-icon>
               </div>
             </template>
-            <div class="text">{{ message.content }}</div>
+            <div class="text" v-if="message.role === 'user'">{{ message.content }}</div>
+            <div class="text markdown-content" v-else v-html="md.render(message.content)"></div>
+            
+            <!-- 如果是生成简介的回复，显示保存简介按钮 -->
+            <div v-if="isSummaryMessage(message)" class="summary-actions">
+              <SaveSummaryButton :summary="message.content" />
+            </div>
           </div>
         </div>
       </div>
@@ -163,48 +348,142 @@ onMounted(() => {
     <div class="ai-input-wrapper">
       <div class="ai-input-container">
         <div class="input-area">
-          <el-input
-              ref="inputRef"
-              v-model="inputText"
-              type="textarea"
-              :rows="1"
-              :autosize="{ minRows: 1, maxRows: 5 }"
-              placeholder="回车发送消息，Ctrl+Enter 换行"
-              resize="none"
-              :disabled="isLoading"
-              @keydown="handleKeydown"
-              @input="() => adjustHeight(inputRef?.value?.$el?.querySelector('textarea'))"
+          <!-- 选中文本标签 - 点击显示弹出框 -->
+          <el-tooltip
+            v-if="hasSelectedText"
+            :content="aiChat.getSelectedText()"
+            placement="top"
+            :show-after="500"
+            :hide-after="0"
+            :max-width="300"
           >
-            <template #prefix>
-              <el-icon><ChatLineSquare /></el-icon>
-            </template>
-          </el-input>
-        </div>
-        <div class="button-group">
-          <el-button
-              v-if="!isLoading"
-              type="primary"
-              :disabled="!inputText.trim()"
-              @click="handleSend"
-              class="send-button"
-          >
-            <el-icon><Position /></el-icon>
-          </el-button>
-          <el-button
-              v-else
-              type="danger"
-              @click="handleStop"
-              class="send-button"
-          >
-            <el-icon><Loading class="loading-icon" /></el-icon>
-          </el-button>
+            <el-popover
+              trigger="click"
+              placement="top"
+              :width="220"
+              popper-class="text-popover"
+            >
+              <template #reference>
+                <div class="selected-text-container">
+                  <div class="selected-text-label">已选: {{ truncatedSelectedText }}</div>
+                  <el-icon><ArrowRight /></el-icon>
+                </div>
+              </template>
+              <div class="selected-text-popover-wrapper">
+                <div class="selected-text-popover-content">
+                  {{ aiChat.getSelectedText() }}
+                </div>
+                <div class="selected-text-popover-footer">
+                  <el-button 
+                    size="small" 
+                    type="danger" 
+                    @click="() => { aiChat.setSelectedText(''); }"
+                    class="cancel-selection-button"
+                  >
+                    取消选择
+                  </el-button>
+                </div>
+              </div>
+            </el-popover>
+          </el-tooltip>
+          
+          <!-- 重新设计输入区域布局 -->
+          <div class="input-container">
+            <!-- 纯文本输入区域 -->
+            <div class="text-input-wrapper">
+              <el-input
+                  ref="inputRef"
+                  v-model="inputText"
+                  type="textarea"
+                  :rows="1"
+                  :autosize="{ minRows: 1, maxRows: 5 }"
+                  :placeholder="selectedAction ? '点击发送按钮开始处理' : '回车发送消息，Ctrl+Enter 换行'"
+                  resize="none"
+                  :disabled="isLoading"
+                  @keydown="handleKeydown"
+                  @input="() => adjustHeight(inputRef?.value?.$el?.querySelector('textarea'))"
+              >
+                <template #prefix>
+                  <el-icon><ChatLineSquare /></el-icon>
+                </template>
+              </el-input>
+            </div>
+            
+            <!-- 功能区容器 -->
+            <div class="action-buttons">
+              <!-- AI功能按钮 -->
+              <div class="left-buttons">
+                <el-dropdown v-if="hasSelectedText" trigger="click" placement="top">
+                  <div class="ai-function-button">
+                    <el-icon><MagicStick /></el-icon>
+                    <span>{{ selectedActionText }}</span>
+                  </div>
+                  <template #dropdown>
+                    <el-dropdown-menu>
+                      <el-dropdown-item
+                          :class="{ 'is-selected': selectedAction === 'explain' }"
+                          @click="handleExplain"
+                          :disabled="isLoading"
+                      >
+                        <el-icon><Document /></el-icon>
+                        <span>解释</span>
+                      </el-dropdown-item>
+                      <el-dropdown-item
+                          :class="{ 'is-selected': selectedAction === 'polish' }"
+                          @click="handlePolish"
+                          :disabled="isLoading"
+                      >
+                        <el-icon><Edit /></el-icon>
+                        <span>润色</span>
+                      </el-dropdown-item>
+                      <el-dropdown-item
+                          :class="{ 'is-selected': selectedAction === 'summary' }"
+                          @click="handleSummary"
+                          :disabled="isLoading"
+                      >
+                        <el-icon><InfoFilled /></el-icon>
+                        <span>生成简介</span>
+                      </el-dropdown-item>
+                    </el-dropdown-menu>
+                  </template>
+                </el-dropdown>
+              </div>
+              
+              <!-- 发送按钮 -->
+              <div class="right-buttons">
+                <el-button
+                    v-if="!isLoading"
+                    type="primary"
+                    :disabled="!inputText.trim() && !selectedAction"
+                    @click="handleSend"
+                    class="send-button"
+                >
+                  <el-icon><Position /></el-icon>
+                </el-button>
+                <el-tooltip
+                    v-else
+                    content="点击停止AI回复"
+                    placement="top"
+                    :show-after="300"
+                >
+                  <el-button
+                      type="danger"
+                      @click="handleStop"
+                      class="send-button stop-button"
+                  >
+                    <el-icon><VideoPause /></el-icon>
+                  </el-button>
+                </el-tooltip>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
     </div>
   </div>
 </template>
 
-<style scoped>
+<style scoped lang="scss">
 /* Container */
 .ai-page-container {
   display: flex;
@@ -217,11 +496,11 @@ onMounted(() => {
 .ai-header {
   position: relative;
   z-index: 2;
-  height: 48px; /* 调整高度 */
+  height: 48px;
   border-bottom: 1px solid var(--el-border-color-lighter);
   background-color: #ffffff;
-  flex-shrink: 0; /* 防止 Header 被压缩 */
-  padding: 0 16px; /* 直接在 Header 上加 padding */
+  flex-shrink: 0;
+  padding: 0 16px;
 }
 
 .header-content {
@@ -270,8 +549,8 @@ onMounted(() => {
 
 /* Chat Container Styles */
 .chat-container {
-  flex: 1; /* 占据剩余空间 */
-  padding: 16px;
+  flex: 1;
+  padding: 12px 14px; /* 减小容器内边距 */
   background-color: #ffffff;
   overflow-y: auto;
 }
@@ -279,14 +558,14 @@ onMounted(() => {
 .messages-container {
   display: flex;
   flex-direction: column;
-  gap: 12px;
-  padding-bottom: 16px;
+  gap: 5px; /* 进一步减小消息之间的间距 */
+  padding-bottom: 12px; /* 减小底部内边距 */
 }
 
 .message {
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 1px;
 }
 
 .message-time {
@@ -298,28 +577,26 @@ onMounted(() => {
 
 .message-content {
   max-width: 85%;
-  padding: 10px 14px;
+  padding: 6px 10px;
   border-radius: 8px;
   position: relative;
-  word-wrap: break-word; /* 自动换行 */
-  white-space: pre-wrap; /* 保留空白符和换行 */
+  word-wrap: break-word;
+  white-space: pre-line;
 }
 
-/* User message 用户消息样式 */
 .message.user .message-content {
   align-self: flex-end;
   background-color: var(--el-color-primary);
   color: white;
-  margin-left: auto; /* 靠右对齐 */
+  margin-left: auto;
   margin-right: 0;
 }
 
-/* Assistant message AI助手消息样式 */
 .message.assistant .message-content {
   align-self: flex-start;
   background-color: var(--el-fill-color-light);
   color: var(--el-text-color-primary);
-  margin-left: 0; /* 靠左对齐 */
+  margin-left: 0;
   margin-right: auto;
 }
 
@@ -364,13 +641,13 @@ onMounted(() => {
 }
 
 .text {
-  line-height: 1.5;
+  line-height: 1.3;
   font-size: 14px;
 }
 
 /* Empty State Styles */
 .empty-state {
-  flex: 1; /* 占据剩余空间 */
+  flex: 1;
   display: flex;
   flex-direction: column;
   justify-content: center;
@@ -389,13 +666,14 @@ onMounted(() => {
   background-color: #ffffff;
   padding: 12px 16px;
   border-top: 1px solid var(--el-border-color-lighter);
-  flex-shrink: 0; /* 防止 Input 被压缩 */
+  flex-shrink: 0;
 }
 
 .ai-input-container {
   display: flex;
   gap: 8px;
   align-items: flex-end;
+  margin-top: 12px;
 }
 
 .input-area {
@@ -403,68 +681,180 @@ onMounted(() => {
   background-color: var(--el-fill-color-light);
   border-radius: 6px;
   transition: all 0.2s ease;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
 }
 
+/* 移除输入区域focus-within的样式 */
 .input-area:focus-within {
   background-color: #ffffff;
-  box-shadow: 0 0 0 1px var(--el-color-primary-light-5);
+  /* 移除这里的box-shadow */
+  /* box-shadow: 0 0 0 1px var(--el-color-primary-light-5); */
 }
 
-:deep(.el-textarea__inner) {
-  padding: 8px 12px;
-  line-height: 1.5;
-  font-size: 14px;
-  border: 1px solid transparent; /* 默认透明边框 */
-  border-radius: 6px;
-  background-color: transparent;
-  resize: none;
-  transition: all 0.2s ease;
-  max-height: 120px; /* 限制最大高度 */
-  box-shadow: none; /* 移除默认阴影 */
-}
-
-:deep(.el-textarea__inner:focus) {
-  border-color: var(--el-color-primary); /* 聚焦时显示边框 */
-  box-shadow: none;
-}
-
-.button-group {
+/* 选中文本显示区域样式 */
+.selected-text-container {
   display: flex;
-  align-items: flex-end;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 8px;
+  background-color: var(--el-fill-color);
+  border-radius: 4px;
+  border: 1px solid var(--el-border-color-lighter);
+  margin: 0 12px;
+  margin-top: 8px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  width: fit-content; /* 使按钮宽度适应内容 */
+  max-width: 180px; /* 限制最大宽度 */
+
+  &:hover {
+    background-color: var(--el-fill-color-light);
+  }
 }
 
+.selected-text-label {
+  font-size: 12px;
+  color: var(--el-text-color-secondary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* 选中文本弹出框内容样式 */
+.selected-text-popover-wrapper {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.selected-text-popover-content {
+  max-height: 250px;
+  overflow-y: auto;
+  padding: 10px;
+  background-color: var(--el-fill-color-lighter);
+  border-radius: 4px;
+  white-space: pre-wrap;
+  line-height: 1.5;
+  font-size: 12px;
+  color: var(--el-text-color-primary);
+  word-break: break-all;
+  text-align: left;
+  overflow-x: hidden;
+}
+
+.selected-text-popover-footer {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.cancel-selection-button {
+  font-size: 12px;
+  padding: 4px 10px;
+}
+
+/* 重新设计的输入区域样式 */
+.input-container {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.text-input-wrapper {
+  width: 100%;
+}
+
+/* 重新设计按钮布局样式 */
+.action-buttons {
+  display: flex;
+  justify-content: space-between; /* 左右分开排列 */
+  align-items: center;
+  width: 100%;
+  padding: 0 5px 5px 0;
+}
+
+.left-buttons {
+  display: flex;
+  align-items: center;
+}
+
+.right-buttons {
+  display: flex;
+  align-items: center;
+}
+
+.ai-function-button {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 8px;
+  background-color: var(--el-color-primary-light-9);
+  color: var(--el-color-primary);
+  border-radius: 4px;
+  font-size: 12px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  white-space: nowrap;
+  
+  &:hover {
+    background-color: var(--el-color-primary-light-8);
+  }
+  
+  .el-icon {
+    font-size: 14px;
+  }
+}
+
+/* 发送按钮样式 */
 .send-button {
-  width: 36px;
-  height: 36px;
+  width: 32px;
+  height: 32px;
   padding: 0;
-  border-radius: 6px;
+  border-radius: 4px;
   display: flex;
   align-items: center;
   justify-content: center;
   transition: all 0.2s ease;
 }
 
-.send-button:not(:disabled):hover {
-  transform: translateY(-1px);
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+/* 停止按钮样式 */
+.stop-button {
+  animation: pulse 1.5s infinite;
 }
 
-.send-button .el-icon {
-  font-size: 18px;
+@keyframes pulse {
+  0% {
+    box-shadow: 0 0 0 0 rgba(var(--el-color-danger-rgb), 0.4);
+  }
+  70% {
+    box-shadow: 0 0 0 6px rgba(var(--el-color-danger-rgb), 0);
+  }
+  100% {
+    box-shadow: 0 0 0 0 rgba(var(--el-color-danger-rgb), 0);
+  }
 }
 
-.send-button:disabled {
-  opacity: 0.6;
-  cursor: not-allowed;
+/* 删除不再需要的样式 */
+.input-buttons,
+.ai-function-wrapper,
+.send-button-wrapper {
+  display: none;
 }
 
-.loading-icon {
-  animation: rotate 2s linear infinite;
-}
-
-@keyframes rotate {
-  from { transform: rotate(0deg); }
-  to { transform: rotate(360deg); }
+/* 输入框样式更新 */
+:deep(.el-textarea__inner) {
+  padding-right: 14px; /* 恢复正常内边距，因为按钮已经移到外部 */
+  line-height: 1.5;
+  font-size: 14px;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  background-color: transparent;
+  resize: none;
+  transition: all 0.2s ease;
+  max-height: 120px;
+  box-shadow: none;
 }
 
 /* Scrollbar Styles */
@@ -479,5 +869,146 @@ onMounted(() => {
 
 .chat-container::-webkit-scrollbar-track {
   background-color: transparent;
+}
+
+/* 自定义el-dropdown-item样式 */
+:deep(.el-dropdown-menu__item) {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  
+  &.is-selected {
+    color: var(--el-color-primary);
+    background-color: var(--el-color-primary-light-9);
+  }
+}
+
+/* Markdown内容样式 */
+.markdown-content {
+  :deep(h1) {
+    font-size: 1.4em;
+    margin-top: 0.2em;
+    margin-bottom: 0.2em;
+    font-weight: bold;
+    line-height: 1.3;
+  }
+  
+  :deep(h2) {
+    font-size: 1.25em;
+    margin-top: 0.2em;
+    margin-bottom: 0.2em;
+    font-weight: bold;
+    line-height: 1.3;
+  }
+  
+  :deep(h3) {
+    font-size: 1.15em;
+    margin-top: 0.2em;
+    margin-bottom: 0.2em;
+    font-weight: bold;
+    line-height: 1.3;
+  }
+  
+  :deep(h4, h5, h6) {
+    font-size: 1.05em;
+    margin-top: 0.2em;
+    margin-bottom: 0.2em;
+    font-weight: bold;
+    line-height: 1.3;
+  }
+  
+  :deep(p) {
+    margin-top: 0;
+    margin-bottom: 0.2em;
+    line-height: 1.3;
+  }
+  
+  :deep(ul, ol) {
+    padding-left: 1.2em;
+    margin-top: 0.1em;
+    margin-bottom: 0.2em;
+  }
+  
+  :deep(li) {
+    margin-bottom: 0;
+    line-height: 1.3;
+  }
+  
+  :deep(li > p) {
+    margin: 0;
+  }
+  
+  :deep(code) {
+    background-color: #f3f3f3;
+    padding: 0.1em 0.3em;
+    border-radius: 3px;
+    font-family: monospace;
+    font-size: 0.9em;
+  }
+  
+  :deep(pre) {
+    background-color: #f3f3f3;
+    padding: 0.3em;
+    border-radius: 5px;
+    overflow-x: auto;
+    margin-bottom: 0.2em;
+    
+    code {
+      background-color: transparent;
+      padding: 0;
+    }
+  }
+  
+  :deep(strong) {
+    font-weight: bold;
+  }
+  
+  :deep(em) {
+    font-style: italic;
+  }
+  
+  :deep(blockquote) {
+    border-left: 3px solid #ddd;
+    padding-left: 0.8em;
+    margin: 0.1em 0 0.2em 0;
+    color: #666;
+    line-height: 1.3;
+  }
+  
+  :deep(p:empty) {
+    display: none;
+  }
+  
+  :deep(br) {
+    line-height: 1;
+  }
+  
+  /* 添加更多的空白处理规则 */
+  :deep(*) {
+    margin-bottom: 0.15em;
+  }
+  
+  /* 移除连续段落间的过大间距 */
+  :deep(p + p) {
+    margin-top: 0.1em;
+  }
+  
+  /* 调整整体间距 */
+  * + * {
+    margin-top: 0.1em;
+  }
+  
+  /* 解决列表项中嵌套内容的问题 */
+  :deep(li) {
+    p, ul, ol {
+      margin: 0;
+    }
+  }
+}
+
+.summary-actions {
+  margin-top: 5px; /* 减小顶部外边距 */
+  display: flex;
+  justify-content: flex-end;
 }
 </style>

@@ -71,7 +71,7 @@ const putDescription = async () => {
     <template #header="{ close, titleId, titleClass }">
       <el-text type="info">
         {{ rightSelect.data.label }}
-        编辑简介
+        简介
       </el-text>
     </template>
 

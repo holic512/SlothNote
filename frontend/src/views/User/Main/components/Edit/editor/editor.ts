@@ -21,6 +21,7 @@ import {getHierarchicalIndexes, TableOfContents} from "@tiptap-pro/extension-tab
 import {useIndexItemsStore} from "@/views/User/Main/components/Edit/Pinia/IndexItems";
 import {onBeforeUnmount, onMounted} from "vue";
 import {SaveNote} from "@/views/User/Main/components/Edit/service/SaveNote";
+import {useAiChatStore} from "@/views/User/Main/components/Edit/PageRight/components/NoteAi/service/AiChat";
 
 
 export function createEditorInstance() {
@@ -29,6 +30,9 @@ export function createEditorInstance() {
 
     // 存储目录
     const IndexItemsStore = useIndexItemsStore();
+
+    // AI聊天存储
+    const aiChat = useAiChatStore();
 
 
     const editor = useEditor({
@@ -133,8 +137,20 @@ export function createEditorInstance() {
         onUpdate: ({}) => {
             // 更新内容状态，触发保存或其他处理
             editorSaveState.updateContent()
+        },
+        
+        // 监听选择变化事件
+        onSelectionUpdate: ({editor}) => {
+            const {from, to, empty} = editor.state.selection;
+            
+            // 如果有选中的文本（非空选区）
+            if (!empty) {
+                // 获取选中的文本内容
+                const selectedText = editor.state.doc.textBetween(from, to, ' ');
+                // 更新选中的文本到AI聊天存储
+                aiChat.setSelectedText(selectedText);
+            }
         }
-
     })
 
     // 监听键盘事件

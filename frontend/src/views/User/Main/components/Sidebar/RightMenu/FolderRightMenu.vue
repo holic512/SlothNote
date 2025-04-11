@@ -40,7 +40,7 @@ const DescriptionState = useDescriptionState();
     <context-menu-separator/>
 
     <context-menu-item label="重命名" @click="IsRename.IsRename()"/>
-    <context-menu-item label="编辑简介" @click="DescriptionState.IsDescription"/>
+    <context-menu-item label="简介" @click="DescriptionState.IsDescription"/>
     <context-menu-item label="移动至" @click="onRightNFMoveFolder()"/>
     <context-menu-item label="复制到"/>
 
