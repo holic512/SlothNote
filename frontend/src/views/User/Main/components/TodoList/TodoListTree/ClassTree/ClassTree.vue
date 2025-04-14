@@ -8,7 +8,7 @@ import {
 } from "@/views/User/Main/components/TodoList/TodoListTree/ClassTree/Service/GetUserTodoClasses";
 import {TodoTypeById} from "@/views/User/Main/components/TodoList/TodoListTree/ClassTree/Service/TodoTypeById";
 import {useTodoCategoryState} from "@/views/User/Main/components/TodoList/Pinia/TodoCategoryState";
-
+import { ElMessage } from 'element-plus';
 // 用来存储分类
 const todoClasses = ref<ITodoClass[]>([])
 
@@ -39,7 +39,22 @@ const AddClassDialogVisible = ref(false);
 // 初始化 页面内容切换 state
 const todoState = useTodoState();
 
+// ... 现有的导入和代码 ...
+
+// 添加处理函数
+const handleUncategorized = () => {
+  ElMessage.info('未分类待办功能正在开发中');
+  // 未分类待办功能实现
+  todoState.ToUncategorized();
+};
+
+const handleRecycleBin = () => {
+  ElMessage.info('回收站功能正在开发中');
+  // 回收站功能实现
+  todoState.ToRecycleBin();
+};
 </script>
+
 
 <template>
   <div>
@@ -66,7 +81,8 @@ const todoState = useTodoState();
       </el-text>
     </div>
 
-    <div class="class-tree-button">
+    <!-- 未分类待办，添加点击事件 -->
+    <div class="class-tree-button" @click="handleUncategorized()">
       <el-text class="class-tree-button-text">
         <el-icon size="18">
           <Grid/>
@@ -85,8 +101,8 @@ const todoState = useTodoState();
       </el-text>
     </div>
 
-    <!--    回收站   -->
-    <div class="class-tree-button">
+    <!--    回收站 - 添加点击事件   -->
+    <div class="class-tree-button" @click="handleRecycleBin()">
       <el-text class="class-tree-button-text">
         <el-icon size="18">
           <DeleteFilled/>
@@ -94,7 +110,6 @@ const todoState = useTodoState();
         回收站
       </el-text>
     </div>
-
 
     <!--    添加分类结构   -->
     <AddClass v-model="AddClassDialogVisible"/>

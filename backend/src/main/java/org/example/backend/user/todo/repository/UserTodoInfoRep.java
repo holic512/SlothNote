@@ -1,11 +1,10 @@
 /**
- * File Name: GUTTodoInfoRep.java
- * Description: Todo
+ * File Name: UserTodoInfoRep.java
+ * Description: 待办事项数据访问层接口，提供对TodoInfo实体的CRUD操作。
  * Author: holic512
  * Created Date: 2024-12-03
  * Version: 1.0
- * Usage:
- * Todo
+ * Usage: 在需要与待办事项数据交互时使用此接口。
  */
 package org.example.backend.user.todo.repository;
 
@@ -19,6 +18,7 @@ import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.LocalDateTime;
 import java.util.List;
 
 @Repository
@@ -28,9 +28,8 @@ public interface UserTodoInfoRep extends JpaRepository<TodoInfo, Long> {
             "ti.id, ti.title, ti.description, ti.startDate, ti.dueDate, ti.status, ti.isDeleted, " +
             "tc.id, tc.name, tc.type) " +
             "FROM TodoInfo ti " +
-            "LEFT JOIN TodoCategory tc ON ti.category_id = tc.id " +  // 改为 LEFT JOIN
-            "WHERE ti.user_id = :userId AND (tc.isDeleted = false OR tc.isDeleted IS NULL)")
-        // 处理没有分类的情况
+            "LEFT JOIN TodoCategory tc ON ti.category_id = tc.id " +
+            "WHERE ti.user_id = :userId AND ti.isDeleted = false AND (tc.isDeleted = false OR tc.isDeleted IS NULL)")
     List<TodoCombinedDTO> findCombinedTodoInfoByUserId(@Param("userId") Long userId);
 
     @Query("SELECT new org.example.backend.user.todo.dto.TodoCombinedDTO(" +
@@ -38,7 +37,7 @@ public interface UserTodoInfoRep extends JpaRepository<TodoInfo, Long> {
             "tc.id, tc.name, tc.type) " +
             "FROM TodoInfo ti " +
             "JOIN TodoCategory tc ON ti.category_id = tc.id " +
-            "WHERE ti.user_id = :userId AND (tc.isDeleted = false OR tc.isDeleted IS NULL) AND ti.category_id = :categoryId")
+            "WHERE ti.user_id = :userId AND ti.isDeleted = false AND tc.isDeleted = false AND ti.category_id = :categoryId")
     List<TodoCombinedDTO> findCombinedTodoInfoByUserIdAAndCategoryId(@Param("userId") Long userId, @Param("categoryId") Long categoryId);
 
     /**
@@ -53,5 +52,56 @@ public interface UserTodoInfoRep extends JpaRepository<TodoInfo, Long> {
     @Transactional
     @Query("UPDATE TodoInfo t SET t.status = :status WHERE t.id = :todoId AND t.user_id = :userId")
     int updateStatusByIdAndUserId(int status, @Param("userId") Long userId, @Param("todoId") Long todoId);
-}
 
+    /**
+     * 查询指定日期范围内的待办事项。
+     *
+     * @param userId 用户的唯一标识符。
+     * @param startDateTime 开始日期时间。
+     * @param endDateTime 结束日期时间。
+     * @return 符合条件的待办事项列表。
+     */
+    @Query("SELECT new org.example.backend.user.todo.dto.TodoCombinedDTO(" +
+            "ti.id, ti.title, ti.description, ti.startDate, ti.dueDate, ti.status, ti.isDeleted, " +
+            "tc.id, tc.name, tc.type) " +
+            "FROM TodoInfo ti " +
+            "LEFT JOIN TodoCategory tc ON ti.category_id = tc.id " +
+            "WHERE ti.user_id = :userId AND ti.isDeleted = false " +
+            "AND ((ti.dueDate BETWEEN :startDateTime AND :endDateTime) " +
+            "OR (ti.startDate BETWEEN :startDateTime AND :endDateTime))")
+    List<TodoCombinedDTO> findTodosByDateRange(
+            @Param("userId") Long userId,
+            @Param("startDateTime") LocalDateTime startDateTime,
+            @Param("endDateTime") LocalDateTime endDateTime);
+    /**
+     * 查询指定用户所有已完成的待办事项。
+     *
+     * @param userId 用户的唯一标识符。
+     * @return 符合条件的待办事项列表。
+     */
+    @Query("SELECT new org.example.backend.user.todo.dto.TodoCombinedDTO(" +
+            "ti.id, ti.title, ti.description, ti.startDate, ti.dueDate, ti.status, ti.isDeleted, " +
+            "tc.id, tc.name, tc.type) " +
+            "FROM TodoInfo ti " +
+            "LEFT JOIN TodoCategory tc ON ti.category_id = tc.id " +
+            "WHERE ti.user_id = :userId AND ti.isDeleted = false AND ti.status = 1")
+    List<TodoCombinedDTO> findCompletedTodosByUserId(@Param("userId") Long userId);
+
+    /**
+     * 查询指定用户所有已过期的待办事项（截止日期在当前时间之前且状态为未完成）。
+     *
+     * @param userId 用户的唯一标识符。
+     * @param currentDateTime 当前日期时间。
+     * @return 符合条件的待办事项列表。
+     */
+    @Query("SELECT new org.example.backend.user.todo.dto.TodoCombinedDTO(" +
+            "ti.id, ti.title, ti.description, ti.startDate, ti.dueDate, ti.status, ti.isDeleted, " +
+            "tc.id, tc.name, tc.type) " +
+            "FROM TodoInfo ti " +
+            "LEFT JOIN TodoCategory tc ON ti.category_id = tc.id " +
+            "WHERE ti.user_id = :userId AND ti.isDeleted = false " +
+            "AND ti.status = 0 AND ti.dueDate < :currentDateTime")
+    List<TodoCombinedDTO> findExpiredTodosByUserId(
+            @Param("userId") Long userId,
+            @Param("currentDateTime") LocalDateTime currentDateTime);
+}

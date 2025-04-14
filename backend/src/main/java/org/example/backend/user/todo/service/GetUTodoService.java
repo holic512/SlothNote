@@ -1,10 +1,10 @@
 /**
- * File Name: GUTService.java
- * Description: 该接口提供了用户待办事项（Todos）相关服务的方法，包括获取所有待办事项、按类别获取待办事项等。
+ * File Name: GetUTodoService.java
+ * Description: 该接口提供了用户待办事项（Todos）相关服务的方法。
  * Author: holic512
  * Created Date: 2024-12-02
  * Version: 1.0
- * Usage: 实现此接口以提供待办事项管理服务。通过实现这些方法，开发者可以使系统支持对用户待办事项的查询功能。
+ * Usage: 实现此接口以提供待办事项管理服务。
  */
 
 package org.example.backend.user.todo.service;
@@ -21,8 +21,7 @@ public interface GetUTodoService {
      * 获取指定用户的全部待办事项。
      *
      * @param userId 用户唯一标识符。
-     * @return 包含状态枚举和结果对象的Pair，其中第一个元素是操作上下文的状态枚举 {@link GetUTContextEnum}，
-     *         第二个元素是与请求相关的数据，可能是待办事项列表或其他类型的响应数据。
+     * @return 包含状态枚举和结果对象的Pair。
      */
     Pair<GetUTContextEnum, Object> getAllTodos(Long userId);
 
@@ -30,8 +29,7 @@ public interface GetUTodoService {
      * 获取指定用户的全部待办事项分类。
      *
      * @param userId 用户唯一标识符。
-     * @return 包含状态枚举和结果对象的Pair，其中第一个元素是操作上下文的状态枚举 {@link GetUTContextEnum}，
-     *         第二个元素是与请求相关的数据，可能是待办事项分类列表或其他类型的响应数据。
+     * @return 包含状态枚举和结果对象的Pair。
      */
     Pair<GetUTContextEnum, Object> getAllTodoCategory(Long userId);
 
@@ -40,8 +38,39 @@ public interface GetUTodoService {
      *
      * @param userId     用户唯一标识符。
      * @param categoryId 类别唯一标识符。
-     * @return 包含状态枚举和结果对象的Pair，其中第一个元素是操作上下文的状态枚举 {@link GetUTContextEnum}，
-     *         第二个元素是与请求相关的数据，可能是特定类别的待办事项列表或其他类型的响应数据。
+     * @return 包含状态枚举和结果对象的Pair。
      */
     Pair<GetUTContextEnum, Object> getAllTodosByCategoryId(Long userId, Long categoryId);
+
+    /**
+     * 根据日期获取指定用户的待办事项。
+     *
+     * @param userId 用户唯一标识符。
+     * @param date   日期字符串，格式为yyyy-MM-dd。
+     * @return 包含状态枚举和结果对象的Pair。
+     */
+    Pair<GetUTContextEnum, Object> getTodosByDate(Long userId, String date);
+    /**
+     * 获取指定用户未来7天内的待办事项。
+     *
+     * @param userId 用户唯一标识符。
+     * @return 包含状态枚举和结果对象的Pair。
+     */
+    Pair<GetUTContextEnum, Object> getTodosForWeek(Long userId);
+
+    /**
+     * 获取指定用户已完成的待办事项。
+     *
+     * @param userId 用户唯一标识符。
+     * @return 包含状态枚举和结果对象的Pair。
+     */
+    Pair<GetUTContextEnum, Object> getCompletedTodos(Long userId);
+
+    /**
+     * 获取指定用户已过期的待办事项。
+     *
+     * @param userId 用户唯一标识符。
+     * @return 包含状态枚举和结果对象的Pair。
+     */
+    Pair<GetUTContextEnum, Object> getExpiredTodos(Long userId);
 }

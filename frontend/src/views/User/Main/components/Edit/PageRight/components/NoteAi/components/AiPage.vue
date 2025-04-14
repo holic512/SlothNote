@@ -8,12 +8,7 @@ import SaveSummaryButton from './SaveSummaryButton.vue'
 import { useCurrentNoteInfoStore } from "@/views/User/Main/components/Edit/Pinia/currentNoteInfo";
 
 // 初始化markdown-it解析器
-const md = new MarkdownIt({
-  breaks: true,       // 将\n转换为<br>
-  html: true,         // 允许HTML标签
-  linkify: true,      // 自动将URL转换为链接
-  typographer: true   // 启用一些语言中性的替换 + 引号美化
-})
+const md = new MarkdownIt()
 
 const aiChat = useAiChatStore()
 const scrollbarRef = ref()
@@ -22,43 +17,6 @@ const inputText = ref('')
 const selectedAction = ref(null)
 const isLoading = ref(false)
 const hasSelectedText = computed(() => !!aiChat.getSelectedText())
-
-// 添加计算属性获取当前选中功能的显示文本
-const selectedActionText = computed(() => {
-  switch (selectedAction.value) {
-    case 'explain':
-      return '解释'
-    case 'polish':
-      return '润色'
-    case 'summary':
-      return '生成简介'
-    default:
-      return 'AI功能'
-  }
-})
-
-// 添加计算属性，截取选中文本前15个字符，超出部分用省略号表示
-const truncatedSelectedText = computed(() => {
-  const text = aiChat.getSelectedText();
-  // 计算字符数，中文和全角字符算1个，英文和半角字符算0.5个
-  let count = 0;
-  let index = 0;
-  
-  while (count < 10 && index < text.length) {
-    // 使用Unicode范围判断是否为中文或全角字符
-    const charCode = text.charCodeAt(index);
-    // 如果是中文或其他全角字符
-    if (charCode >= 0x4E00 && charCode <= 0x9FFF || charCode >= 0xFF00 && charCode <= 0xFFEF) {
-      count += 1;
-    } else {
-      count += 0.5;
-    }
-    index++;
-  }
-  
-  if (index >= text.length) return text;
-  return text.substring(0, index) + '...';
-});
 
 // 控制选中文本弹窗的显示
 const selectedTextPopoverVisible = ref(false)
@@ -349,43 +307,35 @@ const handleSummary = () => {
       <div class="ai-input-container">
         <div class="input-area">
           <!-- 选中文本标签 - 点击显示弹出框 -->
-          <el-tooltip
+          <el-popover
             v-if="hasSelectedText"
-            :content="aiChat.getSelectedText()"
+            trigger="click"
             placement="top"
-            :show-after="500"
-            :hide-after="0"
-            :max-width="300"
+            :width="220"
+            popper-class="text-popover"
           >
-            <el-popover
-              trigger="click"
-              placement="top"
-              :width="220"
-              popper-class="text-popover"
-            >
-              <template #reference>
-                <div class="selected-text-container">
-                  <div class="selected-text-label">已选: {{ truncatedSelectedText }}</div>
-                  <el-icon><ArrowRight /></el-icon>
-                </div>
-              </template>
-              <div class="selected-text-popover-wrapper">
-                <div class="selected-text-popover-content">
-                  {{ aiChat.getSelectedText() }}
-                </div>
-                <div class="selected-text-popover-footer">
-                  <el-button 
-                    size="small" 
-                    type="danger" 
-                    @click="() => { aiChat.setSelectedText(''); }"
-                    class="cancel-selection-button"
-                  >
-                    取消选择
-                  </el-button>
-                </div>
+            <template #reference>
+              <div class="selected-text-container">
+                <div class="selected-text-label">已选文本</div>
+                <el-icon><ArrowRight /></el-icon>
               </div>
-            </el-popover>
-          </el-tooltip>
+            </template>
+            <div class="selected-text-popover-wrapper">
+              <div class="selected-text-popover-content">
+                {{ aiChat.getSelectedText() }}
+              </div>
+              <div class="selected-text-popover-footer">
+                <el-button 
+                  size="small" 
+                  type="danger" 
+                  @click="() => { aiChat.setSelectedText(''); }"
+                  class="cancel-selection-button"
+                >
+                  取消选择
+                </el-button>
+              </div>
+            </div>
+          </el-popover>
           
           <!-- 重新设计输入区域布局 -->
           <div class="input-container">
@@ -416,7 +366,7 @@ const handleSummary = () => {
                 <el-dropdown v-if="hasSelectedText" trigger="click" placement="top">
                   <div class="ai-function-button">
                     <el-icon><MagicStick /></el-icon>
-                    <span>{{ selectedActionText }}</span>
+                    <span>AI功能</span>
                   </div>
                   <template #dropdown>
                     <el-dropdown-menu>
@@ -550,7 +500,7 @@ const handleSummary = () => {
 /* Chat Container Styles */
 .chat-container {
   flex: 1;
-  padding: 12px 14px; /* 减小容器内边距 */
+  padding: 16px;
   background-color: #ffffff;
   overflow-y: auto;
 }
@@ -558,14 +508,14 @@ const handleSummary = () => {
 .messages-container {
   display: flex;
   flex-direction: column;
-  gap: 5px; /* 进一步减小消息之间的间距 */
-  padding-bottom: 12px; /* 减小底部内边距 */
+  gap: 12px;
+  padding-bottom: 16px;
 }
 
 .message {
   display: flex;
   flex-direction: column;
-  gap: 1px;
+  gap: 4px;
 }
 
 .message-time {
@@ -577,11 +527,11 @@ const handleSummary = () => {
 
 .message-content {
   max-width: 85%;
-  padding: 6px 10px;
+  padding: 10px 14px;
   border-radius: 8px;
   position: relative;
   word-wrap: break-word;
-  white-space: pre-line;
+  white-space: pre-wrap;
 }
 
 .message.user .message-content {
@@ -641,7 +591,7 @@ const handleSummary = () => {
 }
 
 .text {
-  line-height: 1.3;
+  line-height: 1.5;
   font-size: 14px;
 }
 
@@ -707,7 +657,6 @@ const handleSummary = () => {
   cursor: pointer;
   transition: all 0.2s ease;
   width: fit-content; /* 使按钮宽度适应内容 */
-  max-width: 180px; /* 限制最大宽度 */
 
   &:hover {
     background-color: var(--el-fill-color-light);
@@ -718,8 +667,6 @@ const handleSummary = () => {
   font-size: 12px;
   color: var(--el-text-color-secondary);
   white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
 }
 
 /* 选中文本弹出框内容样式 */
@@ -886,61 +833,49 @@ const handleSummary = () => {
 /* Markdown内容样式 */
 .markdown-content {
   :deep(h1) {
-    font-size: 1.4em;
-    margin-top: 0.2em;
-    margin-bottom: 0.2em;
+    font-size: 1.5em;
+    margin-top: 0.5em;
+    margin-bottom: 0.5em;
     font-weight: bold;
-    line-height: 1.3;
   }
   
   :deep(h2) {
-    font-size: 1.25em;
-    margin-top: 0.2em;
-    margin-bottom: 0.2em;
+    font-size: 1.3em;
+    margin-top: 0.5em;
+    margin-bottom: 0.5em;
     font-weight: bold;
-    line-height: 1.3;
   }
   
   :deep(h3) {
-    font-size: 1.15em;
-    margin-top: 0.2em;
-    margin-bottom: 0.2em;
+    font-size: 1.2em;
+    margin-top: 0.5em;
+    margin-bottom: 0.5em;
     font-weight: bold;
-    line-height: 1.3;
   }
   
   :deep(h4, h5, h6) {
-    font-size: 1.05em;
-    margin-top: 0.2em;
-    margin-bottom: 0.2em;
+    font-size: 1.1em;
+    margin-top: 0.5em;
+    margin-bottom: 0.5em;
     font-weight: bold;
-    line-height: 1.3;
   }
   
   :deep(p) {
-    margin-top: 0;
-    margin-bottom: 0.2em;
-    line-height: 1.3;
+    margin-bottom: 0.5em;
   }
   
   :deep(ul, ol) {
-    padding-left: 1.2em;
-    margin-top: 0.1em;
-    margin-bottom: 0.2em;
+    padding-left: 1.5em;
+    margin-bottom: 0.5em;
   }
   
   :deep(li) {
-    margin-bottom: 0;
-    line-height: 1.3;
-  }
-  
-  :deep(li > p) {
-    margin: 0;
+    margin-bottom: 0.2em;
   }
   
   :deep(code) {
     background-color: #f3f3f3;
-    padding: 0.1em 0.3em;
+    padding: 0.2em 0.4em;
     border-radius: 3px;
     font-family: monospace;
     font-size: 0.9em;
@@ -948,10 +883,10 @@ const handleSummary = () => {
   
   :deep(pre) {
     background-color: #f3f3f3;
-    padding: 0.3em;
+    padding: 0.5em;
     border-radius: 5px;
     overflow-x: auto;
-    margin-bottom: 0.2em;
+    margin-bottom: 0.5em;
     
     code {
       background-color: transparent;
@@ -969,45 +904,15 @@ const handleSummary = () => {
   
   :deep(blockquote) {
     border-left: 3px solid #ddd;
-    padding-left: 0.8em;
-    margin: 0.1em 0 0.2em 0;
+    padding-left: 1em;
+    margin-left: 0;
+    margin-right: 0;
     color: #666;
-    line-height: 1.3;
-  }
-  
-  :deep(p:empty) {
-    display: none;
-  }
-  
-  :deep(br) {
-    line-height: 1;
-  }
-  
-  /* 添加更多的空白处理规则 */
-  :deep(*) {
-    margin-bottom: 0.15em;
-  }
-  
-  /* 移除连续段落间的过大间距 */
-  :deep(p + p) {
-    margin-top: 0.1em;
-  }
-  
-  /* 调整整体间距 */
-  * + * {
-    margin-top: 0.1em;
-  }
-  
-  /* 解决列表项中嵌套内容的问题 */
-  :deep(li) {
-    p, ul, ol {
-      margin: 0;
-    }
   }
 }
 
 .summary-actions {
-  margin-top: 5px; /* 减小顶部外边距 */
+  margin-top: 10px;
   display: flex;
   justify-content: flex-end;
 }

@@ -13,6 +13,7 @@ import org.example.backend.common.response.ApiResponse;
 import org.example.backend.common.util.StpKit;
 import org.example.backend.user.todo.enums.PostUTContextEnum;
 import org.example.backend.user.todo.pojo.PostAddCategoryPojo;
+import org.example.backend.user.todo.pojo.TodoInfoRequest;
 import org.example.backend.user.todo.service.PostUTodoService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
@@ -29,7 +30,6 @@ public class PostUTController {
     public PostUTController(PostUTodoService putService) {
         this.putService = putService;
     }
-
 
     /**
      * 用于添加对应用户的 todoCategory(待做文件夹)
@@ -58,5 +58,29 @@ public class PostUTController {
                 .build()
         );
     }
-}
 
+    /**
+     * 添加待办事项
+     *
+     * @param request 待办事项请求数据
+     * @return 响应结果
+     */
+    @PostMapping("/add")
+    public ResponseEntity<ApiResponse<Object>> addTodo(@RequestBody TodoInfoRequest request) {
+        Long userId = (Long) StpKit.USER.getSession().get("id");
+        PostUTContextEnum result = putService.addTodo(userId, request);
+
+        if (Objects.requireNonNull(result) == PostUTContextEnum.SUCCESS) {
+            return ResponseEntity.ok(new ApiResponse.Builder<>()
+                    .status(200)
+                    .message("添加成功")
+                    .build()
+            );
+        }
+        return ResponseEntity.ok(new ApiResponse.Builder<>()
+                .status(500)
+                .message("添加失败")
+                .build()
+        );
+    }
+}

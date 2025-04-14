@@ -17,6 +17,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.repository.query.Param;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 @RequestMapping("user/todo")
@@ -84,4 +85,51 @@ public class GetUTController {
         return result.b;
     }
 
+    /**
+     * 按日期获取用户的待办事项
+     *
+     * @param date 日期字符串，格式为yyyy-MM-dd
+     * @return 待办事项列表
+     */
+    @GetMapping("/byDate")
+    public Object getTodosByDate(@RequestParam String date) {
+        Long userId = (Long) StpKit.USER.getSession().get("id");
+        Pair<GetUTContextEnum, Object> result = gutService.getTodosByDate(userId, date);
+        return result.b;
+    }
+    /**
+     * 获取未来7天的待办事项
+     *
+     * @return 未来7天的待办事项列表
+     */
+    @GetMapping("/week")
+    public Object getTodosForWeek() {
+        Long userId = (Long) StpKit.USER.getSession().get("id");
+        Pair<GetUTContextEnum, Object> result = gutService.getTodosForWeek(userId);
+        return result.b;
+    }
+
+    /**
+     * 获取已完成的待办事项
+     *
+     * @return 已完成的待办事项列表
+     */
+    @GetMapping("/completed")
+    public Object getCompletedTodos() {
+        Long userId = (Long) StpKit.USER.getSession().get("id");
+        Pair<GetUTContextEnum, Object> result = gutService.getCompletedTodos(userId);
+        return result.b;
+    }
+
+    /**
+     * 获取已过期的待办事项
+     *
+     * @return 已过期的待办事项列表
+     */
+    @GetMapping("/expired")
+    public Object getExpiredTodos() {
+        Long userId = (Long) StpKit.USER.getSession().get("id");
+        Pair<GetUTContextEnum, Object> result = gutService.getExpiredTodos(userId);
+        return result.b;
+    }
 }
