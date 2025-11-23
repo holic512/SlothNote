@@ -126,7 +126,7 @@ const PreferencesStore = useUserPreferencesStore()
 
 
           <!-- 重命名部分 -->
-          <input class="styled-input" placeholder="新建笔记" v-model="InputNoteTitle">
+          <input class="styled-input" placeholder="新建文档" v-model="InputNoteTitle">
 
         </div>
 

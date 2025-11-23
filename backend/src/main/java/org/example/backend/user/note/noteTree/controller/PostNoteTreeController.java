@@ -37,20 +37,15 @@ public class PostNoteTreeController {
     @PostMapping("/note")
     public ResponseEntity<Object> addNotes(@RequestBody Map<String, String> requestBody) {
 
-        // 获取前端传来的文件夹ID
         String folderIdStr = requestBody.get("FolderId");
-
-        // 验证文件夹ID是否为null或空
-        if (folderIdStr == null || folderIdStr.trim().isEmpty()) {
-            return ResponseEntity.badRequest().body("FolderId cannot be null or empty");
+        Long folderId = null;
+        if (folderIdStr != null && !folderIdStr.trim().isEmpty()) {
+            Long parsed = Long.parseLong(folderIdStr);
+            if (parsed != 0) folderId = parsed;
         }
 
-        Long folderId = Long.parseLong(folderIdStr);
-
-        // 获取user id
         long id = (long) StpKit.USER.getSession().get("id");
 
-        // 执行服务层
         pNoteTreeService.addNote(folderId, id);
 
         return ResponseEntity.ok(new ApiResponse.Builder<>()
@@ -63,20 +58,15 @@ public class PostNoteTreeController {
     @PostMapping("/folder")
     public ResponseEntity<Object> addFolder(@RequestBody Map<String, String> requestBody) {
 
-        // 获取前端传来的文件夹ID
         String folderIdStr = requestBody.get("FolderId");
-
-        // 验证文件夹ID是否为null或空
-        if (folderIdStr == null || folderIdStr.trim().isEmpty()) {
-            return ResponseEntity.badRequest().body("FolderId cannot be null or empty");
+        Long folderId = 0L;
+        if (folderIdStr != null && !folderIdStr.trim().isEmpty()) {
+            Long parsed = Long.parseLong(folderIdStr);
+            folderId = parsed == 0 ? 0L : parsed;
         }
 
-        Long folderId = Long.parseLong(folderIdStr);
-
-        // 获取user id
         long id = (long) StpKit.USER.getSession().get("id");
 
-        // 执行服务层
         pNoteTreeService.addFolder(folderId, id);
 
         return ResponseEntity.ok(new ApiResponse.Builder<>()

@@ -8,6 +8,10 @@ import {onRightNFMoveNote} from "@/views/User/Main/components/Sidebar/RightMenu/
 import {useRenameData} from "@/views/User/Main/components/Sidebar/Pinia/RenameData";
 import {useDetailsState} from "@/views/User/Main/components/Sidebar/Pinia/DetailsState";
 import {useDescriptionState} from "@/views/User/Main/components/Sidebar/Pinia/DescriptionState";
+import {onExportHtml} from "@/views/User/Main/components/Sidebar/RightMenu/Service/onExportHtml";
+import {onExportPdf} from "@/views/User/Main/components/Sidebar/RightMenu/Service/onExportPdf";
+import {useFavoriteDialogStore} from "@/views/User/Main/components/Edit/Pinia/FavoriteDialogStore";
+import {useRightSelectNodeId} from "@/views/User/Main/components/Sidebar/Pinia/RightSelectNodeId";
 
 
 const NodeMenuOption: any = defineModel();
@@ -20,6 +24,15 @@ const IsDetails = useDetailsState()
 
 // 控制 编辑简介是否 显示的State
 const DescriptionState = useDescriptionState();
+const favStore = useFavoriteDialogStore();
+const rightId = useRightSelectNodeId();
+const openFavoriteDialog = () => {
+  // @ts-ignore
+  const data = rightId.data as any;
+  if (data && data.type === 'NOTE') {
+    favStore.open(data.id);
+  }
+}
 
 </script>
 
@@ -42,25 +55,17 @@ const DescriptionState = useDescriptionState();
     <context-menu-item label="重命名" @click="IsRename.IsRename()"/>
     <context-menu-item label="简介" @click="DescriptionState.IsDescription"/>
     <context-menu-item label="移动至" @click="onRightNFMoveNote()"/>
-    <context-menu-item label="复制到"/>
 
     <context-menu-separator/>
     <context-menu-group label="导出">
-      <context-menu-item label="World"/>
-      <context-menu-item label="Pdf"/>
+      <context-menu-item label="HTML" @click="onExportHtml"/>
+      <context-menu-item label="Pdf" @click="onExportPdf"/>
     </context-menu-group>
 
     <context-menu-separator/>
 
     <context-menu-item label="详细信息" @click="IsDetails.IsDetails"/>
-
-    <context-menu-group label="其他">
-      <context-menu-item label="置顶"/>
-      <context-menu-item label="分享"/>
-      <context-menu-item label="收藏"/>
-      <context-menu-item label="阅读密码"/>
-      <context-menu-item label="查看历史版本"/>
-    </context-menu-group>
+    <context-menu-item label="收藏" @click="openFavoriteDialog"/>
 
   </context-menu>
 </template>

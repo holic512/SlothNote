@@ -9,7 +9,6 @@
  */
 package org.example.backend.user.note.note.controller;
 
-import io.lettuce.core.dynamic.annotation.Param;
 import org.antlr.v4.runtime.misc.Pair;
 import org.example.backend.common.domain.Note;
 import org.example.backend.common.response.ApiResponse;
@@ -64,8 +63,70 @@ public class GUNoteController {
             default -> {
                 return ResponseEntity.ok(200);
             }
+
+
         }
 
+    }
+
+    @GetMapping("export/html")
+    public ResponseEntity<Object> exportHtml(@RequestParam Long noteId) {
+        Long UserId = (Long) StpKit.USER.getSession().get("id");
+        Pair<GContextEnum, java.util.Optional<Note>> ctx = guNoteService.GetContext(UserId, noteId);
+        if (ctx.a == GContextEnum.NoteOwnerNotMatch) {
+            return ResponseEntity.ok(new ApiResponse.Builder<>()
+                    .status(403)
+                    .message("无权导出")
+                    .build());
+        }
+        if (ctx.b.isEmpty()) {
+            return ResponseEntity.ok(new ApiResponse.Builder<>()
+                    .status(404)
+                    .message("该页面为空")
+                    .build());
+        }
+        String html = guNoteService.exportHtml(UserId, noteId);
+        if (html == null) {
+            return ResponseEntity.ok(new ApiResponse.Builder<>()
+                    .status(500)
+                    .message("导出失败")
+                    .build());
+        }
+        return ResponseEntity.ok(new ApiResponse.Builder<>()
+                .status(200)
+                .message("OK")
+                .data(html)
+                .build());
+    }
+
+    @GetMapping("export/pdf")
+    public ResponseEntity<Object> exportPdf(@RequestParam Long noteId) {
+        Long UserId = (Long) StpKit.USER.getSession().get("id");
+        Pair<GContextEnum, java.util.Optional<Note>> ctx = guNoteService.GetContext(UserId, noteId);
+        if (ctx.a == GContextEnum.NoteOwnerNotMatch) {
+            return ResponseEntity.ok(new ApiResponse.Builder<>()
+                    .status(403)
+                    .message("无权导出")
+                    .build());
+        }
+        if (ctx.b.isEmpty()) {
+            return ResponseEntity.ok(new ApiResponse.Builder<>()
+                    .status(404)
+                    .message("该页面为空")
+                    .build());
+        }
+        String html = guNoteService.exportHtml(UserId, noteId);
+        if (html == null) {
+            return ResponseEntity.ok(new ApiResponse.Builder<>()
+                    .status(500)
+                    .message("导出失败")
+                    .build());
+        }
+        return ResponseEntity.ok(new ApiResponse.Builder<>()
+                .status(200)
+                .message("OK")
+                .data(html)
+                .build());
     }
 
 }

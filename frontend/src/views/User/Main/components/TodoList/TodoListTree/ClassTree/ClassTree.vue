@@ -8,7 +8,6 @@ import {
 } from "@/views/User/Main/components/TodoList/TodoListTree/ClassTree/Service/GetUserTodoClasses";
 import {TodoTypeById} from "@/views/User/Main/components/TodoList/TodoListTree/ClassTree/Service/TodoTypeById";
 import {useTodoCategoryState} from "@/views/User/Main/components/TodoList/Pinia/TodoCategoryState";
-import { ElMessage } from 'element-plus';
 // 用来存储分类
 const todoClasses = ref<ITodoClass[]>([])
 
@@ -43,14 +42,12 @@ const todoState = useTodoState();
 
 // 添加处理函数
 const handleUncategorized = () => {
-  ElMessage.info('未分类待办功能正在开发中');
-  // 未分类待办功能实现
+  // 未分类视图
   todoState.ToUncategorized();
 };
 
 const handleRecycleBin = () => {
-  ElMessage.info('回收站功能正在开发中');
-  // 回收站功能实现
+  // 回收站视图
   todoState.ToRecycleBin();
 };
 </script>

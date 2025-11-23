@@ -11,8 +11,8 @@ package org.example.backend.admin.userMm.service.impl;
 
 import cn.dev33.satoken.session.SaSession;
 import cn.dev33.satoken.stp.StpUtil;
+import org.example.backend.admin.repository.AdminUserRepository;
 import org.example.backend.admin.userMm.dto.OUserInfoDto;
-import org.example.backend.admin.userMm.repository.AdminOUserMmRepository;
 import org.example.backend.admin.userMm.request.FetchPageData;
 import org.example.backend.admin.userMm.service.AdminOUserMmService;
 import org.example.backend.common.response.ApiResponse;
@@ -31,12 +31,12 @@ import java.util.*;
 public class AdminOUserMmServiceImpl implements AdminOUserMmService {
 
     private static RedisTemplate<String, Object> redisTemplate;
-    private AdminOUserMmRepository adminOUserMmRepository;
+    private AdminUserRepository adminUserRepository;
 
     @Autowired
-    public void setRedisTemplate(RedisTemplate<String, Object> redisTemplate, AdminOUserMmRepository adminOUserMmRepository) {
+    public void setRedisTemplate(RedisTemplate<String, Object> redisTemplate, AdminUserRepository adminUserRepository) {
         AdminOUserMmServiceImpl.redisTemplate = redisTemplate;
-        this.adminOUserMmRepository = adminOUserMmRepository;
+        this.adminUserRepository = adminUserRepository;
     }
 
     @Override
@@ -92,7 +92,7 @@ public class AdminOUserMmServiceImpl implements AdminOUserMmService {
             createTimeMap.put(uid, formattedDate);
         }
         // id uid 用户名 邮箱地址
-        List<OUserInfoDto> oUserInfoDtos = adminOUserMmRepository.findUsernamesAndEmailsByUidList(OUserIds);
+        List<OUserInfoDto> oUserInfoDtos = adminUserRepository.findUsernamesAndEmailsByUidList(OUserIds);
 
         // 将创建时间插入
         for (OUserInfoDto oUserInfoDto : oUserInfoDtos) {

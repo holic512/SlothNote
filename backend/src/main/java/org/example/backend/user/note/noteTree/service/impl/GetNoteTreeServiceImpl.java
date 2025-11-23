@@ -55,7 +55,9 @@ public class GetNoteTreeServiceImpl implements GetNoteTreeService {
 
         // 先查询 根目录的 笔记和文件夹
         List<NoteTreeDto> folderList = folderRep.findFolderByUserIdAndParentId(UserId, ParentId);
-        List<NoteTreeDto> noteList = noteRep.findFolderByUserIdAndFolderId(UserId, ParentId);
+        List<NoteTreeDto> noteList = (ParentId == 0)
+                ? noteRep.findRootNotesByUserId(UserId)
+                : noteRep.findFolderByUserIdAndFolderId(UserId, ParentId);
 
         // 将查询到的文件夹和笔记合并为一个列表
         List<NoteTreeDto> resultList = new ArrayList<>();

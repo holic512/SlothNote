@@ -39,7 +39,11 @@ public class PNoteTreeServiceImpl implements PNoteTreeService {
         // 处理数据
         NoteInfo noteInfo = new NoteInfo();
         noteInfo.setNoteType(NoteType.Normal.getValue());
-        noteInfo.setFolderId(parentId);
+        if (parentId == null || parentId == 0) {
+            noteInfo.setFolderId(null);
+        } else {
+            noteInfo.setFolderId(parentId);
+        }
         noteInfo.setUserId(UserId);
 
         ntNoteRep.save(noteInfo);
@@ -132,10 +136,9 @@ public class PNoteTreeServiceImpl implements PNoteTreeService {
                 return false; // 笔记不属于该用户
             }
             
-            // 3. 如果目标文件夹ID为0，表示移动到根目录
-            if (targetFolderId == 0) {
-                // 直接设置文件夹ID为0（根目录）
-                note.setFolderId(0L);
+            // 3. 如果目标文件夹ID为0或null，表示移动到根目录
+            if (targetFolderId == null || targetFolderId == 0) {
+                note.setFolderId(null);
                 ntNoteRep.save(note);
                 return true;
             }
@@ -192,9 +195,8 @@ public class PNoteTreeServiceImpl implements PNoteTreeService {
                 return false; // 文件夹不属于该用户
             }
             
-            // 3. 如果目标文件夹ID为0，表示移动到根目录
-            if (targetFolderId == 0) {
-                // 直接设置父文件夹ID为0（根目录）
+            // 3. 如果目标文件夹ID为0或null，表示移动到根目录（文件夹根用0表示）
+            if (targetFolderId == null || targetFolderId == 0) {
                 folder.setParentId(0L);
                 ntFolderRep.save(folder);
                 return true;

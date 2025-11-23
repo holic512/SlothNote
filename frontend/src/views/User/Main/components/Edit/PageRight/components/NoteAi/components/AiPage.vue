@@ -1,11 +1,23 @@
 <script setup lang="ts">
-import { useAiChatStore } from '@/views/User/Main/components/Edit/PageRight/components/NoteAi/service/AiChat'
-import { computed, ref, watch, nextTick, onMounted, inject } from 'vue'
-import { CircleCheck, Loading, Plus, Delete, Position, ChatLineSquare, MagicStick, Edit, Document, ArrowRight, VideoPause, InfoFilled } from '@element-plus/icons-vue'
-import { ElMessage, ElMessageBox } from 'element-plus'
+import {useAiChatStore} from '@/views/User/Main/components/Edit/PageRight/components/NoteAi/service/AiChat'
+import {computed, nextTick, onMounted, ref, watch} from 'vue'
+import {
+  ArrowRight,
+  ChatLineSquare,
+  CircleCheck,
+  Delete,
+  Document,
+  Edit,
+  InfoFilled,
+  MagicStick,
+  Plus,
+  Position,
+  VideoPause
+} from '@element-plus/icons-vue'
+import {ElMessage, ElMessageBox} from 'element-plus'
 import MarkdownIt from 'markdown-it'
 import SaveSummaryButton from './SaveSummaryButton.vue'
-import { useCurrentNoteInfoStore } from "@/views/User/Main/components/Edit/Pinia/currentNoteInfo";
+import {useCurrentNoteInfoStore} from "@/views/User/Main/components/Edit/Pinia/currentNoteInfo";
 
 // 初始化markdown-it解析器
 const md = new MarkdownIt()
@@ -38,8 +50,8 @@ const isSummaryMessage = (message) => {
   if (message.role !== 'assistant') return false;
   // 从消息历史判断是否为简介请求
   const index = aiChat.messages.findIndex(m => m.id === message.id);
-  if (index > 0 && aiChat.messages[index-1].role === 'user') {
-    return aiChat.messages[index-1].content.includes('请为以下文本生成简介');
+  if (index > 0 && aiChat.messages[index - 1].role === 'user') {
+    return aiChat.messages[index - 1].content.includes('请为以下文本生成简介');
   }
   return false;
 };
@@ -81,11 +93,11 @@ const handleSend = () => {
     if (selectedText) {
       // 有选中文本，将用户问题和选中文本一起发送
       console.log("发送选中文本:", selectedText);
-      
+
       // 构建消息：用户问题 + 选中文本
       const message = `${inputText.value.trim()}\n\n选中文本：\n${selectedText}`;
       console.log("发送的完整消息:", message);
-      
+
       // 直接发送消息到AI，不要手动添加用户消息（这会导致冲突）
       aiChat.sendMessage(message);
     } else {
@@ -93,7 +105,7 @@ const handleSend = () => {
       aiChat.sendMessage(inputText.value);
     }
   }
-  
+
   // 发送后清空输入框
   inputText.value = '';
   selectedAction.value = null;
@@ -135,10 +147,10 @@ const insertText = (content: string) => {
   if (editor) {
     try {
       console.log("原始内容:", content);
-      
+
       // 尝试直接使用编辑器命令处理Markdown
       let processedContent = content;
-      
+
       // 逐行处理内容，确保标题能被正确识别
       const lines = processedContent.split('\n');
       const processedLines = lines.map(line => {
@@ -152,24 +164,24 @@ const insertText = (content: string) => {
         }
         return line;
       });
-      
+
       processedContent = processedLines.join('\n');
-      
+
       // 处理代码块
       processedContent = processedContent.replace(/```([\s\S]*?)```/g, '<pre><code>$1</code></pre>');
-      
+
       // 处理列表
       processedContent = processedContent.replace(/^\s*-\s+(.+)$/gm, '<ul><li>$1</li></ul>');
       processedContent = processedContent.replace(/^\s*\d+\.\s+(.+)$/gm, '<ol><li>$1</li></ol>');
-      
+
       // 处理粗体
       processedContent = processedContent.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
-      
+
       // 处理斜体
       processedContent = processedContent.replace(/\*(.*?)\*/g, '<em>$1</em>');
-      
+
       console.log("处理后内容:", processedContent);
-      
+
       // 使用editor的insertContent插入HTML内容
       editor.value.commands.insertContent(processedContent);
       ElMessage.success('Markdown文本已插入到笔记中');
@@ -183,7 +195,7 @@ const insertText = (content: string) => {
 
 watch(() => aiChat.messages.length, () => {
   scrollToBottom()
-}, { deep: true })
+}, {deep: true})
 
 watch(() => aiChat.messages[aiChat.messages.length - 1]?.content, () => {
   scrollToBottom()
@@ -195,7 +207,7 @@ watch(() => aiChat.getSelectedText(), (newText) => {
     // 不再自动填充到输入框
     // inputText.value = newText;
   }
-}, { immediate: true });
+}, {immediate: true});
 
 // 监听aiChat的loading状态
 watch(() => aiChat.loading, (newLoadingStatus) => {
@@ -206,7 +218,7 @@ watch(() => aiChat.loading, (newLoadingStatus) => {
 onMounted(() => {
   // 初始化isLoading状态
   isLoading.value = aiChat.loading;
-  
+
   scrollToBottom()
   if (inputRef.value) {
     adjustHeight(inputRef.value.$el.querySelector('textarea'))
@@ -255,7 +267,7 @@ const handleSummary = () => {
             :disabled="isLoading"
         >
           <el-icon>
-            <Delete />
+            <Delete/>
           </el-icon>
         </el-button>
       </div>
@@ -276,19 +288,23 @@ const handleSummary = () => {
           <div class="message-content">
             <template v-if="message.role === 'assistant'">
               <div class="assistant-header">
-                <el-icon><CircleCheck /></el-icon>
+                <el-icon>
+                  <CircleCheck/>
+                </el-icon>
                 <span>AI助手</span>
               </div>
               <div class="insert-button" @click="insertText(message.content)">
-                <el-icon><Plus /></el-icon>
+                <el-icon>
+                  <Plus/>
+                </el-icon>
               </div>
             </template>
             <div class="text" v-if="message.role === 'user'">{{ message.content }}</div>
             <div class="text markdown-content" v-else v-html="md.render(message.content)"></div>
-            
+
             <!-- 如果是生成简介的回复，显示保存简介按钮 -->
             <div v-if="isSummaryMessage(message)" class="summary-actions">
-              <SaveSummaryButton :summary="message.content" />
+              <SaveSummaryButton :summary="message.content"/>
             </div>
           </div>
         </div>
@@ -297,7 +313,7 @@ const handleSummary = () => {
 
     <div v-else class="empty-state">
       <el-icon size="64">
-        <MagicStick />
+        <MagicStick/>
       </el-icon>
       <el-text>AI 助手准备就绪，开始对话吧</el-text>
     </div>
@@ -308,16 +324,18 @@ const handleSummary = () => {
         <div class="input-area">
           <!-- 选中文本标签 - 点击显示弹出框 -->
           <el-popover
-            v-if="hasSelectedText"
-            trigger="click"
-            placement="top"
-            :width="220"
-            popper-class="text-popover"
+              v-if="hasSelectedText"
+              trigger="click"
+              placement="top"
+              :width="220"
+              popper-class="text-popover"
           >
             <template #reference>
               <div class="selected-text-container">
                 <div class="selected-text-label">已选文本</div>
-                <el-icon><ArrowRight /></el-icon>
+                <el-icon>
+                  <ArrowRight/>
+                </el-icon>
               </div>
             </template>
             <div class="selected-text-popover-wrapper">
@@ -325,18 +343,18 @@ const handleSummary = () => {
                 {{ aiChat.getSelectedText() }}
               </div>
               <div class="selected-text-popover-footer">
-                <el-button 
-                  size="small" 
-                  type="danger" 
-                  @click="() => { aiChat.setSelectedText(''); }"
-                  class="cancel-selection-button"
+                <el-button
+                    size="small"
+                    type="danger"
+                    @click="() => { aiChat.setSelectedText(''); }"
+                    class="cancel-selection-button"
                 >
                   取消选择
                 </el-button>
               </div>
             </div>
           </el-popover>
-          
+
           <!-- 重新设计输入区域布局 -->
           <div class="input-container">
             <!-- 纯文本输入区域 -->
@@ -354,18 +372,22 @@ const handleSummary = () => {
                   @input="() => adjustHeight(inputRef?.value?.$el?.querySelector('textarea'))"
               >
                 <template #prefix>
-                  <el-icon><ChatLineSquare /></el-icon>
+                  <el-icon>
+                    <ChatLineSquare/>
+                  </el-icon>
                 </template>
               </el-input>
             </div>
-            
+
             <!-- 功能区容器 -->
             <div class="action-buttons">
               <!-- AI功能按钮 -->
               <div class="left-buttons">
                 <el-dropdown v-if="hasSelectedText" trigger="click" placement="top">
                   <div class="ai-function-button">
-                    <el-icon><MagicStick /></el-icon>
+                    <el-icon>
+                      <MagicStick/>
+                    </el-icon>
                     <span>AI功能</span>
                   </div>
                   <template #dropdown>
@@ -375,7 +397,9 @@ const handleSummary = () => {
                           @click="handleExplain"
                           :disabled="isLoading"
                       >
-                        <el-icon><Document /></el-icon>
+                        <el-icon>
+                          <Document/>
+                        </el-icon>
                         <span>解释</span>
                       </el-dropdown-item>
                       <el-dropdown-item
@@ -383,7 +407,9 @@ const handleSummary = () => {
                           @click="handlePolish"
                           :disabled="isLoading"
                       >
-                        <el-icon><Edit /></el-icon>
+                        <el-icon>
+                          <Edit/>
+                        </el-icon>
                         <span>润色</span>
                       </el-dropdown-item>
                       <el-dropdown-item
@@ -391,14 +417,16 @@ const handleSummary = () => {
                           @click="handleSummary"
                           :disabled="isLoading"
                       >
-                        <el-icon><InfoFilled /></el-icon>
+                        <el-icon>
+                          <InfoFilled/>
+                        </el-icon>
                         <span>生成简介</span>
                       </el-dropdown-item>
                     </el-dropdown-menu>
                   </template>
                 </el-dropdown>
               </div>
-              
+
               <!-- 发送按钮 -->
               <div class="right-buttons">
                 <el-button
@@ -408,7 +436,9 @@ const handleSummary = () => {
                     @click="handleSend"
                     class="send-button"
                 >
-                  <el-icon><Position /></el-icon>
+                  <el-icon>
+                    <Position/>
+                  </el-icon>
                 </el-button>
                 <el-tooltip
                     v-else
@@ -421,7 +451,9 @@ const handleSummary = () => {
                       @click="handleStop"
                       class="send-button stop-button"
                   >
-                    <el-icon><VideoPause /></el-icon>
+                    <el-icon>
+                      <VideoPause/>
+                    </el-icon>
                   </el-button>
                 </el-tooltip>
               </div>
@@ -744,11 +776,11 @@ const handleSummary = () => {
   cursor: pointer;
   transition: all 0.2s ease;
   white-space: nowrap;
-  
+
   &:hover {
     background-color: var(--el-color-primary-light-8);
   }
-  
+
   .el-icon {
     font-size: 14px;
   }
@@ -823,7 +855,7 @@ const handleSummary = () => {
   display: flex;
   align-items: center;
   gap: 8px;
-  
+
   &.is-selected {
     color: var(--el-color-primary);
     background-color: var(--el-color-primary-light-9);
@@ -838,41 +870,41 @@ const handleSummary = () => {
     margin-bottom: 0.5em;
     font-weight: bold;
   }
-  
+
   :deep(h2) {
     font-size: 1.3em;
     margin-top: 0.5em;
     margin-bottom: 0.5em;
     font-weight: bold;
   }
-  
+
   :deep(h3) {
     font-size: 1.2em;
     margin-top: 0.5em;
     margin-bottom: 0.5em;
     font-weight: bold;
   }
-  
+
   :deep(h4, h5, h6) {
     font-size: 1.1em;
     margin-top: 0.5em;
     margin-bottom: 0.5em;
     font-weight: bold;
   }
-  
+
   :deep(p) {
     margin-bottom: 0.5em;
   }
-  
+
   :deep(ul, ol) {
     padding-left: 1.5em;
     margin-bottom: 0.5em;
   }
-  
+
   :deep(li) {
     margin-bottom: 0.2em;
   }
-  
+
   :deep(code) {
     background-color: #f3f3f3;
     padding: 0.2em 0.4em;
@@ -880,28 +912,28 @@ const handleSummary = () => {
     font-family: monospace;
     font-size: 0.9em;
   }
-  
+
   :deep(pre) {
     background-color: #f3f3f3;
     padding: 0.5em;
     border-radius: 5px;
     overflow-x: auto;
     margin-bottom: 0.5em;
-    
+
     code {
       background-color: transparent;
       padding: 0;
     }
   }
-  
+
   :deep(strong) {
     font-weight: bold;
   }
-  
+
   :deep(em) {
     font-style: italic;
   }
-  
+
   :deep(blockquote) {
     border-left: 3px solid #ddd;
     padding-left: 1em;

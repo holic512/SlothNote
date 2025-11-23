@@ -11,6 +11,10 @@ package org.example.backend.admin.userMm.service;
 
 import org.example.backend.admin.userMm.enums.AdminUserMmEnum;
 import org.example.backend.admin.userMm.request.AddUserRequest;
+import org.example.backend.admin.userMm.request.SearchUserRequest;
+import org.example.backend.admin.userMm.request.UpdateUserRequest;
+import org.example.backend.admin.userMm.dto.AdminUserDetailDto;
+import org.example.backend.common.enums.user.UserStatusEnum;
 import org.example.backend.common.dto.user.UserDetailDto;
 
 import java.util.List;
@@ -56,6 +60,18 @@ public interface AdminUserMmService {
      * @return 是否删除成功
      */
     boolean deleteUsers(List<Long> userIds);
+
+    List<UserDetailDto> searchUsers(SearchUserRequest request);
+
+    long countSearchUsers(SearchUserRequest request);
+
+    AdminUserDetailDto getUserDetail(Long id);
+
+    AdminUserMmEnum updateUser(UpdateUserRequest request);
+
+    boolean deleteUser(Long id);
+
+    boolean batchUpdateStatus(List<Long> userIds, UserStatusEnum status);
 
 
 }

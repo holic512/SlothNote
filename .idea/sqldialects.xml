@@ -1,18 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <project version="4">
   <component name="SqlDialectMappings">
-    <file url="file://$PROJECT_DIR$/backend/src/main/resources/sql/InitSql/init_create_table.sql" dialect="MySQL" />
-    <file url="file://$PROJECT_DIR$/backend/src/main/resources/sql/devSql/create_admins_table.sql" dialect="MySQL" />
-    <file url="file://$PROJECT_DIR$/backend/src/main/resources/sql/devSql/create_comments_table.sql" dialect="MySQL" />
-    <file url="file://$PROJECT_DIR$/backend/src/main/resources/sql/devSql/create_folder_info_table.sql" dialect="MySQL" />
-    <file url="file://$PROJECT_DIR$/backend/src/main/resources/sql/devSql/create_mail_server_settings_table.sql" dialect="MySQL" />
-    <file url="file://$PROJECT_DIR$/backend/src/main/resources/sql/devSql/create_note_info_table.sql" dialect="MySQL" />
-    <file url="file://$PROJECT_DIR$/backend/src/main/resources/sql/devSql/create_server_config _table.sql" dialect="MySQL" />
-    <file url="file://$PROJECT_DIR$/backend/src/main/resources/sql/devSql/create_server_config_data_table.sql" dialect="MySQL" />
-    <file url="file://$PROJECT_DIR$/backend/src/main/resources/sql/devSql/create_todo_category_table.sql" dialect="MySQL" />
-    <file url="file://$PROJECT_DIR$/backend/src/main/resources/sql/devSql/create_todo_info_table.sql" dialect="MySQL" />
-    <file url="file://$PROJECT_DIR$/backend/src/main/resources/sql/devSql/create_user_profiles_table.sql" dialect="MySQL" />
-    <file url="file://$PROJECT_DIR$/backend/src/main/resources/sql/devSql/create_users_table.sql" dialect="MySQL" />
     <file url="PROJECT" dialect="MySQL" />
   </component>
 </project>

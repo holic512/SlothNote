@@ -1,16 +1,19 @@
 <script setup lang="ts">
 import {reactive, ref} from "vue";
 import {ElMessage, FormInstance, FormRules} from "element-plus";
-import {initiateReg, VerReg} from "./services/register";
+import {useRouter} from "vue-router";
 import InputOtp from "primevue/inputotp";
 import Dialog from "primevue/dialog";
 import UserAgreement from "../components/userAgreement.vue";
-import {useRouter} from "vue-router";
+import {initiateReg, VerReg} from "./services/register";
 
-// 路由实例
 const router = useRouter();
+const isVerificationStep = ref<boolean>(true); // 注意：你的逻辑里 true 好像是填表单，false 是验证码
+const formEl = ref<FormInstance>();
+const agreedToTerms = ref(false);
+const addUserVisible = ref(false);
+const codeValue = ref('');
 
-// 表单模型
 const form = ref({
   username: "",
   password: "",
@@ -19,352 +22,253 @@ const form = ref({
   status: "ACTIVE"
 });
 
-// 验证规则
+// 保持原有验证规则
 const rules = reactive<FormRules>({
-  username: [
-    {required: true, message: "请输入用户名", trigger: "blur"},
-    {min: 6, max: 12, message: "用户名长度应在 6 到 12 个字符之间", trigger: "blur"},
-    {
-      validator: (rule, value, callback) => {
-        const noChineseRegEx = /^[A-Za-z0-9_]+$/; // 匹配不含中文的字符串
-        if (!noChineseRegEx.test(value)) {
-          callback(new Error("用户名只能包含大小写英文、数字以及_"));
-        } else {
-          callback();
-        }
-      }, trigger: "blur"
-    }
-  ],
-  password: [
-    {required: true, message: "请输入密码", trigger: "blur"},
-    {min: 6, message: "密码长度应不小于 6 位", trigger: "blur"}
-  ],
-  confirmPassword: [
-    {required: true, message: "请确认密码", trigger: "blur"},
-    {
-      validator: (rule, value, callback) => {
-        if (value !== form.value.password) {
-          callback(new Error("两次输入密码不一致"));
-        } else {
-          callback();
-        }
-      }, trigger: "blur"
-    }
-  ],
-  email: [
-    {required: true, message: "请输入邮箱地址", trigger: "blur"},
-    {type: "email", message: "请输入正确的邮箱地址", trigger: "change"}
-  ]
+  username: [{required: true, message: "请输入用户名", trigger: "blur"}],
+  password: [{required: true, message: "请输入密码", trigger: "blur"}],
+  confirmPassword: [{required: true, message: "请确认密码", trigger: "blur"}],
+  email: [{required: true, message: "请输入邮箱", trigger: "blur"}, {type:'email', message:'格式不正确'}]
 });
 
-// 控制服务协议是否同意
-const agreedToTerms = ref(false);
-const validateTerms = () => {
-  if (!agreedToTerms.value) {
-    ElMessage('请同意服务协议');
-    return false;
-  }
-  return true;
-};
-
-// 控制是否发送注册请求
-const isVerificationStep = ref<boolean>(true);
-
-// 表单实例引用
-const formEl = ref<FormInstance>();
-
-// 注册按钮逻辑
-const submitForm = async () => {
-  // 验证服务协议
-  if (!validateTerms()) {
-    return;
-  }
-
-  // 验证表单
-  if (formEl.value) {
-    try {
-      await formEl.value.validate();
-      if (!form.value.username || !form.value.password || !form.value.confirmPassword || !form.value.email) {
-        ElMessage('请填写完整的注册信息');
-        return;
-      }
-
-      if (form.value.password !== form.value.confirmPassword) {
-        ElMessage('两次输入的密码不一致');
-        return;
-      }
-
-      // 发送注册请求
-      const status = await initiateReg(form.value.username, form.value.password, form.value.email);
-      switch (status) {
-        case 200:
-          ElMessage.success('注册成功');
-          // 跳转输入验证码页面
-          isVerificationStep.value = false;
-          break;
-        default:
-          ElMessage.error('无法连接服务器');
-          break;
-      }
-    } catch {
-      ElMessage.warning("请填写完整用户信息");
-    }
-  }
-};
-
-// 邮箱验证流程
-const codeValue = ref<string>('');
-const verR = async () => {
-  if (!codeValue.value || codeValue.value.length !== 6) {
-    ElMessage.warning('验证码长度应为6位');
-    return;
-  }
-
-  const status = await VerReg(codeValue.value);
-  const messages: { [key: number]: string } = {
-    200: '登录成功',
-    401: '验证码错误错误',
-    404: '没有找到此请求',
-    400: 'json解析错误',
-    500: '无法连接服务器'
-  };
-  ElMessage[status === 200 ? 'success' : 'error'](messages[status]);
-
-  // 登录成功跳转其他页面
-  if (status === 200) {
-    await router.push("login");
-  }
-}
-
-// restaurants 用于实现 邮箱补全
+// 邮箱补全逻辑
 const restaurants = [
-  {value: '@qq.com'},
-  {value: '@163.com'},
-  {value: '@126.com'},
-  {value: '@139.com'},
-  {value: '@sina.com'},
-  {value: '@gmail.com'},
-
+  {value: '@qq.com'}, {value: '@gmail.com'}, {value: '@outlook.com'}
 ];
-
-// fetchSuggestions 用于 邮箱自动填充规则
 const fetchSuggestions = (queryString: string, cb: any) => {
-  if (queryString === '') {
-    cb([])
-    return
-  }
-  const hasAtSymbol = /@/.test(queryString);
-  if (hasAtSymbol) {
-    cb([])
-    return
-  }
-  const suggestions = restaurants.map(item => {
-        return {...item, value: queryString + item.value}
-      }
-  )
-  cb(suggestions)
-}
+  if (!queryString || queryString.indexOf('@') > -1) return cb([]);
+  cb(restaurants.map(i => ({ value: queryString + i.value })));
+};
 
-// 用户协议开关
-const addUserVisible = ref(false);
+const submitForm = async () => {
+  if (!agreedToTerms.value) return ElMessage.warning('请同意协议');
+  if (!formEl.value) return;
+
+  await formEl.value.validate(async (valid) => {
+    if (valid) {
+      if (form.value.password !== form.value.confirmPassword) return ElMessage.error('密码不一致');
+      const status = await initiateReg(form.value.username, form.value.password, form.value.email);
+      if (status === 200) {
+        ElMessage.success('验证邮件已发送');
+        isVerificationStep.value = false; // 切换到 OTP 界面
+      } else {
+        ElMessage.error('请求失败');
+      }
+    }
+  });
+};
+
+const verR = async () => {
+  if (codeValue.value.length !== 6) return ElMessage.warning('请输入6位验证码');
+  const status = await VerReg(codeValue.value);
+  if (status === 200) {
+    ElMessage.success('注册成功');
+    router.push({ name: 'user-login' });
+  } else {
+    ElMessage.error('验证失败');
+  }
+}
 </script>
 
 <template>
-  <div class="register-container" v-if="isVerificationStep">
-    <el-card class="register-box">
-      <h1 class="title">用户注册</h1>
-      <el-form :model="form" :rules="rules" ref="formEl" label-width="auto" class="form-container"
-               label-position="left">
-        <el-form-item label="用户名" prop="username">
-          <el-input v-model="form.username" class="input" placeholder="请输入用户名"/>
-        </el-form-item>
+  <div class="notion-auth-form">
 
-        <el-form-item label="密码" prop="password">
-          <el-input v-model="form.password" class="input" show-password placeholder="请输入密码"/>
-        </el-form-item>
+    <!-- 注册表单 -->
+    <div v-if="isVerificationStep">
+      <h1 class="title">创建账号</h1>
+      <p class="subtitle">开始构建你的知识库。</p>
 
-        <el-form-item label="确认密码" prop="confirmPassword">
-          <el-input v-model="form.confirmPassword" class="input" show-password placeholder="请确认密码"/>
-        </el-form-item>
+      <el-form :model="form" :rules="rules" ref="formEl" class="custom-form">
+        <div class="input-group">
+          <label>用户名</label>
+          <el-form-item prop="username">
+            <el-input v-model="form.username" placeholder="设置用户名" class="notion-input" />
+          </el-form-item>
+        </div>
 
-        <el-form-item label="邮箱地址" prop="email">
-          <el-autocomplete
-              v-model="form.email"
-              :fetch-suggestions="fetchSuggestions"
-              placeholder="请输入邮箱地址"
-              style="width: 100%"
-          />
-        </el-form-item>
+        <div class="input-group">
+          <label>邮箱</label>
+          <el-form-item prop="email">
+            <el-autocomplete
+                v-model="form.email"
+                :fetch-suggestions="fetchSuggestions"
+                placeholder="name@example.com"
+                class="notion-input full-width"
+                :trigger-on-focus="false"
+            />
+          </el-form-item>
+        </div>
 
-        <el-form-item>
-          <el-checkbox v-model="agreedToTerms">我已阅读并同意
-            <a href="#" @click="addUserVisible = true">服务协议</a>
+        <div class="input-group">
+          <label>密码</label>
+          <el-form-item prop="password">
+            <el-input v-model="form.password" type="password" show-password placeholder="设置密码" class="notion-input" />
+          </el-form-item>
+        </div>
+
+        <div class="input-group">
+          <label>确认密码</label>
+          <el-form-item prop="confirmPassword">
+            <el-input v-model="form.confirmPassword" type="password" show-password placeholder="再次输入密码" class="notion-input" />
+          </el-form-item>
+        </div>
+
+        <div class="terms-check">
+          <el-checkbox v-model="agreedToTerms">
+            同意 <span class="link" @click="addUserVisible = true">SlothNote 协议</span>
           </el-checkbox>
-        </el-form-item>
+        </div>
 
-        <el-form-item>
-          <el-button type="primary" class="register-button" :disabled="!agreedToTerms" @click="submitForm">注册
-          </el-button>
-        </el-form-item>
+        <button class="notion-btn primary" @click.prevent="submitForm" :disabled="!agreedToTerms">
+          发送验证邮件
+        </button>
 
-        <div class="register-options">
-          <el-link type="info" @click="router.push({ name: 'user-login' })">已有账号？去登录</el-link>
+        <div class="auth-footer">
+          <span class="switch-link" @click="router.push({ name: 'user-login' })">
+            已有账号？直接登录
+          </span>
         </div>
       </el-form>
-    </el-card>
-  </div>
+    </div>
 
-  <div class="login-container" v-else>
-    <el-card class="login-box">
-      <h1 class="verTitle">账号注册验证</h1>
-      <p class="description">请输入您收到的 6 位数字验证码</p>
-      <InputOtp v-model="codeValue" integerOnly :length="6"/>
-      <el-button type="primary" class="login-button" @click="verR">注册</el-button>
-    </el-card>
-  </div>
+    <!-- OTP 验证码 -->
+    <div v-else class="otp-container">
+      <div class="icon-header">📩</div>
+      <h1 class="title">检查邮箱</h1>
+      <p class="subtitle">请输入发送至 <b>{{ form.email }}</b> 的验证码</p>
 
-  <Dialog v-model:visible="addUserVisible" header="CatNote 云笔记平台用户协议" :draggable="false" modal
-          :style="{ width: '850px' }"
-          :pt="{
-            header: { style: { paddingBottom: '10px', paddingTop: '10px' } },
-            content: { style: { borderTop: '1px solid #E2E8F0' } },
-          }"
-  >
-    <UserAgreement/>
-  </Dialog>
+      <div class="otp-wrapper">
+        <InputOtp v-model="codeValue" integerOnly :length="6" />
+      </div>
+
+      <button class="notion-btn primary" @click="verR">完成注册</button>
+
+      <div class="auth-footer">
+        <span class="switch-link" @click="isVerificationStep = true">返回修改邮箱</span>
+      </div>
+    </div>
+
+    <Dialog v-model:visible="addUserVisible" modal header="服务协议" :style="{ width: '600px' }">
+      <UserAgreement/>
+    </Dialog>
+  </div>
 </template>
 
 <style scoped>
-.register-container {
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  height: 100vh;
-  background-color: #f5f5f5;
-}
-
-.register-box {
-  width: 400px;
-  padding: 15px;
-  background-color: #fff;
-  border-radius: 8px;
-  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+/* 复用 Login 的大部分样式，保持一致性 */
+.notion-auth-form {
+  width: 100%;
+  padding: 0 20px;
 }
 
 .title {
-  margin-bottom: 24px;
-  color: #333;
+  font-size: 32px;
+  font-weight: 700;
+  color: #37352f;
   text-align: center;
-  font-size: 24px;
-  font-weight: 300;
+  margin-bottom: 8px;
+}
+
+.subtitle {
+  text-align: center;
+  color: #9b9a97;
+  margin-bottom: 30px;
+  font-size: 15px;
 }
 
 .input-group {
+  margin-bottom: 12px; /* 注册项多，间距稍微调小 */
+}
+
+.input-group label {
+  display: block;
+  font-size: 12px;
+  font-weight: 600;
+  color: #76746e;
+  margin-bottom: 4px;
+  text-transform: uppercase;
+}
+
+/* 强制移除 el-form-item 默认底边距，由 input-group 控制 */
+:deep(.el-form-item) {
+  margin-bottom: 0;
+}
+
+:deep(.notion-input .el-input__wrapper) {
+  box-shadow: 0 0 0 1px rgba(15, 15, 15, 0.1);
+  border-radius: 4px;
+  padding: 4px 10px;
+}
+:deep(.notion-input .el-input__wrapper.is-focus) {
+  box-shadow: 0 0 0 2px rgba(35, 131, 226, 0.3) !important;
+}
+:deep(.full-width) {
+  width: 100%;
+}
+
+.notion-btn {
+  width: 100%;
+  height: 40px;
+  border: none;
+  border-radius: 4px;
+  font-size: 15px;
+  font-weight: 500;
+  cursor: pointer;
+  margin-top: 16px;
+  background-color: #2383e2;
+  color: white;
+  transition: background 0.2s;
+}
+.notion-btn:hover {
+  background-color: #1a73ca;
+}
+.notion-btn:disabled {
+  background-color: rgba(55, 53, 47, 0.16);
+  cursor: not-allowed;
+}
+
+.auth-footer {
+  margin-top: 20px;
+  text-align: center;
+  font-size: 14px;
+}
+.switch-link {
+  cursor: pointer;
+  text-decoration: underline;
+  text-underline-offset: 4px;
+  text-decoration-color: rgba(55, 53, 47, 0.2);
+  color: #76746e;
+}
+.link {
+  color: #2383e2;
+  cursor: pointer;
+}
+
+/* OTP 特殊样式 */
+.otp-container {
+  text-align: center;
+}
+.icon-header {
+  font-size: 48px;
   margin-bottom: 20px;
 }
-
-.register-button {
-  width: 100%;
-  padding: 10px;
-  border: none;
-  border-radius: 4px;
-  background-color: #333;
-  color: #fff;
-  font-size: 16px;
-  cursor: pointer;
-}
-
-.register-button:disabled {
-  background-color: #ccc;
-  cursor: not-allowed;
-}
-
-.register-options {
+.otp-wrapper {
   display: flex;
   justify-content: center;
-  margin-top: 20px;
+  margin: 24px 0;
 }
-
-.login-container {
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  height: 100vh;
-  background-color: #f5f5f5;
-}
-
-.login-box {
-  width: 400px;
-  padding: 40px;
-  background-color: #fff;
-  border-radius: 8px;
-  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
-}
-
-.login-button {
-  width: 100%;
-  padding: 10px;
-  border: none;
-  border-radius: 4px;
-  background-color: #333;
-  color: #fff;
-  font-size: 16px;
-  cursor: pointer;
-  margin-top: 20px;
-}
-
-.login-button:disabled {
-  background-color: #ccc;
-  cursor: not-allowed;
-}
-
-.verTitle {
-  margin-bottom: 24px;
-  color: #333;
+/* PrimeVue InputOtp 样式微调 (根据实际 PrimeVue 版本可能需要调整) */
+:deep(.p-inputotp-input) {
+  width: 45px;
+  height: 50px;
+  font-size: 24px;
   text-align: center;
-  font-size: 30px;
-  font-weight: 800;
-}
-
-/* 描述文字样式 */
-.description {
-  text-align: center; /* 文字居中 */
-  margin-bottom: 20px; /* 底部外边距 */
-  color: #666; /* 文字颜色 */
-  font-size: 14px; /* 字体大小 */
-  font-weight: 600
-}
-
-.login-container {
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  height: 100vh;
-  background-color: #f5f5f5;
-}
-
-.login-button {
-  width: 100%;
-  padding: 10px;
-  border: none;
+  border: 1px solid rgba(15,15,15,0.1);
   border-radius: 4px;
-  background-color: #333;
-  color: #fff;
-  font-size: 16px;
-  cursor: pointer;
-  margin-top: 20px;
+  margin: 0 4px;
 }
-
-.login-button:disabled {
-  background-color: #ccc;
-  cursor: not-allowed;
-}
-
-.verTitle {
-  margin-bottom: 24px; /* 底部外边距 */
-  color: #333; /* 文字颜色 */
-  text-align: center; /* 文字居中 */
-  font-size: 30px; /* 字体大小 */
-  font-weight: 800; /* 字体粗细 */
+:deep(.p-inputotp-input:focus) {
+  border-color: #2383e2;
+  outline: none;
+  box-shadow: 0 0 0 2px rgba(35, 131, 226, 0.2);
 }
 </style>

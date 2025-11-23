@@ -104,4 +104,27 @@ public interface UserTodoInfoRep extends JpaRepository<TodoInfo, Long> {
     List<TodoCombinedDTO> findExpiredTodosByUserId(
             @Param("userId") Long userId,
             @Param("currentDateTime") LocalDateTime currentDateTime);
+
+    /**
+     * 查询指定用户的未分类待办事项（category_id 为 0 或无关联分类）。
+     */
+    @Query("SELECT new org.example.backend.user.todo.dto.TodoCombinedDTO(" +
+            "ti.id, ti.title, ti.description, ti.startDate, ti.dueDate, ti.status, ti.isDeleted, " +
+            "tc.id, tc.name, tc.type) " +
+            "FROM TodoInfo ti " +
+            "LEFT JOIN TodoCategory tc ON ti.category_id = tc.id " +
+            "WHERE ti.user_id = :userId AND ti.isDeleted = false " +
+            "AND ti.category_id IS NULL")
+    List<TodoCombinedDTO> findUncategorizedTodosByUserId(@Param("userId") Long userId);
+
+    /**
+     * 查询指定用户的回收站待办事项（逻辑删除项）。
+     */
+    @Query("SELECT new org.example.backend.user.todo.dto.TodoCombinedDTO(" +
+            "ti.id, ti.title, ti.description, ti.startDate, ti.dueDate, ti.status, ti.isDeleted, " +
+            "tc.id, tc.name, tc.type) " +
+            "FROM TodoInfo ti " +
+            "LEFT JOIN TodoCategory tc ON ti.category_id = tc.id " +
+            "WHERE ti.user_id = :userId AND ti.isDeleted = true")
+    List<TodoCombinedDTO> findDeletedTodosByUserId(@Param("userId") Long userId);
 }

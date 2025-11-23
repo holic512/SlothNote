@@ -18,4 +18,6 @@ import java.util.Optional;
 public interface GUNoteService {
 
     Pair<GContextEnum, Optional<Note>> GetContext(Long userId, Long noteId);
+
+    String exportHtml(Long userId, Long noteId);
 }

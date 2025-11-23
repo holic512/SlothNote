@@ -1,44 +1,37 @@
 <script setup lang="ts">
 import {ref} from "vue";
 import {ElMessage} from "element-plus";
-
-
-// 导入登录函数
-import pwLogin from "./service/pwLogin"
-import {sendMail, verifyLoginCode} from "./service/emLogin";
 import {useRouter} from "vue-router";
 import Dialog from "primevue/dialog";
 import UserAgreement from "../components/userAgreement.vue";
+// 假设 service 路径正确
+import pwLogin from "./service/pwLogin"
+import {sendMail, verifyLoginCode} from "./service/emLogin";
 
-// 路由实例
 const router = useRouter();
-
-const loginType = ref<string>('password'); // 控制是密码登录还是验证码登录
+const loginType = ref<string>('password');
 const username = ref<string>('');
 const password = ref<string>('');
+const email = ref('');
+const code = ref('');
+const codeSent = ref(false);
+const agreedToTerms = ref(false);
+const addUserVisible = ref(false);
 
-const agreedToTerms = ref(false); // 控制是否同意服务协议
-
-// 不同条件选择框
 const switchLoginType = () => {
   loginType.value = loginType.value === 'password' ? 'code' : 'password';
 };
 
-// 协议同意处理
 const validateTerms = () => {
   if (!agreedToTerms.value) {
-    ElMessage('请同意服务协议');
+    ElMessage.warning('请先阅读并同意服务协议');
     return false;
   }
   return true;
 };
 
-// 登录按钮逻辑
 const submitForm = async () => {
-  if (!validateTerms()) {
-    return;
-  }
-
+  if (!validateTerms()) return;
   if (loginType.value === 'password') {
     await handlePasswordLogin();
   } else {
@@ -46,205 +39,242 @@ const submitForm = async () => {
   }
 };
 
-
-// 账号密码登录逻辑
 const handlePasswordLogin = async () => {
   if (!username.value || !password.value) {
+    ElMessage.warning('请输入账号密码');
     return;
   }
-
+  // 模拟登录逻辑...
   const status = await pwLogin(username.value, password.value);
-  const messages: { [key: number]: string } = {
-    200: '登陆成功',
-    401: '密码错误',
-    404: '没有找到此账号',
-    500: '无法连接服务器'
-  };
-
-  ElMessage[status === 200 ? 'success' : 'info'](messages[status]);
-  if (status === 200) {
-    await router.push("/user/main")
-  }
+  if (status === 200) router.push("/user/main");
+  else ElMessage.error('登录失败');
 };
 
-const email = ref('');
-const code = ref('');
-const codeSent = ref(false);
-
-// 发送邮箱逻辑
 const sendEmCode = async () => {
-  if (!email.value) {
-    ElMessage('请输入邮箱地址');
-    return;
+  if (!email.value) return ElMessage.warning('请输入邮箱');
+  const status = await sendMail(email.value);
+  if(status === 200) {
+    ElMessage.success('验证码已发送');
+    codeSent.value = true;
+    setTimeout(() => (codeSent.value = false), 60000);
   }
-
-  const status = await sendMail(email.value)
-  const messages: { [key: number]: string } = {
-    200: '发送成功',
-    400: '邮箱格式不正确',
-    404: '该邮箱不存在',
-    500: '无法连接服务器'
-  };
-  ElMessage[status === 200 ? 'success' : 'info'](messages[status]);
-
-  codeSent.value = true;
-  setTimeout(() => (codeSent.value = false), 60000); // 模拟发送验证码并在60秒后重置按钮
 };
 
-// 邮箱登录逻辑
 const handleCodeLogin = async () => {
-  const status = await verifyLoginCode(code.value)
-  const messages: { [key: number]: string } = {
-    200: '登录成功',
-    400: '请输入正确的验证码和邮箱格式',
-    401: '验证失败',
-    500: '无法连接服务器'
-  };
-  ElMessage[status === 200 ? 'success' : 'info'](messages[status]);
-  if (status === 200) {
-    await router.push("/user/main")
-  }
+  // 模拟验证...
+  const status = await verifyLoginCode(code.value);
+  if (status === 200) router.push("/user/main");
 };
-
-// 用户协议开关
-const addUserVisible = ref(false)
-
 </script>
+
 <template>
-  <div class="login-container">
-    <el-card class="login-box">
-      <h1 class="title">用户登录</h1>
-      <el-form @submit.prevent="submitForm">
-        <!-- 密码登录  -->
-        <div v-if="loginType === 'password'">
-          <div class="input-group">
-            <label for="username">用户名</label>
-            <el-input type="text" id="username" v-model="username" placeholder="请输入用户名" clearable></el-input>
-          </div>
+  <div class="notion-auth-form">
+    <h1 class="title">登录</h1>
+    <p class="subtitle">欢迎回来，请继续您的创作。</p>
 
-          <div class="input-group">
-            <label for="password">密码</label>
-            <el-input type="password" id="password" v-model="password" placeholder="请输入密码" clearable></el-input>
+    <el-form @submit.prevent="submitForm" class="custom-form">
+      <!-- 密码登录 -->
+      <div v-if="loginType === 'password'" class="form-animate">
+        <div class="input-group">
+          <label>用户名</label>
+          <el-input v-model="username" placeholder="请输入用户名" class="notion-input"></el-input>
+        </div>
+        <div class="input-group">
+          <label>密码</label>
+          <el-input type="password" v-model="password" placeholder="请输入密码" show-password class="notion-input"></el-input>
+        </div>
+      </div>
+
+      <!-- 验证码登录 -->
+      <div v-else class="form-animate">
+        <div class="input-group">
+          <label>邮箱地址</label>
+          <el-input v-model="email" placeholder="name@company.com" class="notion-input"></el-input>
+        </div>
+        <div class="input-group">
+          <label>验证码</label>
+          <div class="code-wrapper">
+            <el-input v-model="code" placeholder="6位验证码" class="notion-input"></el-input>
+            <button type="button" class="send-btn" @click="sendEmCode" :disabled="codeSent">
+              {{ codeSent ? '已发送' : '获取验证码' }}
+            </button>
           </div>
         </div>
-        <!--   邮箱登录     -->
-        <div v-if="loginType === 'code'">
-          <div class="input-group">
-            <label for="email">邮箱地址</label>
-            <el-input type="text" id="email" v-model="email" placeholder="请输入邮箱地址" clearable></el-input>
-          </div>
+      </div>
 
-          <div class="input-group">
-            <label for="code">验证码</label>
-            <el-input type="text" id="code" v-model="code" placeholder="请输入验证码" clearable>
-              <template #append>
-                <el-button @click="sendEmCode" :disabled="codeSent">{{ codeSent ? '已发送' : '发送验证码' }}</el-button>
-              </template>
-            </el-input>
-          </div>
-        </div>
-
-
-        <el-checkbox v-model="agreedToTerms">我已阅读并同意
-          <a href="#" @click="addUserVisible = true">服务协议</a>
+      <div class="terms-check">
+        <el-checkbox v-model="agreedToTerms" size="large">
+          我已同意 <span class="link" @click.stop="addUserVisible = true">用户服务协议</span>
         </el-checkbox>
+      </div>
 
-        <el-button type="primary" class="login-button" :disabled="!agreedToTerms" @click="submitForm">登录</el-button>
+      <button class="notion-btn primary" @click.prevent="submitForm" :disabled="!agreedToTerms">
+        继续
+      </button>
 
-        <div class="login-options">
-          <el-link type="primary" @click="switchLoginType">
-            {{ loginType === 'password' ? '验证码登录' : '密码登录' }}
-          </el-link>
-          <div class="more-options" v-if="loginType === 'password'">
-            <el-link type="info">忘记密码</el-link>
-            <el-link type="info" @click="router.push({name:'user-register'})">创建账号</el-link>
-          </div>
+      <div class="auth-footer">
+        <span class="switch-link" @click="switchLoginType">
+          {{ loginType === 'password' ? '使用验证码登录' : '使用密码登录' }}
+        </span>
+        <span class="divider">•</span>
+        <span class="switch-link" @click="router.push({name:'user-register'})">
+          创建新账号
+        </span>
+      </div>
+    </el-form>
 
-          <el-link type="info" v-if="loginType === 'code'"
-                   @click="router.push({name:'user-register'})">创建账号
-          </el-link>
-        </div>
-      </el-form>
-    </el-card>
+    <Dialog v-model:visible="addUserVisible" modal header="服务协议" :style="{ width: '600px' }">
+      <UserAgreement/>
+    </Dialog>
   </div>
-
-  <Dialog v-model:visible="addUserVisible" header="CatNote 云笔记平台用户协议" :draggable="false" modal :style="{ width: '850px'}"
-          :pt="{
-    header: { style: { paddingBottom:'10px',paddingTop:'10px'} },
-    content: { style: { borderTop:'1px solid #E2E8F0'} },
-  }"
-  >
-    <UserAgreement/>
-  </Dialog>
-
-
 </template>
 
-
 <style scoped>
-.login-container {
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  height: 100vh;
-  background-color: #f5f5f5;
-}
-
-.login-box {
-  width: 400px;
-  padding: 40px;
-  background-color: #fff;
-  border-radius: 8px;
-  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+.notion-auth-form {
+  width: 100%;
+  padding: 0 20px;
 }
 
 .title {
-  margin-bottom: 24px;
-  color: #333;
+  font-size: 32px;
+  font-weight: 700;
+  color: #37352f;
   text-align: center;
-  font-size: 24px;
-  font-weight: 300;
+  margin-bottom: 8px;
+}
+
+.subtitle {
+  text-align: center;
+  color: #9b9a97;
+  margin-bottom: 40px;
+  font-size: 16px;
 }
 
 .input-group {
-  margin-bottom: 20px;
+  margin-bottom: 18px;
 }
 
-label {
+.input-group label {
   display: block;
-  margin-bottom: 8px;
-  color: #666;
-  font-size: 14px;
+  font-size: 12px;
+  font-weight: 600;
+  color: #76746e; /* Notion Label Grey */
+  margin-bottom: 6px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
 }
 
-.login-button {
-  width: 100%;
-  padding: 10px;
-  border: none;
+/* 覆盖 Element Plus 样式以符合 Notion 风格 */
+:deep(.notion-input .el-input__wrapper) {
+  box-shadow: 0 0 0 1px rgba(15, 15, 15, 0.1);
   border-radius: 4px;
-  background-color: #333;
-  color: #fff;
-  font-size: 16px;
-  cursor: pointer;
+  padding: 4px 10px;
+  background: #fff;
+  transition: all 0.2s ease;
 }
 
-.login-button:disabled {
-  background-color: #ccc;
+:deep(.notion-input .el-input__wrapper:hover) {
+  box-shadow: 0 0 0 1px rgba(15, 15, 15, 0.2);
+}
+
+:deep(.notion-input .el-input__wrapper.is-focus) {
+  box-shadow: 0 0 0 2px rgba(35, 131, 226, 0.3) !important; /* Notion Blue Focus */
+}
+
+:deep(.el-input__inner) {
+  height: 36px;
+  color: #37352f;
+}
+
+/* 验证码特殊布局 */
+.code-wrapper {
+  display: flex;
+  gap: 8px;
+}
+.send-btn {
+  white-space: nowrap;
+  background: transparent;
+  border: 1px solid rgba(15, 15, 15, 0.1);
+  border-radius: 4px;
+  color: #37352f;
+  cursor: pointer;
+  padding: 0 12px;
+  font-size: 13px;
+  transition: background 0.2s;
+}
+.send-btn:hover:not(:disabled) {
+  background: rgba(55, 53, 47, 0.08);
+}
+.send-btn:disabled {
+  color: #9b9a97;
   cursor: not-allowed;
 }
 
-.login-options {
-  display: flex;
-  justify-content: space-between;
-  margin-top: 20px;
+/* 自定义按钮 */
+.notion-btn {
+  width: 100%;
+  height: 42px;
+  border: none;
+  border-radius: 4px;
+  font-size: 15px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.2s;
+  margin-top: 10px;
 }
 
-.more-options {
-  display: flex;
-  gap: 10px;
+.notion-btn.primary {
+  background-color: #2383e2; /* Notion Blue */
+  color: white;
 }
 
-el-checkbox {
-  margin-bottom: 20px;
+.notion-btn.primary:hover {
+  background-color: #1a73ca;
+}
+
+.notion-btn:disabled {
+  background-color: rgba(55, 53, 47, 0.16);
+  color: rgba(255, 255, 255, 0.6);
+  cursor: not-allowed;
+}
+
+/* 底部链接 */
+.auth-footer {
+  margin-top: 24px;
+  text-align: center;
+  font-size: 14px;
+  color: #76746e;
+}
+
+.switch-link {
+  cursor: pointer;
+  text-decoration: underline;
+  text-underline-offset: 4px;
+  text-decoration-color: rgba(55, 53, 47, 0.2);
+  transition: color 0.2s;
+}
+
+.switch-link:hover {
+  color: #37352f;
+  text-decoration-color: #37352f;
+}
+
+.divider {
+  margin: 0 10px;
+  color: #d3d1cb;
+}
+
+.link {
+  color: #2383e2;
+  cursor: pointer;
+}
+
+.form-animate {
+  animation: fadeIn 0.3s ease-in-out;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(5px); }
+  to { opacity: 1; transform: translateY(0); }
 }
 </style>

@@ -1,11 +1,13 @@
 <script setup lang="ts">
-import {Plus, Delete, Edit, Close, Calendar} from '@element-plus/icons-vue'
+import {Calendar, Plus} from '@element-plus/icons-vue'
 import {onMounted, ref, watch} from "vue";
 import {useTodoState} from "@/views/User/Main/components/TodoList/Pinia/TodoState";
 import {getTodayDate} from "@/views/User/Main/components/TodoList/Service/getTodayDate";
 import {getAllTodoList} from "@/views/User/Main/components/TodoList/TodoMain/Service/getAllTodoList";
 import {TodoTypeById} from "@/views/User/Main/components/TodoList/TodoMain/Service/TodoTypeById";
-import {getUserTodosByCategory} from "@/views/User/Main/components/TodoList/TodoListTree/ClassTree/Service/GetUserTodosByCategory";
+import {
+  getUserTodosByCategory
+} from "@/views/User/Main/components/TodoList/TodoListTree/ClassTree/Service/GetUserTodosByCategory";
 import {ReopenTodo} from "@/views/User/Main/components/TodoList/TodoMain/Service/ReopenTodo";
 import {ElMessage, ElMessageBox} from "element-plus";
 import {CompleteTodo} from "@/views/User/Main/components/TodoList/TodoMain/Service/CompleteTodo";
@@ -13,10 +15,14 @@ import {addTodo} from "@/views/User/Main/components/TodoList/TodoMain/Service/Ad
 import {updateTodo} from "@/views/User/Main/components/TodoList/TodoMain/Service/UpdateTodo";
 import {deleteTodo} from "@/views/User/Main/components/TodoList/TodoMain/Service/DeleteTodo";
 import {getTodosByDate} from "@/views/User/Main/components/TodoList/TodoMain/Service/GetTodosByDate";
-import {GetUserTodoClasses} from "@/views/User/Main/components/TodoList/TodoListTree/ClassTree/Service/GetUserTodoClasses";
-import { getTodosForWeek } from "@/views/User/Main/components/TodoList/TodoMain/Service/GetTodosForWeek";
-import { getCompletedTodos } from "@/views/User/Main/components/TodoList/TodoMain/Service/GetCompletedTodos";
-import { getExpiredTodos } from "@/views/User/Main/components/TodoList/TodoMain/Service/GetExpiredTodos";
+import {
+  GetUserTodoClasses
+} from "@/views/User/Main/components/TodoList/TodoListTree/ClassTree/Service/GetUserTodoClasses";
+import {getTodosForWeek} from "@/views/User/Main/components/TodoList/TodoMain/Service/GetTodosForWeek";
+import {getCompletedTodos} from "@/views/User/Main/components/TodoList/TodoMain/Service/GetCompletedTodos";
+import {getExpiredTodos} from "@/views/User/Main/components/TodoList/TodoMain/Service/GetExpiredTodos";
+import {getUncategorizedTodos} from "@/views/User/Main/components/TodoList/TodoMain/Service/GetUncategorizedTodos";
+import {getRecycleBinTodos} from "@/views/User/Main/components/TodoList/TodoMain/Service/GetRecycleBinTodos";
 
 // 初始化状态变量
 const todoState = useTodoState()
@@ -48,8 +54,7 @@ const refreshTodoList = async () => {
 
       case 3:
         pageTitle.value = "未分类";
-        // 这里使用未分类待办API
-        TodoData.value = await getAllTodoList(); // 暂时使用全部待办代替
+        TodoData.value = await getUncategorizedTodos();
         break;
 
       case 4:
@@ -64,6 +69,11 @@ const refreshTodoList = async () => {
         TodoData.value = await getExpiredTodos();
         break;
 
+      case 6:
+        pageTitle.value = "回收站";
+        TodoData.value = await getRecycleBinTodos();
+        break;
+
       case 7:
         pageTitle.value = "七日待做";
         // 获取七日待办事项
@@ -75,6 +85,11 @@ const refreshTodoList = async () => {
     ElMessage.error("加载待办列表失败");
   }
 };
+
+// 监听左侧视图状态切换，驱动右侧列表与标题更新
+watch(() => todoState.isDescriptionVisible, async () => {
+  await refreshTodoList();
+});
 
 // 初始化
 onMounted(async () => {
@@ -95,9 +110,9 @@ interface Todo {
   startDate: string;
   dueDate: string;
   status: number;
-  category_id: number;
-  category_name: string;
-  category_type: number;
+  category_id: number | null;
+  category_name: string | null;
+  category_type: number | null;
   todoInfoisDeleted: boolean;
 }
 
@@ -141,7 +156,7 @@ const handleAddTodoInput = async (event: KeyboardEvent) => {
     const todoData = {
       title: newTodoInput.value.trim(),
       description: '',
-      categoryId: 0,
+      categoryId: null,
       dueDate: null
     };
 
@@ -211,7 +226,7 @@ const isEditing = ref(false);
 
 // 打开待办详情
 const openTodoDetail = (todo: Todo) => {
-  currentTodo.value = { ...todo };
+  currentTodo.value = {...todo};
   todoDetailDialogVisible.value = true;
   isEditing.value = false;
   fetchCategories(); // 加载分类列表
@@ -227,7 +242,7 @@ const handleUpdateTodo = async () => {
   const todoData = {
     title: currentTodo.value.title,
     description: currentTodo.value.description || "",
-    categoryId: currentTodo.value.category_id || 0,
+    categoryId: currentTodo.value.category_id ?? null,
     dueDate: currentTodo.value.dueDate,
     status: currentTodo.value.status
   };
@@ -287,9 +302,6 @@ const handleDeleteTodo = async () => {
           placeholder="添加待办事件,按回车保存"
           @keyup.enter="handleAddTodoInput"
       />
-      <el-button type="primary" icon="Plus" @click="openAddTodoForm" class="add-todo-button">
-        创建待办
-      </el-button>
     </div>
 
     <!--待做树-->
@@ -314,7 +326,7 @@ const handleDeleteTodo = async () => {
                v-if="isInProgressVisible" @click="openTodoDetail(task)">
             <div class="task-content">
               <!-- 选中框 -->
-              <el-checkbox class="task-checkbox" @click.stop="CompleteTodoProxy(task.todo_id)"/>
+              <el-checkbox v-show="todoState.state !== 6" class="task-checkbox" @click.stop="CompleteTodoProxy(task.todo_id)"/>
 
               <div class="task-label">
                 <el-text>
@@ -336,12 +348,14 @@ const handleDeleteTodo = async () => {
 
               <div class="task-due-date" v-if="task.dueDate">
                 <el-text size="small" style="color: #7f8c8d;">
-                  <el-icon><Calendar /></el-icon>
+                  <el-icon>
+                    <Calendar/>
+                  </el-icon>
                   {{ new Date(task.dueDate).toLocaleDateString() }}
                 </el-text>
               </div>
 
-              <div class="task-actions">
+              <div class="task-actions" v-show="todoState.state !== 6">
                 <el-button-group size="small">
                   <el-button
                       icon="Edit"
@@ -381,7 +395,7 @@ const handleDeleteTodo = async () => {
                class="task-item" @click="openTodoDetail(task)">
             <div class="task-content">
               <!--  选中框  -->
-              <el-checkbox checked class="task-checkbox" @click.stop="ReopenTodoProxy(task.todo_id)"></el-checkbox>
+              <el-checkbox v-show="todoState.state !== 6" checked class="task-checkbox" @click.stop="ReopenTodoProxy(task.todo_id)"></el-checkbox>
 
               <div class="task-label completed">
                 <el-text>
@@ -397,12 +411,14 @@ const handleDeleteTodo = async () => {
 
               <div class="task-due-date" v-if="task.dueDate">
                 <el-text size="small" style="color: #7f8c8d;">
-                  <el-icon><Calendar /></el-icon>
+                  <el-icon>
+                    <Calendar/>
+                  </el-icon>
                   {{ new Date(task.dueDate).toLocaleDateString() }}
                 </el-text>
               </div>
 
-              <div class="task-actions">
+              <div class="task-actions" v-show="todoState.state !== 6">
                 <el-button-group size="small">
                   <el-button
                       icon="Delete"
@@ -432,7 +448,7 @@ const handleDeleteTodo = async () => {
           <el-date-picker v-model="newTodoForm.dueDate" type="datetime" placeholder="选择截止时间"/>
         </el-form-item>
         <el-form-item label="分类">
-          <el-select v-model="newTodoForm.categoryId" placeholder="选择分类">
+          <el-select v-model="newTodoForm.categoryId" placeholder="选择分类" clearable @clear="newTodoForm.categoryId = null">
             <el-option
                 v-for="category in todoCategories"
                 :key="category.id"
@@ -458,10 +474,11 @@ const handleDeleteTodo = async () => {
           <el-input v-model="currentTodo.description" type="textarea" placeholder="请输入描述" :disabled="!isEditing"/>
         </el-form-item>
         <el-form-item label="截止日期">
-          <el-date-picker v-model="currentTodo.dueDate" type="datetime" placeholder="选择截止时间" :disabled="!isEditing"/>
+          <el-date-picker v-model="currentTodo.dueDate" type="datetime" placeholder="选择截止时间"
+                          :disabled="!isEditing"/>
         </el-form-item>
         <el-form-item label="分类" v-if="isEditing">
-          <el-select v-model="currentTodo.category_id" placeholder="选择分类">
+          <el-select v-model="currentTodo.category_id" placeholder="选择分类" clearable @clear="currentTodo.category_id = null">
             <el-option
                 v-for="category in todoCategories"
                 :key="category.id"
@@ -479,8 +496,8 @@ const handleDeleteTodo = async () => {
       <template #footer>
         <div v-if="!isEditing">
           <el-button @click="todoDetailDialogVisible = false">关闭</el-button>
-          <el-button type="primary" @click="isEditing = true">编辑</el-button>
-          <el-button type="danger" @click="handleDeleteTodo">删除</el-button>
+          <el-button v-show="todoState.state !== 6 && !currentTodo.todoInfoisDeleted" type="primary" @click="isEditing = true">编辑</el-button>
+          <el-button v-show="todoState.state !== 6 && !currentTodo.todoInfoisDeleted" type="danger" @click="handleDeleteTodo">删除</el-button>
         </div>
         <div v-else>
           <el-button @click="isEditing = false">取消</el-button>
@@ -512,7 +529,7 @@ const handleDeleteTodo = async () => {
   width: 100%;
   border-radius: 4px; /* 圆角效果 */
   margin: 8px 0; /* 给每个任务添加间距 */
-  padding: 10px 8px 0;
+  padding: 4px 16px;
   cursor: pointer;
 }
 
@@ -529,32 +546,32 @@ const handleDeleteTodo = async () => {
 
 .task-content {
   display: flex;
+  grid-template-columns: 32px 1fr 2fr 110px 160px 120px;
   align-items: center;
-  flex-wrap: wrap;
+  column-gap: 48px;
+  margin-bottom: 6px;
+  margin-left: 16px;
 }
 
 .task-checkbox {
   margin-left: 12px;
   margin-right: 12px;
-  margin-bottom: 4px;
+  width: 16px;
 }
 
 .task-label {
-  margin-top: 4px;
-  flex: 3;
   font-weight: 500;
+
 }
 
 .task-description {
-  flex: 4;
-  margin-top: 4px;
   color: #606266;
   font-size: 13px;
+
 }
 
 .task-class, .task-due-date {
-  margin-top: 4px;
-  flex: 1;
+
 }
 
 .task-actions {
@@ -562,6 +579,7 @@ const handleDeleteTodo = async () => {
   transition: opacity 0.2s ease;
   margin-left: auto;
   margin-right: 10px;
+  min-width: 100px;
 }
 
 .task-item:hover .task-actions {

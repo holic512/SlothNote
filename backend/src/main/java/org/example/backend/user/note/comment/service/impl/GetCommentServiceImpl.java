@@ -10,7 +10,9 @@
 package org.example.backend.user.note.comment.service.impl;
 
 import lombok.RequiredArgsConstructor;
-import org.example.backend.common.UserAvatar.UserAvatarServiceImpl;
+import org.example.backend.common.entity.UserProfile;
+import org.example.backend.common.util.file.LocalFileStorage;
+import org.example.backend.user.repository.UserUserProfileRepository;
 import org.example.backend.user.note.comment.dto.CommentViewPojo;
 import org.example.backend.user.note.comment.dto.ReplyViewPojo;
 import org.example.backend.user.note.comment.repository.UCommentRep;
@@ -25,7 +27,9 @@ import java.util.stream.Collectors;
 public class GetCommentServiceImpl implements GetCommentService {
 
     private final UCommentRep commentRep;
-    private final UserAvatarServiceImpl userAvatarService;
+    private final UserUserProfileRepository userProfileRepository;
+    private final LocalFileStorage fileStorage;
+
 
     /**
      * 获取指定笔记的所有评论及其回复
@@ -61,7 +65,9 @@ public class GetCommentServiceImpl implements GetCommentService {
         // 获取用户头像信息
         Map<Long, String> userAvatars = new HashMap<>();
         for (Long userId : userIds) {
-            userAvatars.put(userId, userAvatarService.getUserAvatarUrl(userId));
+            String raw = userProfileRepository.findByUserId(userId).map(UserProfile::getAvatar).orElse(null);
+            String url = raw == null ? null : fileStorage.resolveUrl(raw);
+            userAvatars.put(userId, url == null ? raw : url);
         }
 
         // 获取用户昵称信息

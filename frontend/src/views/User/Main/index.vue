@@ -137,6 +137,8 @@ onMounted(async () => {
 // 引入移动对话框组件
 import MoveToDialog from "@/views/User/Main/components/Sidebar/RightMenu/components/MoveToDialog.vue";
 import { moveDialogVisible, moveItemType, moveItemId, currentFolderId, handleMoveToFolder, closeMoveDialog } from "@/views/User/Main/components/Sidebar/RightMenu/Service/onRightNFMove";
+import MyStar from "@/views/User/Main/components/MyStar/MyStar.vue";
+import SearchDialog from "@/views/User/Main/components/SidebarM/components/SearchDialog.vue";
 
 </script>
 
@@ -189,15 +191,19 @@ import { moveDialogVisible, moveItemType, moveItemId, currentFolderId, handleMov
   <UserProfileInit v-model="InfoInitializedVisible"/>
 
   <!-- 移动对话框组件 -->
-  <MoveToDialog
-    :visible="moveDialogVisible"
-    :type="moveItemType"
-    :itemId="moveItemId"
-    :currentFolderId="currentFolderId"
-    @select="handleMoveToFolder"
-    @close="closeMoveDialog"
-    @cancel="closeMoveDialog"
-  />
+    <MoveToDialog
+      :visible="moveDialogVisible"
+      :type="moveItemType"
+      :itemId="moveItemId"
+      :currentFolderId="currentFolderId"
+      @select="handleMoveToFolder"
+      @close="closeMoveDialog"
+      @cancel="closeMoveDialog"
+    />
+
+  <!-- 收藏对话框全局挂载 -->
+  <MyStar/>
+  <SearchDialog/>
 
 </template>
 

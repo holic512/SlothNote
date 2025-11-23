@@ -12,7 +12,7 @@ export const addTodo = async (todoData: {
             {
                 title: todoData.title,
                 description: todoData.description || '',
-                categoryId: todoData.categoryId || 0,
+                categoryId: todoData.categoryId,
                 dueDate: todoData.dueDate || null
             }
         );

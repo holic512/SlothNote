@@ -14,13 +14,16 @@ import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.antlr.v4.runtime.misc.Pair;
 import org.example.backend.common.Mail.dto.MailCodeMessage;
-import org.example.backend.common.repository.AdminRepository;
+import org.example.backend.common.Mail.enums.MailCodePurpose;
 import org.example.backend.common.config.Redis.RedisConfig;
 import org.example.backend.common.entity.Admin;
 import org.example.backend.common.rabbitMQ.enums.MQExchangeType;
 import org.example.backend.common.rabbitMQ.enums.MQRoutingKey;
-import org.example.backend.common.Mail.enums.MailCodePurpose;
-import org.example.backend.common.util.*;
+import org.example.backend.common.repository.AdminRepository;
+import org.example.backend.common.util.SCryptUtil;
+import org.example.backend.common.util.StpKit;
+import org.example.backend.common.util.UuidUtil;
+import org.example.backend.common.util.VerificationCodeUtil;
 import org.springframework.amqp.rabbit.core.RabbitTemplate;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.redis.core.RedisTemplate;
@@ -72,13 +75,14 @@ public class AdminAuthService {
 
         // 密码验证成功->开始二次邮箱验证
         String code = VerificationCodeUtil.generateVerificationCode();
-        String uid = admin.getUid();
         String email = admin.getEmail();
         String logID = UuidUtil.getUuid();
         Map<String, String> map = new HashMap<>();
+
+        // 生成对应的  邮箱鉴权 以  uid 验证码的  形式完成  写入 json
+        String uid = UuidUtil.getUid();
         map.put("uid", uid);
         map.put("code", code);
-
         String jsonData = objectMapper.writeValueAsString(map);
         redisTemplate.opsForValue().set(loginKey + logID, jsonData, timeout, TimeUnit.MINUTES);
 
@@ -112,7 +116,6 @@ public class AdminAuthService {
 
         // 生成并返回token
         String uid = map.get("uid");
-        // String token = JwtUtil.generateToken(uid, UserRole.ADMIN);
         StpKit.ADMIN.login(uid);
         return new Pair<>(AuthServiceEnum.Success, StpKit.ADMIN.getTokenValue());
     }

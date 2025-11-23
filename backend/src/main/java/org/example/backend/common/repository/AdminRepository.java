@@ -12,13 +12,20 @@ package org.example.backend.common.repository;
 import org.example.backend.common.entity.Admin;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.CrudRepository;
-import org.springframework.data.repository.query.Param;
 
 public interface AdminRepository extends CrudRepository<Admin, Long> {
 
     // 通过用户名查询管理员信息
-    @Query("select new org.example.backend.common.entity.Admin(u.uid,u.email,u.password) from Admin u where u.username = :username")
-    Admin findByUsername(@Param("username") String username);
+    @Query("""
+                select new org.example.backend.common.entity.Admin(
+                   u.email, u.password
+                )
+                from Admin u
+                where u.username = :username
+            """)
+    Admin findByUsername(String username);
+
+
 
 
 }

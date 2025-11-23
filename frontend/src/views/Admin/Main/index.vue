@@ -8,12 +8,17 @@ const router = useRouter()
 const route = useRoute()
 
 // 页面枚举，用于定义不同的页面索引值，便于在导航时进行选择
-enum index {
-  HOME,   // 首页
-  USERMm, // 用户管理页面
-  NOTEMm, // 笔记管理页面
-  SETTING // 设置页面
-}
+  enum index {
+    HOME,   // 首页
+    DASHBOARDMm, // 仪表盘管理页面
+    USERMm, // 用户管理页面
+    NOTEMm, // 笔记管理页面
+    COMMENTMm, // 评论管理页面
+    FOLDERMm, // 文件夹管理页面
+    FAVORITEMm, // 收藏管理页面
+    TODOMm, // 待做管理页面
+    SETTING // 设置页面
+  }
 
 // 按钮状态的响应式变量，表示当前激活的导航按钮的索引
 const button = ref(index.HOME)
@@ -37,6 +42,18 @@ const toRouter = (page: index) => {
       // 可添加笔记管理页面的跳转逻辑
       router.push('/admin/main/noteMm');
       break;
+    case index.COMMENTMm:
+      router.push('/admin/main/commentMm');
+      break;
+    case index.FOLDERMm:
+      router.push('/admin/main/folderMm');
+      break;
+    case index.FAVORITEMm:
+      router.push('/admin/main/favoriteMm');
+      break;
+    case index.TODOMm:
+      router.push('/admin/main/todoMm');
+      break;
     case index.SETTING:
       // 可添加设置页面的跳转逻辑
       router.push('/admin/main/setting');
@@ -56,11 +73,26 @@ const initButtonState = () => {
     case '/admin/main/home':
       button.value = index.HOME;
       break;
+    case '/admin/main/dashboardMm':
+      button.value = index.DASHBOARDMm;
+      break;
     case '/admin/main/userMm':
       button.value = index.USERMm;
       break;
     case '/admin/main/noteMm':
       button.value = index.NOTEMm;
+      break;
+    case '/admin/main/commentMm':
+      button.value = index.COMMENTMm;
+      break;
+    case '/admin/main/folderMm':
+      button.value = index.FOLDERMm;
+      break;
+    case '/admin/main/favoriteMm':
+      button.value = index.FAVORITEMm;
+      break;
+    case '/admin/main/todoMm':
+      button.value = index.TODOMm;
       break;
     case '/admin/main/setting':
       button.value = index.SETTING;
@@ -108,7 +140,29 @@ onMounted(() => {
               <Button icon="pi pi-book" text v-else @click="toRouter(index.NOTEMm)"/>
             </div>
 
+            <div
+                v-tooltip="{ value: '评论管理', showDelay: 1000, hideDelay: 300 }">
+              <Button icon="pi pi-comments" v-if="button == index.COMMENTMm"/>
+              <Button icon="pi pi-comments" text v-else @click="toRouter(index.COMMENTMm)"/>
+            </div>
 
+            <div
+                v-tooltip="{ value: '文件夹管理', showDelay: 1000, hideDelay: 300 }">
+              <Button icon="pi pi-folder" v-if="button == index.FOLDERMm"/>
+              <Button icon="pi pi-folder" text v-else @click="toRouter(index.FOLDERMm)"/>
+            </div>
+
+            <div
+                v-tooltip="{ value: '收藏管理', showDelay: 1000, hideDelay: 300 }">
+              <Button icon="pi pi-heart" v-if="button == index.FAVORITEMm"/>
+              <Button icon="pi pi-heart" text v-else @click="toRouter(index.FAVORITEMm)"/>
+            </div>
+
+            <div
+                v-tooltip="{ value: '待做管理', showDelay: 1000, hideDelay: 300 }">
+              <Button icon="pi pi-check-square" v-if="button == index.TODOMm"/>
+              <Button icon="pi pi-check-square" text v-else @click="toRouter(index.TODOMm)"/>
+            </div>
           </div>
 
           <!-- 单独按钮 -->

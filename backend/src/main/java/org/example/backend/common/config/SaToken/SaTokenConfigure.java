@@ -56,8 +56,6 @@ public class SaTokenConfigure implements WebMvcConfigurer {
                     .match("/user/**").check(r -> StpKit.USER.checkLogin());
 
 
-
-
             // 这个位置会出现bug 莫名其妙
             /**
              *                             _ooOoo_
@@ -129,7 +127,6 @@ public class SaTokenConfigure implements WebMvcConfigurer {
                             .back();
                 });
     }
-
 
 
 }

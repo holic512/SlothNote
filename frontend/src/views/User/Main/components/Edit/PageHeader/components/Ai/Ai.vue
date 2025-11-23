@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import {RightPageModeEnum, useRightPageState} from "@/views/User/Main/components/Edit/Pinia/RightPageState";
-import { Opportunity } from '@element-plus/icons-vue';
+import {Opportunity} from '@element-plus/icons-vue';
 // 控制右侧边栏状态
 const rightPageState = useRightPageState()
 
@@ -23,7 +23,7 @@ const rightPageState = useRightPageState()
       }"
     >
       <el-icon color="#000000" size="18">
-        <Opportunity />
+        <Opportunity/>
       </el-icon>
     </el-button>
 

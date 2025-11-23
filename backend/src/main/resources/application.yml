@@ -1,46 +1,102 @@
-# application.yml
 spring:
   profiles:
     active: dev
 
-  servlet:
-    multipart:
-      enabled: true
-      max-file-size: 5MB    # 设置文件大小限制
-      max-request-size: 10MB
+  mail:
+    host: smtp.qq.com
+    port: 465
+    username: 2423580694@qq.com
+    password: hsaxgowrayzgeceg
+    protocol: smtps
+    default-encoding: UTF-8
+    properties:
+      mail:
+        smtp:
+          auth: true
+          ssl:
+            enable: true
+          starttls:
+            enable: true
+            required: true
 
   application:
     name: SlothNote
 
+  servlet:
+    multipart:
+      enabled: true
+      max-file-size: 5MB        # 单文件最大限制
+      max-request-size: 10MB    # 总请求体限制
+
+  # 配置数据库
+  datasource:
+    url: jdbc:mysql://localhost:3306/a-8
+    username: root
+    password: 123456
+    driver-class-name: com.mysql.cj.jdbc.Driver
+
+  data:
+    redis:
+      host: localhost
+      port: 6379
+      password: 123456
+
+    mongodb:
+      host: localhost
+      port: 27017
+      database: slothnote
+      username: admin
+      password: "123456"
+      authentication-database: admin
+
+
+
+  rabbitmq:
+    host: localhost
+    port: 5672
+    username: admin
+    password: admin
+    # username: guest
+    # password: guest
+
   jpa:
-    # 视图层查询
     open-in-view: false
     hibernate:
-      # 自动生成表
-      ddl-auto: none
+      ddl-auto: none            # 禁止自动建表
 
-image:
-  storage:
-    path: H:\javaProjects\CatNote\image
+# 讯飞星火模型配置
+xfyun:
+  spark:
+    api-key: ajzyauyyoqVTxpYznyTB:edjXfunfXVrpUbRCliVS
+    api-url: https://spark-api-open.xf-yun.com/v1/chat/completions
+    model: generalv3.5
+
 
 server:
   port: 8080
 
-############## Sa-Token 配置 (文档: https://sa-token.cc) ##############
+###############################################################
+# Sa-Token 配置
+###############################################################
 sa-token:
-  # token 名称（同时也是 cookie 名称）
-  token-name: satoken
-  # token 有效期（单位：秒） 默认30天，-1 代表永久有效
-  timeout: 2592000
-  # token 最低活跃频率（单位：秒），如果 token 超过此时间没有访问系统就会被冻结，默认-1 代表不限制，永不冻结
-  active-timeout: -1
-  # 是否允许同一账号多地同时登录 （为 true 时允许一起登录, 为 false 时新登录挤掉旧登录）
-  is-concurrent: true
-  # 在多人登录同一账号时，是否共用一个 token （为 true 时所有登录共用一个 token, 为 false 时每次登录新建一个 token）
-  is-share: true
-  # token 风格（默认可取值：uuid、simple-uuid、random-32、random-64、random-128、tik）
-  token-style: uuid
-  # 是否输出操作日志
-  is-log: false
-  # 是否携带cookie
-  is-read-cookie: false
+  token-name: satoken           # Token 名称
+  timeout: 2592000              # Token 有效期（秒）30天
+  active-timeout: -1            # 最低活跃频率 -1 不冻结
+  is-concurrent: true           # 是否允许并发登录
+  is-share: true                # 多设备是否共用 Token
+  token-style: uuid             # Token 生成策略
+  is-log: false                 # 是否打印日志
+  is-read-cookie: false         # 是否读取 Cookie Token
+
+
+storage:
+  local:
+    root-dir: D:\image\a-8       # 或 /data/flower-files
+    public-base-url: http://localhost:8080/files
+    enable-date-path: true
+    keep-extension: true
+
+# 自定义发件人信息
+mail:
+  from: 2423580694@qq.com
+  from-name: "智慧系统通知中心"

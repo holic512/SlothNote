@@ -13,7 +13,7 @@ export const updateTodo = async (todoId: number, todoData: {
             {
                 title: todoData.title,
                 description: todoData.description || '',
-                categoryId: todoData.categoryId || 0,
+                categoryId: todoData.categoryId,
                 dueDate: todoData.dueDate || null,
                 status: todoData.status
             },

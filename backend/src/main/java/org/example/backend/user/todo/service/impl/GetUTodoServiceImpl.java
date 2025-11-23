@@ -79,12 +79,12 @@ public class GetUTodoServiceImpl implements GetUTodoService {
     @Override
     public Pair<GetUTContextEnum, Object> getTodosForWeek(Long userId) {
         try {
-            // 计算今天和7天后的日期
+            // 计算今天与向前7天的时间范围
             LocalDateTime now = LocalDateTime.now();
-            LocalDateTime sevenDaysLater = now.plusDays(7);
+            LocalDateTime sevenDaysAgo = now.minusDays(7);
 
-            // 查询未来7天的待办事项
-            List<TodoCombinedDTO> todos = userTodoInfoRep.findTodosByDateRange(userId, now, sevenDaysLater);
+            // 查询过去7天的待办事项
+            List<TodoCombinedDTO> todos = userTodoInfoRep.findTodosByDateRange(userId, sevenDaysAgo, now);
 
             return new Pair<>(GetUTContextEnum.SUCCESS, todos);
         } catch (Exception e) {
@@ -113,6 +113,30 @@ public class GetUTodoServiceImpl implements GetUTodoService {
             LocalDateTime now = LocalDateTime.now();
             List<TodoCombinedDTO> todos = userTodoInfoRep.findExpiredTodosByUserId(userId, now);
 
+            return new Pair<>(GetUTContextEnum.SUCCESS, todos);
+        } catch (Exception e) {
+            e.printStackTrace();
+            return new Pair<>(GetUTContextEnum.SUCCESS, List.of());
+        }
+    }
+
+    @Override
+    public Pair<GetUTContextEnum, Object> getUncategorizedTodos(Long userId) {
+        try {
+            // 查询未分类（category_id 为 0 或无关联分类）的待办事项
+            List<TodoCombinedDTO> todos = userTodoInfoRep.findUncategorizedTodosByUserId(userId);
+            return new Pair<>(GetUTContextEnum.SUCCESS, todos);
+        } catch (Exception e) {
+            e.printStackTrace();
+            return new Pair<>(GetUTContextEnum.SUCCESS, List.of());
+        }
+    }
+
+    @Override
+    public Pair<GetUTContextEnum, Object> getRecycleBinTodos(Long userId) {
+        try {
+            // 查询逻辑删除（回收站）的待办事项
+            List<TodoCombinedDTO> todos = userTodoInfoRep.findDeletedTodosByUserId(userId);
             return new Pair<>(GetUTContextEnum.SUCCESS, todos);
         } catch (Exception e) {
             e.printStackTrace();

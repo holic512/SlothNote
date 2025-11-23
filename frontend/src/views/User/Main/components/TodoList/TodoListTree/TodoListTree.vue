@@ -40,7 +40,6 @@ import CalendarExpired from "@/assets/icon/TodoList/CalendarExpired.vue";
 import ClassTree from "@/views/User/Main/components/TodoList/TodoListTree/ClassTree/ClassTree.vue";
 import AddClass from "@/views/User/Main/components/TodoList/TodoListTree/addClass/addClass.vue";
 import {useTodoState} from "@/views/User/Main/components/TodoList/Pinia/TodoState";
-import {ElMessage} from "element-plus";
 
 // 获取当前日期
 const currentDate = new Date();
@@ -92,22 +91,18 @@ const input1 = ref('');
 const todoState = useTodoState();
 // TodoListTree.vue - 修改handleSevenDays函数
 const handleSevenDays = () => {
-  // 设置状态为七日待做(状态值7)
+  // 切换到七日视图
   todoState.ToCustomView();
-  todoState.state = 7; // 手动设置状态为7
-  todoState.description(); // 触发状态更新
 };
 
 
 const handleCompleted = () => {
-  ElMessage.info('已完成事项查看功能正在开发中');
-  // 实现显示已完成待办的功能
+  // 已完成视图
   todoState.ToCompletedView();
 };
 
 const handleExpired = () => {
-  ElMessage.info('已过期事项查看功能正在开发中');
-  // 实现显示已过期待办的功能
+  // 已过期视图
   todoState.ToExpiredView();
 };
 
@@ -120,37 +115,37 @@ const formatDate = (date) => {
 
 <template>
   <div class="todo-list-tree">
-    <el-input
+    <!-- <el-input
         v-model="input1"
         style="width: 100%;margin: 2px;"
         placeholder="搜索全部待办"
         :prefix-icon="Search"
-    />
+    /> -->
 
     <div>
       <!-- 今日待做 - 已实现 -->
-      <div class="todo-list-button" @click="todoState.ToToday()">
+      <!-- <div class="todo-list-button" @click="todoState.ToToday()">
         <component :is="calendarIcon" style="width: 18px;height: 18px;margin-right: 6px"/>
         <el-text>今日待做</el-text>
-      </div>
+      </div> -->
 
       <!-- 七日待做 - 添加点击事件 -->
-      <div class="todo-list-button" @click="handleSevenDays()">
+      <!-- <div class="todo-list-button" @click="handleSevenDays()">
         <calendar7 style="width: 18px;height: 18px;margin-right: 6px"/>
         <el-text>七日待做</el-text>
-      </div>
+      </div> -->
 
       <!-- 已完成 - 添加点击事件 -->
-      <div class="todo-list-button" @click="handleCompleted()">
+      <!-- <div class="todo-list-button" @click="handleCompleted()">
         <CalendarComplete style="width: 18px;height: 18px;margin-right: 6px"/>
         <el-text>已完成</el-text>
-      </div>
+      </div> -->
 
       <!-- 已过期 - 添加点击事件 -->
-      <div class="todo-list-button" @click="handleExpired()">
+      <!-- <div class="todo-list-button" @click="handleExpired()">
         <CalendarExpired style="width: 20px;height: 20px;margin-right: 6px"/>
         <el-text>已过期</el-text>
-      </div>
+      </div> -->
     </div>
 
     <!-- 分类的 树结构 -->

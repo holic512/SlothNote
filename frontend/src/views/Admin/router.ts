@@ -3,7 +3,7 @@
 
 export default [
     {
-        path: '/Admin',
+        path: '/admin',
         component: () => import("./index.vue"),
         meta: {requiresAuth: true},
         children: [
@@ -42,28 +42,53 @@ export default [
                     {
                         path: '',
                         name: 'admin-main-home',
-                        component: () => import('./Main/view/Home/Home.vue'),
+                        component: () => import('./Main/view/DashboardMm/DashboardMm.vue'),
                     },
-                    {
-                        path: 'home',
-                        name: 'admin-main-home1',
-                        component: () => import('./Main/view/Home/Home.vue'),
-                    },
+                {
+                    path: 'dashboardMm',
+                    name: 'admin-main-dashboardMm',
+                    component: () => import('./Main/view/DashboardMm/DashboardMm.vue'),
+                },
+                {
+                    path: 'home',
+                    name: 'admin-main-home1',
+                    component: () => import('./Main/view/DashboardMm/DashboardMm.vue'),
+                },
                     {
                         path: 'userMm',
                         name: 'admin-main-userMm',
                         component: () => import('./Main/view/userMm/UserMm.vue'),
                     },
-                    {
-                        path: 'noteMm',
-                        name: 'admin-main-noteMm',
-                        component: () => import('./Main/view/NoteMm/NoteMm.vue'),
-                    },
-                    {
-                        path: 'setting',
-                        name: 'admin-main-setting',
-                        component: () => import('./Main/view/Setting/Setting.vue'),
-                    },
+                {
+                    path: 'commentMm',
+                    name: 'admin-main-commentMm',
+                    component: () => import('./Main/view/CommentMm/CommentMm.vue'),
+                },
+                {
+                    path: 'noteMm',
+                    name: 'admin-main-noteMm',
+                    component: () => import('./Main/view/NoteMm/NoteMm.vue'),
+                },
+                {
+                    path: 'folderMm',
+                    name: 'admin-main-folderMm',
+                    component: () => import('./Main/view/FolderMm/FolderMm.vue'),
+                },
+                {
+                    path: 'todoMm',
+                    name: 'admin-main-todoMm',
+                    component: () => import('./Main/view/TodoMm/TodoMm.vue'),
+                },
+                {
+                    path: 'setting',
+                    name: 'admin-main-setting',
+                    component: () => import('./Main/view/Setting/Setting.vue'),
+                },
+                {
+                    path: 'favoriteMm',
+                    name: 'admin-main-favoriteMm',
+                    component: () => import('./Main/view/FavoriteMm/FavoriteMm.vue'),
+                },
                 ],
             },
         ]

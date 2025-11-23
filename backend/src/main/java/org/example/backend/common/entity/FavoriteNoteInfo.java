@@ -45,6 +45,9 @@ public class FavoriteNoteInfo {
     @Column(name = "updated_at", nullable = false)
     private LocalDateTime updatedAt; // 最后更新时间
 
+    @Column(name = "is_deleted", nullable = false)
+    private Boolean isDeleted = false;
+
     // 自动填充创建时间和更新时间
     @PrePersist
     protected void onCreate() {

@@ -12,7 +12,6 @@ package org.example.backend.common.entity;
 import jakarta.persistence.*;
 import lombok.Data;
 
-
 import java.time.LocalDateTime;
 
 
@@ -26,9 +25,6 @@ public class Admin {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     @Column(nullable = false, updatable = false)
     private Long id;  // 主键 ID
-
-    @Column(name = "uid", unique = true, nullable = false, length = 50)
-    private String uid;  // 用户 ID
 
     @Column(name = "username", unique = true, nullable = false, length = 50)
     private String username;  // 用户名
@@ -45,6 +41,9 @@ public class Admin {
     @Column(name = "updated_at", nullable = false)
     private LocalDateTime updatedAt;  // 信息更新时间
 
+    @Column(name = "is_deleted", nullable = false)
+    private Integer isDeleted = 0;
+
     public Admin() {
 
     }
@@ -60,8 +59,7 @@ public class Admin {
         this.updatedAt = LocalDateTime.now();
     }
 
-    public Admin(String uid, String email, String password) {
-        this.uid = uid;
+    public Admin(String email, String password) {
         this.email = email;
         this.password = password;
     }

@@ -1,7 +1,7 @@
 <script setup lang="ts">
-import { ref } from 'vue';
-import { ElMessage, ElMessageBox } from 'element-plus';
-import { useCurrentNoteInfoStore } from "@/views/User/Main/components/Edit/Pinia/currentNoteInfo";
+import {ref} from 'vue';
+import {ElMessage, ElMessageBox} from 'element-plus';
+import {useCurrentNoteInfoStore} from "@/views/User/Main/components/Edit/Pinia/currentNoteInfo";
 import axios from "@/axios";
 
 // 接收生成的简介内容
@@ -24,25 +24,25 @@ const saveAsNoteSummary = async () => {
     // 获取当前笔记ID
     const noteId = currentNoteInfo.noteId || 1;
     const noteTitle = currentNoteInfo.noteTitle || '当前笔记';
-    
+
     ElMessageBox.confirm(
-      `是否将此内容保存为笔记"${noteTitle}"的简介？`,
-      '保存简介',
-      {
-        confirmButtonText: '确定',
-        cancelButtonText: '取消',
-        type: 'info'
-      }
+        `是否将此内容保存为笔记"${noteTitle}"的简介？`,
+        '保存简介',
+        {
+          confirmButtonText: '确定',
+          cancelButtonText: '取消',
+          type: 'info'
+        }
     ).then(async () => {
       try {
         const response = await axios.put(
-          "user/noteTree/NoteSummary",
-          {
-            noteId: noteId,
-            noteDescription: props.summary
-          }
+            "user/noteTree/NoteSummary",
+            {
+              noteId: noteId,
+              noteDescription: props.summary
+            }
         );
-        
+
         if (response.data.status === 200) {
           ElMessage.success('简介已成功保存到笔记');
           dialogVisible.value = false;
@@ -78,23 +78,23 @@ const closeDialog = () => {
     <el-button type="primary" size="small" @click="showDialog">
       保存为简介
     </el-button>
-    
+
     <el-dialog
-      v-model="dialogVisible"
-      title="保存简介内容"
-      width="400px"
+        v-model="dialogVisible"
+        title="保存简介内容"
+        width="400px"
     >
       <div class="summary-preview">
         <strong>内容预览：</strong>
         <p class="preview-text">{{ props.summary }}</p>
       </div>
-      
+
       <div class="action-buttons">
         <el-button type="primary" @click="saveAsNoteSummary">
           保存到当前笔记
         </el-button>
       </div>
-      
+
       <template #footer>
         <el-button @click="closeDialog">取消</el-button>
       </template>

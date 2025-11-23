@@ -6,6 +6,7 @@ import Rename from "@/views/User/Main/components/Sidebar/components/Rename/Renam
 import {useUserPreferencesStore} from "@/views/User/Main/Pinia/userPreferencesStore";
 import Details from "@/views/User/Main/components/Sidebar/components/Details/Details.vue";
 import Description from "@/views/User/Main/components/Sidebar/components/Description/Description.vue";
+import {useSearchDialogStore} from "@/views/User/Main/components/SidebarM/Pinia/SearchDialogStore";
 
 // 控制用户设置 显示
 const UserSettingVisible = defineModel()
@@ -15,6 +16,8 @@ const router = useRouter();
 
 // 左侧面板信息控制
 const LeftPanelState = useUserPreferencesStore();
+const searchStore = useSearchDialogStore();
+const openSearch = () => { searchStore.open(); };
 
 </script>
 
@@ -64,7 +67,7 @@ const LeftPanelState = useUserPreferencesStore();
       </div>
     </div>
 
-    <div class="sidebar-div" style="margin-bottom: 1px;">
+    <div class="sidebar-div" style="margin-bottom: 1px;" @click="openSearch">
       <div class="sidebar-icon">
         <i class="pi pi-search" style="font-size: 1rem;color: #708090"/>
       </div>

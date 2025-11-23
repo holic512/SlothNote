@@ -7,11 +7,22 @@ import {useCurrentNoteInfoStore} from "@/views/User/Main/components/Edit/Pinia/c
 import {useRightPageState} from "@/views/User/Main/components/Edit/Pinia/RightPageState";
 import Comment from "@/views/User/Main/components/Edit/PageHeader/components/Comment/comment.vue";
 import Ai from "@/views/User/Main/components/Edit/PageHeader/components/Ai/Ai.vue";
+import MyStar from "@/views/User/Main/components/MyStar/MyStar.vue";
+import {useFavoriteDialogStore} from "@/views/User/Main/components/Edit/Pinia/FavoriteDialogStore";
+import {ElMessage} from "element-plus";
 
 const editor = defineModel()
 
 // 获取当前笔记 的 基础信息
 const currentNoteInfo = useCurrentNoteInfoStore()
+const favStore = useFavoriteDialogStore();
+const openFavorite = () => {
+  if (currentNoteInfo.noteId != null) {
+    favStore.open(currentNoteInfo.noteId);
+  } else {
+    ElMessage.warning("请先打开一篇笔记");
+  }
+}
 
 </script>
 
@@ -97,7 +108,7 @@ const currentNoteInfo = useCurrentNoteInfoStore()
           placement="bottom"
       >
 
-        <el-button text class="button">  <!--收藏-->
+        <el-button text class="button" @click="openFavorite">  <!--收藏-->
           <el-icon color="#000000" size="18">
             <Star/>
           </el-icon>
@@ -107,6 +118,8 @@ const currentNoteInfo = useCurrentNoteInfoStore()
       </el-tooltip>
 
       <Ai/>
+
+      <MyStar/>
 
       <el-tooltip
           class="box-item"

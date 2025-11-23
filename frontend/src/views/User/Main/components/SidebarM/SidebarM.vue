@@ -3,11 +3,14 @@
 import Button from "primevue/button";
 import {useUserPreferencesStore} from "@/views/User/Main/Pinia/userPreferencesStore";
 import {useRouter} from "vue-router";
+import {useSearchDialogStore} from './Pinia/SearchDialogStore';
 // 左侧面板信息控制
 const LeftPanelState = useUserPreferencesStore();
 
 // 获取路由实例
 const router = useRouter();
+const searchStore = useSearchDialogStore();
+const openSearch = () => { searchStore.open(); };
 </script>
 
 <template>
@@ -33,7 +36,7 @@ const router = useRouter();
     </div>
 
     <!--  搜索  -->
-    <div class="sidebar-div" style="margin-bottom: 1px;">
+    <div class="sidebar-div" style="margin-bottom: 1px;" @click="openSearch">
       <i class="pi pi-search" style="font-size: 1rem;color: #708090"/>
     </div>
 
@@ -48,6 +51,7 @@ const router = useRouter();
     </div>
 
   </div>
+
 </template>
 
 <style scoped>

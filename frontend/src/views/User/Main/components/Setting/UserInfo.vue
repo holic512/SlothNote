@@ -2,7 +2,7 @@
 import {onMounted, ref} from 'vue';
 import Button from 'primevue/button';
 import {Edit} from '@element-plus/icons-vue';
-import {AccountInfo, fetchAccountInfo} from "@/views/User/Main/components/Setting/service/getUserInfo.js";
+import {AccountInfo, fetchAccountInfo} from "@/views/User/Main/components/Setting/service/getUserInfo.ts";
 import {putNickname} from "@/views/User/Main/components/Setting/service/putNickname";
 import {ElMessage} from "element-plus";
 import {putGender} from "@/views/User/Main/components/Setting/service/putGender";
@@ -50,6 +50,60 @@ const options = [
     label: '女',
   },
 ]
+
+import {putAvatar} from "@/views/User/Main/components/Setting/service/putAvatar";
+import {putPassword} from "@/views/User/Main/components/Setting/service/putPassword";
+const avatarInput = ref<HTMLInputElement | null>(null);
+const triggerUpload = () => {
+  avatarInput.value?.click();
+}
+const onAvatarSelected = async (e: Event) => {
+  const target = e.target as HTMLInputElement;
+  const file = target.files && target.files[0];
+  if (!file) return;
+  const r = await putAvatar(file);
+  if (r.status === 200) {
+    Info.value.avatar = r.url;
+    ElMessage.success("头像上传成功");
+  } else {
+    ElMessage.warning("头像上传失败");
+  }
+  target.value = "";
+}
+
+const pwDialogVis = ref(false);
+const oldPassword = ref("");
+const newPassword = ref("");
+const confirmPassword = ref("");
+const openPwDialog = () => {
+  pwDialogVis.value = true;
+  oldPassword.value = "";
+  newPassword.value = "";
+  confirmPassword.value = "";
+}
+const submitPassword = async () => {
+  if (!oldPassword.value || !newPassword.value) {
+    ElMessage.warning("请输入完整信息");
+    return;
+  }
+  if (newPassword.value.length < 6) {
+    ElMessage.warning("新密码至少6位");
+    return;
+  }
+  if (newPassword.value !== confirmPassword.value) {
+    ElMessage.warning("两次输入的密码不一致");
+    return;
+  }
+  const r = await putPassword(oldPassword.value, newPassword.value);
+  if (r === 200) {
+    ElMessage.success("密码修改成功");
+    pwDialogVis.value = false;
+  } else if (r === 400) {
+    ElMessage.warning("原密码不正确");
+  } else {
+    ElMessage.error("密码修改失败");
+  }
+}
 
 const editVis = (n: number) => {
   switch (n) {
@@ -128,7 +182,7 @@ const edit = async (n: number) => {
       if (status == 200) {
         Info.value.bio = bio.value;
         bioVis.value = true;
-        ElMessage.success("联系方式修改成功");
+        ElMessage.success("个人简介修改成功");
       } else {
         ElMessage.warning("联系方式修改失败");
       }
@@ -152,7 +206,8 @@ const edit = async (n: number) => {
           {{ Info.username }}
         </el-avatar>
         <div class="avatar-actions">
-          <Button label="上传新头像" severity="secondary" rounded class="upload-btn"/>
+          <input ref="avatarInput" type="file" accept="image/*" style="display:none" @change="onAvatarSelected" />
+          <Button label="上传新头像" severity="secondary" rounded class="upload-btn" @click="triggerUpload"/>
           <el-text size="small">支持JPG、PNG、GIF格式，小于2MB</el-text>
         </div>
       </div>
@@ -200,14 +255,13 @@ const edit = async (n: number) => {
     <div class="info-row">
       <el-text class="label" type="info">密码</el-text>
       <el-text class="user-text">******</el-text>
-      <el-link class="edit-link" :icon="Edit" type="primary">修改密码</el-link>
+      <el-link class="edit-link" :icon="Edit" type="primary" @click="openPwDialog">修改密码</el-link>
     </div>
 
     <!-- Email Section -->
     <div class="info-row">
       <el-text class="label" type="info">邮件地址</el-text>
       <el-text class="user-text">{{ Info.email }}</el-text>
-      <el-link class="edit-link" :icon="Edit" type="primary">编辑</el-link>
     </div>
 
     <!-- Gender Section -->
@@ -287,6 +341,18 @@ const edit = async (n: number) => {
 
     </div>
   </div>
+
+  <el-dialog v-model="pwDialogVis" title="修改密码" width="360px">
+    <div style="display:flex;flex-direction:column;gap:12px">
+      <el-input v-model="oldPassword" type="password" placeholder="原密码"/>
+      <el-input v-model="newPassword" type="password" placeholder="新密码（至少6位）"/>
+      <el-input v-model="confirmPassword" type="password" placeholder="确认新密码"/>
+    </div>
+    <template #footer>
+      <el-button @click="pwDialogVis=false">取消</el-button>
+      <el-button type="primary" @click="submitPassword">确认</el-button>
+    </template>
+  </el-dialog>
 </template>
 
 <style scoped>

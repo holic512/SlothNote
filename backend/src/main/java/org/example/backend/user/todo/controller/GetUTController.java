@@ -54,8 +54,10 @@ public class GetUTController {
      * @return
      */
     @GetMapping("/uncategorized")
-    public String getUncategorizedTodos() {
-        return "Uncategorized todos";
+    public Object getUncategorizedTodos() {
+        Long UserId = (Long) StpKit.USER.getSession().get("id");
+        Pair<GetUTContextEnum, Object> result = gutService.getUncategorizedTodos(UserId);
+        return result.b;
     }
 
     /**
@@ -82,6 +84,16 @@ public class GetUTController {
         Long UserId = (Long) StpKit.USER.getSession().get("id");
         // 调用服务类
         Pair<GetUTContextEnum, Object> result = gutService.getAllTodoCategory(UserId);
+        return result.b;
+    }
+
+    /**
+     * 获取该用户回收站中的待办事项（逻辑删除项）
+     */
+    @GetMapping("/recycleBin")
+    public Object getRecycleBinTodos() {
+        Long userId = (Long) StpKit.USER.getSession().get("id");
+        Pair<GetUTContextEnum, Object> result = gutService.getRecycleBinTodos(userId);
         return result.b;
     }
 

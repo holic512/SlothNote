@@ -60,7 +60,8 @@ public class PostUTodoServiceImpl implements PostUTodoService {
             todoInfo.setUser_id(userId);
             todoInfo.setTitle(request.getTitle());
             todoInfo.setDescription(request.getDescription());
-            todoInfo.setCategory_id(request.getCategoryId() != null ? request.getCategoryId() : 0L);
+            // 分类可为空：未分类待办
+            todoInfo.setCategory_id(request.getCategoryId());
             todoInfo.setDueDate(request.getDueDate());
             todoInfo.setStartDate(LocalDateTime.now());
             todoInfo.setStatus(TodoStatusEnum.INCOMPLETE.getValue());

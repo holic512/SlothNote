@@ -10,13 +10,13 @@
 package org.example.backend.common.Mail.consumer;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import org.example.backend.common.Mail.dto.MailCodeMessage;
+import com.rabbitmq.client.Channel;
 import org.example.backend.common.Mail.Service.MailCodeService;
+import org.example.backend.common.Mail.dto.MailCodeMessage;
+import org.springframework.amqp.core.Message;
 import org.springframework.amqp.rabbit.annotation.RabbitListener;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
-import com.rabbitmq.client.Channel;
-import org.springframework.amqp.core.Message;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
@@ -33,7 +33,7 @@ public class EmailCodeConsumer {
     }
 
     // 监听邮件队列
-    @RabbitListener(queues = "emailQueue",containerFactory = "rabbitListenerContainerFactory")
+    @RabbitListener(queues = "emailQueue", containerFactory = "rabbitListenerContainerFactory")
     public void listenToEmailQueue(Channel channel, Message message) throws IOException {
         try {
             // 逆序列化

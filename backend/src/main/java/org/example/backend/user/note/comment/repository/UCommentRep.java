@@ -37,7 +37,7 @@ public interface UCommentRep extends JpaRepository<Comment, Long> {
      * @param userIds 用户ID集合
      * @return 用户ID与昵称的对应列表
      */
-    @Query("SELECT Up.user_id,Up.nickname FROM UserProfile Up WHERE Up.user_id IN :userIds")
+    @Query("SELECT Up.userId,Up.nickname FROM UserProfile Up WHERE Up.userId IN :userIds")
     List<Object[]> findUsernamesByUserIds(@Param("userIds") Set<Long> userIds);
 
     /**

@@ -73,4 +73,14 @@ public interface GetUTodoService {
      * @return 包含状态枚举和结果对象的Pair。
      */
     Pair<GetUTContextEnum, Object> getExpiredTodos(Long userId);
+
+    /**
+     * 获取指定用户的未分类待办事项。
+     */
+    Pair<GetUTContextEnum, Object> getUncategorizedTodos(Long userId);
+
+    /**
+     * 获取指定用户的回收站待办事项（逻辑删除）。
+     */
+    Pair<GetUTContextEnum, Object> getRecycleBinTodos(Long userId);
 }

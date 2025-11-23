@@ -12,7 +12,7 @@ export const useUserPreferencesStore = defineStore('userPreferencesStore', {
     }),
     actions: {
         // 切换左侧面板的显示状态
-        toggleLeftPanel(){
+        toggleLeftPanel() {
             this.LeftPanelVis = !this.LeftPanelVis;
         },
         // 切换编辑器工具栏显示状态

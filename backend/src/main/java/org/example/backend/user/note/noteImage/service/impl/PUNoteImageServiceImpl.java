@@ -11,8 +11,7 @@
 package org.example.backend.user.note.noteImage.service.impl;
 
 import org.antlr.v4.runtime.misc.Pair;
-import org.example.backend.common.ImageStorage.service.ImageStorageService;
-import org.example.backend.user.note.noteImage.Utils.ImageNameGenerator;
+import org.example.backend.common.util.file.LocalFileStorage;
 import org.example.backend.user.note.noteImage.service.PUNoteImageService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
@@ -21,24 +20,19 @@ import org.springframework.web.multipart.MultipartFile;
 @Service
 public class PUNoteImageServiceImpl implements PUNoteImageService {
 
-    private ImageStorageService imageStorageService;
+    private final LocalFileStorage localFileStorage;
 
     @Autowired
-    public PUNoteImageServiceImpl(ImageStorageService imageStorageService) {
-        this.imageStorageService = imageStorageService;
+    public PUNoteImageServiceImpl(LocalFileStorage localFileStorage) {
+        this.localFileStorage = localFileStorage;
     }
 
     @Override
     public Pair<Object, Object> saveCompressedNoteImage(String uid, MultipartFile image, String type) {
         try {
-            // 获取文件名称
-            String imageName = uid + ImageNameGenerator.generateRandomString() + "." + type;
-
-
-            // 调用保存图片指令
-            imageStorageService.saveImage(imageName, image.getBytes());
-
-            return new Pair<>(true, imageStorageService.getImageUrl(imageName));
+            String tag = localFileStorage.save(image, "noteImage/" + uid);
+            String url = localFileStorage.resolveUrl(tag);
+            return new Pair<>(true, url);
         } catch (Exception e) {
             e.printStackTrace();
             return new Pair<>(false, null);
