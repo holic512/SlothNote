@@ -272,25 +272,6 @@ const onlineUserVisible = ref<boolean>(false);
 <template>
   <el-scrollbar height="100%">
     <div class="common-layout">
-
-      <!-- 标题区域：使用 flex 替代 el-row 以保持一致性 -->
-      <div class="title-container">
-        <div class="title-left">
-          <h1>所有用户</h1>
-          <p>这个列表可以对所有用户进行管理</p>
-        </div>
-        <div class="title-right">
-          <Button type="button" badgeSeverity="contrast" outlined size="small"
-                  style="width: 130px"
-                  @click="onlineUserVisible = true"
-          >
-            <i class="pi pi-circle-fill" style="color: #22C55E; margin-right: 8px;"></i>
-            <el-text tag="b">{{ OUserCount }}</el-text>
-            <el-text>在线用户</el-text>
-          </Button>
-        </div>
-      </div>
-
       <!-- 响应式工具栏 -->
       <div class="responsive-toolbar">
         <!-- 第一行：主要操作与常用搜索 -->
@@ -319,6 +300,15 @@ const onlineUserVisible = ref<boolean>(false);
 
           <!-- 右侧：增删改查操作 + 分页 -->
           <div class="group-right">
+            <Button type="button" badgeSeverity="contrast" outlined size="small"
+                    style="width: 130px"
+                    @click="onlineUserVisible = true"
+            >
+              <i class="pi pi-circle-fill" style="color: #22C55E; margin-right: 8px;"></i>
+              <el-text tag="b">{{ OUserCount }}</el-text>
+              <el-text>在线用户</el-text>
+            </Button>
+
             <Button icon="pi pi-plus" severity="secondary" outlined size="small"
                     v-tooltip.bottom="{ value: '添加用户', showDelay: 1000, hideDelay: 300 }"
                     @click="addUserVisible = true"/>
@@ -448,33 +438,6 @@ const onlineUserVisible = ref<boolean>(false);
   padding-left: 1px;
   padding-right: 15px;
   background-color: white;
-}
-
-/* 标题区域样式 */
-.title-container {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 10px;
-  flex-wrap: wrap;
-}
-
-.title-left h1 {
-  color: #334155;
-  font-size: 22px;
-  margin: 0;
-  font-weight: 700;
-}
-
-.title-left p {
-  color: #64748b;
-  font-size: 14px;
-  margin: 0;
-}
-
-.title-right {
-  display: flex;
-  align-items: center;
 }
 
 /* --- 响应式 Toolbar 样式 --- */

@@ -169,14 +169,6 @@ const getDeletedType = (d: number) => (d === 1 ? 'danger' : 'success');
 <template>
   <el-scrollbar height="100%">
     <div class="common-layout">
-      <!-- 标题区域 -->
-      <div class="title-container">
-        <div class="title">
-          <h1>文件夹管理</h1>
-          <p>对系统文件夹进行统一管理</p>
-        </div>
-      </div>
-
       <!-- 响应式工具栏 -->
       <div class="responsive-toolbar">
         <!-- 第一行：常用操作 -->
@@ -295,13 +287,6 @@ const getDeletedType = (d: number) => (d === 1 ? 'danger' : 'success');
   padding-right: 15px;
   background-color: white;
 }
-
-/* 标题区域 */
-.title-container {
-  margin-bottom: 10px;
-}
-.title h1 { color: #334155; font-size: 22px; margin: 0; font-weight: 700; }
-.title p { color: #64748b; font-size: 14px; margin: 0; }
 
 /* --- 响应式 Toolbar 样式 --- */
 .responsive-toolbar {

@@ -188,15 +188,8 @@ const tableColumns = computed(() => {
 <template>
   <el-scrollbar height="100%" class="dashboard-bg">
     <div class="dashboard-container">
-      
-      <!-- 1. 顶部标题区 -->
       <div class="header-section">
-        <div>
-          <h1 class="main-title">系统仪表盘</h1>
-          <p class="sub-title">实时监控数据指标与内容管理</p>
-        </div>
         <div class="header-actions">
-          <!-- 可以在这里放全局刷新按钮等 -->
           <Button icon="pi pi-refresh" rounded text @click="load" v-tooltip="'刷新列表'"/>
         </div>
       </div>
@@ -348,19 +341,8 @@ const tableColumns = computed(() => {
 /* Header */
 .header-section {
   display: flex;
-  justify-content: space-between;
+  justify-content: flex-end;
   align-items: center;
-}
-.main-title {
-  font-size: 24px;
-  font-weight: 700;
-  color: #1e293b;
-  margin: 0;
-}
-.sub-title {
-  color: #64748b;
-  font-size: 14px;
-  margin: 4px 0 0 0;
 }
 
 /* Metric Cards */

@@ -213,14 +213,6 @@ const handleSingleRestore = async (id: number) => {
 <template>
   <el-scrollbar height="100%">
     <div class="common-layout">
-      <!-- 标题区域 -->
-      <div class="title-container">
-        <div class="title">
-          <h1>笔记管理</h1>
-          <p>统一管理笔记基本信息与内容预览</p>
-        </div>
-      </div>
-
       <!-- 响应式工具栏 -->
       <div class="responsive-toolbar">
         <!-- 第一行：常用操作 -->
@@ -360,11 +352,6 @@ const handleSingleRestore = async (id: number) => {
 
 <style scoped>
 .common-layout { height: 100%; padding-left: 1px; padding-right: 15px; background-color: white; }
-
-/* 标题区域 */
-.title-container { margin-bottom: 10px; }
-.title h1 { color: #334155; font-size: 22px; margin: 0; font-weight: 700; }
-.title p { color: #64748b; font-size: 14px; margin: 0; }
 
 /* --- 响应式 Toolbar 样式 --- */
 .responsive-toolbar {

@@ -157,13 +157,6 @@ const openDetail = (id: number) => {
 <template>
   <el-scrollbar height="100%">
     <div class="common-layout">
-      <div class="title-container">
-        <div class="title">
-          <h1>AI 记录管理</h1>
-          <p>统一管理用户 AI 会话、上下文笔记和消息记录</p>
-        </div>
-      </div>
-
       <div class="responsive-toolbar">
         <div class="toolbar-top">
           <div class="group-left">
@@ -253,16 +246,6 @@ const openDetail = (id: number) => {
   display: flex;
   flex-direction: column;
   gap: 18px;
-}
-
-.title h1 {
-  margin: 0;
-  font-size: 28px;
-}
-
-.title p {
-  margin: 8px 0 0;
-  color: #6b7280;
 }
 
 .responsive-toolbar {

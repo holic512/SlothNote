@@ -140,13 +140,6 @@ const openDetail = (id: number) => { currentId.value = id; detailVisible.value =
 <template>
   <el-scrollbar height="100%">
     <div class="common-layout">
-      <div class="title-container">
-        <div class="title-left">
-          <h1>评论管理</h1>
-          <p>管理笔记评论，支持搜索、筛选和批量操作</p>
-        </div>
-      </div>
-
       <div class="responsive-toolbar">
         <div class="toolbar-top">
           <div class="group-left">
@@ -228,9 +221,6 @@ const openDetail = (id: number) => { currentId.value = id; detailVisible.value =
 
 <style scoped>
 .common-layout { height: 100%; padding-left: 1px; padding-right: 15px; background-color: white; }
-.title-container { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; flex-wrap: wrap; }
-.title-left h1 { color: #334155; font-size: 22px; margin: 0; font-weight: 700; }
-.title-left p { color: #64748b; font-size: 14px; margin: 0; }
 .responsive-toolbar { display: flex; flex-direction: column; gap: 10px; margin-bottom: 15px; }
 .toolbar-top { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px; }
 .group-left { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; }

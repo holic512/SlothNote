@@ -1,275 +1,419 @@
 <script setup lang="ts">
-import Button from 'primevue/button';
-import {onMounted, ref} from "vue";
-
-import {useRouter, useRoute} from "vue-router";
+import {
+  Expand,
+  ChatDotRound,
+  Checked,
+  Fold,
+  Cpu,
+  Document,
+  Folder,
+  Grid,
+  Monitor,
+  Setting,
+  Star,
+  User,
+  SwitchButton
+} from '@element-plus/icons-vue'
+import { computed, ref } from 'vue'
+import { ElMessage, ElMessageBox } from 'element-plus'
+import { useRoute, useRouter } from 'vue-router'
+import { tokenStore } from '@/pinia/token'
 
 const router = useRouter()
 const route = useRoute()
+const isCollapsed = ref(false)
 
-// 页面枚举，用于定义不同的页面索引值，便于在导航时进行选择
-  enum index {
-    HOME,   // 首页
-    DASHBOARDMm, // 仪表盘管理页面
-    USERMm, // 用户管理页面
-    NOTEMm, // 笔记管理页面
-    COMMENTMm, // 评论管理页面
-    FOLDERMm, // 文件夹管理页面
-    FAVORITEMm, // 收藏管理页面
-    TODOMm, // 待做管理页面
-    AIMm, // AI记录管理页面
-    SETTING // 设置页面
-  }
+type MenuItem = {
+  index: string
+  title: string
+  icon: unknown
+  alias?: string[]
+}
 
-// 按钮状态的响应式变量，表示当前激活的导航按钮的索引
-const button = ref(index.HOME)
+const menuItems: MenuItem[] = [
+  { index: '/admin/main/home', title: '仪表盘', icon: Grid, alias: ['/admin/main', '/admin/main/dashboardMm'] },
+  { index: '/admin/main/userMm', title: '用户管理', icon: User },
+  { index: '/admin/main/noteMm', title: '笔记管理', icon: Document },
+  { index: '/admin/main/commentMm', title: '评论管理', icon: ChatDotRound },
+  { index: '/admin/main/folderMm', title: '文件夹管理', icon: Folder },
+  { index: '/admin/main/favoriteMm', title: '收藏管理', icon: Star },
+  { index: '/admin/main/todoMm', title: '待办管理', icon: Checked },
+  { index: '/admin/main/aiMm', title: 'AI记录', icon: Cpu },
+  { index: '/admin/main/setting', title: '系统设置', icon: Setting },
+]
 
-// 导航切换路由方法，根据传入的页面索引进行路由跳转
-const toRouter = (page: index) => {
-  // 更新按钮状态，表示当前选中的页面索引
-  button.value = page;
+const activeMenu = computed(() => {
+  const matched = menuItems.find((item) => item.index === route.path || item.alias?.includes(route.path))
+  return matched?.index ?? '/admin/main/home'
+})
 
-  // 根据页面索引执行相应的路由跳转逻辑
-  switch (page) {
-    case index.HOME:
-      // 跳转到首页
-      router.push('/admin/main/home');
-      break;
-    case index.USERMm:
-      // 可添加用户管理页面的跳转逻辑
-      router.push('/admin/main/userMm');
-      break;
-    case index.NOTEMm:
-      // 可添加笔记管理页面的跳转逻辑
-      router.push('/admin/main/noteMm');
-      break;
-    case index.COMMENTMm:
-      router.push('/admin/main/commentMm');
-      break;
-    case index.FOLDERMm:
-      router.push('/admin/main/folderMm');
-      break;
-    case index.FAVORITEMm:
-      router.push('/admin/main/favoriteMm');
-      break;
-    case index.TODOMm:
-      router.push('/admin/main/todoMm');
-      break;
-    case index.AIMm:
-      router.push('/admin/main/aiMm');
-      break;
-    case index.SETTING:
-      // 可添加设置页面的跳转逻辑
-      router.push('/admin/main/setting');
-      break;
-    default:
-      // 可以处理无效页面的跳转逻辑
-      console.warn("未知页面索引");
+const currentTitle = computed(() => (route.meta.title as string) ?? '管理后台')
+const currentSubtitle = computed(() => (route.meta.subtitle as string) ?? '')
+
+const handleSelect = (index: string) => {
+  if (index !== route.path) {
+    router.push(index)
   }
 }
 
-// 根据当前路由初始化按钮状态
-const initButtonState = () => {
-  switch (route.path) {
-    case '/admin/main':
-      button.value = index.HOME;
-      break;
-    case '/admin/main/home':
-      button.value = index.HOME;
-      break;
-    case '/admin/main/dashboardMm':
-      button.value = index.DASHBOARDMm;
-      break;
-    case '/admin/main/userMm':
-      button.value = index.USERMm;
-      break;
-    case '/admin/main/noteMm':
-      button.value = index.NOTEMm;
-      break;
-    case '/admin/main/commentMm':
-      button.value = index.COMMENTMm;
-      break;
-    case '/admin/main/folderMm':
-      button.value = index.FOLDERMm;
-      break;
-    case '/admin/main/favoriteMm':
-      button.value = index.FAVORITEMm;
-      break;
-    case '/admin/main/todoMm':
-      button.value = index.TODOMm;
-      break;
-    case '/admin/main/aiMm':
-      button.value = index.AIMm;
-      break;
-    case '/admin/main/setting':
-      button.value = index.SETTING;
-      break;
-    default:
-      console.warn("未知路由路径:", route.path);
-  }
+const toggleAside = () => {
+  isCollapsed.value = !isCollapsed.value
 }
 
-// 在组件挂载时初始化按钮状态
-onMounted(() => {
-  initButtonState();
-});
+const handleLogout = async () => {
+  try {
+    await ElMessageBox.confirm('确认退出当前管理员登录状态？', '退出登录', {
+      type: 'warning',
+      confirmButtonText: '退出',
+      cancelButtonText: '取消',
+    })
 
-
+    tokenStore().clearAdminToken()
+    await router.push('/admin/auth/login')
+    ElMessage.success('已退出登录')
+  } catch (error) {
+    // Cancelled
+  }
+}
 </script>
 
 <template>
-  <div class="common-layout">
-    <el-container>
-      <el-aside width="110px" class="aside-layout">
-        <div class="aside-layout-div">
-          <!--          &lt;!&ndash; 图像 &ndash;&gt;-->
-          <!--          <div class="aside-item">-->
-          <!--            <img src="../assets/images/logo.png" class="logo"/>-->
-          <!--          </div>-->
-
-          <!-- 按钮组 -->
-          <div class="button-group">
-            <div
-                v-tooltip="{ value: '主页', showDelay: 1000, hideDelay: 300 }">
-              <Button icon="pi pi-home" v-if="button == index.HOME"/>
-              <Button icon="pi pi-home" text v-else @click="toRouter(index.HOME)"/>
-            </div>
-
-            <div
-                v-tooltip="{ value: '用户管理', showDelay: 1000, hideDelay: 300 }">
-              <Button icon="pi pi-user" v-if="button == index.USERMm"/>
-              <Button icon="pi pi-user" text v-else @click="toRouter(index.USERMm)"/>
-            </div>
-
-            <div
-                v-tooltip="{ value: '笔记管理', showDelay: 1000, hideDelay: 300 }">
-              <Button icon="pi pi-book" v-if="button == index.NOTEMm"/>
-              <Button icon="pi pi-book" text v-else @click="toRouter(index.NOTEMm)"/>
-            </div>
-
-            <div
-                v-tooltip="{ value: '评论管理', showDelay: 1000, hideDelay: 300 }">
-              <Button icon="pi pi-comments" v-if="button == index.COMMENTMm"/>
-              <Button icon="pi pi-comments" text v-else @click="toRouter(index.COMMENTMm)"/>
-            </div>
-
-            <div
-                v-tooltip="{ value: '文件夹管理', showDelay: 1000, hideDelay: 300 }">
-              <Button icon="pi pi-folder" v-if="button == index.FOLDERMm"/>
-              <Button icon="pi pi-folder" text v-else @click="toRouter(index.FOLDERMm)"/>
-            </div>
-
-            <div
-                v-tooltip="{ value: '收藏管理', showDelay: 1000, hideDelay: 300 }">
-              <Button icon="pi pi-heart" v-if="button == index.FAVORITEMm"/>
-              <Button icon="pi pi-heart" text v-else @click="toRouter(index.FAVORITEMm)"/>
-            </div>
-
-            <div
-                v-tooltip="{ value: '待做管理', showDelay: 1000, hideDelay: 300 }">
-              <Button icon="pi pi-check-square" v-if="button == index.TODOMm"/>
-              <Button icon="pi pi-check-square" text v-else @click="toRouter(index.TODOMm)"/>
-            </div>
-
-            <div
-                v-tooltip="{ value: 'AI记录管理', showDelay: 1000, hideDelay: 300 }">
-              <Button icon="pi pi-star" v-if="button == index.AIMm"/>
-              <Button icon="pi pi-star" text v-else @click="toRouter(index.AIMm)"/>
-            </div>
+  <div class="admin-shell">
+    <el-container class="admin-layout">
+      <!-- 侧边栏 -->
+      <el-aside class="admin-aside" :class="{ 'is-collapsed': isCollapsed }" :width="isCollapsed ? '64px' : '240px'">
+        <div class="brand">
+          <div class="brand-mark">
+            <el-icon><Monitor /></el-icon>
           </div>
-
-          <!-- 单独按钮 -->
-          <div class="aside-item">
-            <div
-                v-tooltip="{ value: '设置', showDelay: 1000, hideDelay: 300 }">
-              <Button icon="pi pi-cog" v-if="button == index.SETTING"/>
-              <Button icon="pi pi-cog" text v-else @click="toRouter(index.SETTING)"/>
-            </div>
-
+          <div v-show="!isCollapsed" class="brand-text">
+            <strong>SlothNote</strong>
+            <span>Admin Console</span>
           </div>
         </div>
+
+        <el-scrollbar class="menu-scroll">
+          <el-menu
+              :default-active="activeMenu"
+              :collapse="isCollapsed"
+              :collapse-transition="false"
+              class="admin-menu"
+              @select="handleSelect"
+          >
+            <el-menu-item v-for="item in menuItems" :key="item.index" :index="item.index">
+              <el-icon><component :is="item.icon" /></el-icon>
+              <template #title>
+                <span>{{ item.title }}</span>
+              </template>
+            </el-menu-item>
+          </el-menu>
+        </el-scrollbar>
       </el-aside>
 
+      <!-- 右侧主体 -->
+      <el-container class="admin-main-layout">
+        <!-- 顶部 Header -->
+        <el-header class="admin-header">
+          <div class="header-left">
+            <div class="collapse-trigger" @click="toggleAside">
+              <el-icon :size="20">
+                <component :is="isCollapsed ? Expand : Fold" />
+              </el-icon>
+            </div>
 
-      <el-main class="main-layout">
-        <div class="main-content">
-          <router-view/>
-        </div>
-      </el-main>
+            <div class="page-header-info">
+              <h1 class="page-title">{{ currentTitle }}</h1>
+              <el-tag v-if="currentSubtitle" type="info" effect="plain" size="small" round class="page-subtitle">
+                {{ currentSubtitle }}
+              </el-tag>
+            </div>
+          </div>
 
+          <div class="header-right">
+            <div class="admin-badge">
+              <span class="dot"></span>
+              Super Admin
+            </div>
+            <el-button type="danger" plain round size="default" class="logout-btn" @click="handleLogout">
+              <el-icon class="el-icon--left"><SwitchButton /></el-icon>退出登录
+            </el-button>
+          </div>
+        </el-header>
+
+        <!-- 内容区域 -->
+        <el-main class="admin-main">
+          <el-scrollbar>
+            <div class="admin-content-wrapper">
+              <div class="admin-content">
+                <router-view v-slot="{ Component, route: currentRoute }">
+                  <transition name="fade-transform" mode="out-in">
+                    <component :is="Component" :key="currentRoute.fullPath" />
+                  </transition>
+                </router-view>
+              </div>
+            </div>
+          </el-scrollbar>
+        </el-main>
+      </el-container>
     </el-container>
   </div>
 </template>
 
-<style>
-.common-layout {
-  background-color: white;
-}
-
-.aside-layout {
+<style scoped>
+/* 基础重置与外壳 */
+.admin-shell {
   height: 100vh;
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  padding: 20px 10px 20px 20px;
-  margin-left: 5px;
+  width: 100vw;
+  overflow: hidden;
+  background-color: #f4f6f8; /* 更柔和的现代灰底色 */
 }
 
-.aside-layout-div {
-  height: 94.5%;
-  width: 90%; /* 根据需要调整宽度 */
-  background-color: #F4F6F8;
-  border-radius: 10px;
+.admin-layout {
+  height: 100%;
+}
+
+/* ================= 侧边栏 ================= */
+.admin-aside {
+  background: #ffffff;
+  border-right: 1px solid #edf2f7;
   display: flex;
   flex-direction: column;
-  justify-content: center;
+  transition: width 0.3s cubic-bezier(0.2, 0, 0, 1);
+  box-shadow: 2px 0 8px rgba(0, 0, 0, 0.02);
+  z-index: 10;
+}
+
+.brand {
+  height: 64px; /* 与 header 保持一致高度 */
+  padding: 0 16px;
+  display: flex;
   align-items: center;
-  /*
-  box-shadow: 0 3px 6px rgba(0, 0, 0, 0.1);
-   */
+  justify-content: flex-start;
+  gap: 12px;
+  border-bottom: 1px solid #edf2f7;
+  overflow: hidden;
+  white-space: nowrap;
 }
 
-.aside-item {
-  margin: 10px 0; /* 设置上下间距 */
+.admin-aside.is-collapsed .brand {
+  justify-content: center;
+  padding: 0;
 }
 
-.logo {
+.brand-mark {
+  flex-shrink: 0;
   width: 32px;
   height: 32px;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(135deg, #409eff, #337ecc);
+  color: #ffffff;
+  font-size: 18px;
+  box-shadow: 0 4px 12px rgba(64, 158, 255, 0.3);
 }
 
-.button-group {
+.brand-text {
   display: flex;
   flex-direction: column;
-  gap: 10px; /* 按钮间距 */
+  gap: 2px;
 }
 
-.button-group button {
-  transition: transform 0.2s ease; /* 按钮的点击缩放动效 */
+.brand-text strong {
+  color: #1f2937;
+  font-size: 16px;
+  line-height: 1.2;
 }
 
-.button-group button:active {
-  transform: scale(0.9); /* 点击时缩小效果 */
+.brand-text span {
+  color: #9ca3af;
+  font-size: 12px;
+  line-height: 1;
 }
 
-.main-layout {
-  height: 100vh;
-  padding-left: 10px;
+/* 菜单样式优化 */
+.menu-scroll {
+  flex: 1;
+}
+
+.admin-menu {
+  border-right: none;
+  padding: 12px 8px;
+}
+
+.admin-menu :deep(.el-menu-item) {
+  height: 44px;
+  line-height: 44px;
+  margin-bottom: 6px;
+  border-radius: 8px;
+  color: #4b5563;
+  transition: all 0.2s;
+}
+
+.admin-menu :deep(.el-menu-item:hover) {
+  background-color: #f3f4f6;
+  color: #111827;
+}
+
+.admin-menu :deep(.el-menu-item.is-active) {
+  background-color: #ebf5ff;
+  color: #409eff;
+  font-weight: 600;
+}
+
+/* ================= 主体与 Header ================= */
+.admin-main-layout {
   display: flex;
-  justify-content: center;
+  flex-direction: column;
+  background-color: #f4f6f8;
+}
+
+.admin-header {
+  height: 64px;
+  padding: 0 24px;
+  background: #ffffff;
+  border-bottom: 1px solid #edf2f7;
+  display: flex;
   align-items: center;
+  justify-content: space-between;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.02);
+  z-index: 5;
 }
 
-.main-content {
-
-  height: 94.5%;
-  width: 100%;
-  background-color: white;
-  box-shadow: 0 0 0 1px #D9D9D9;
-  border-radius: 10px;
-  padding: 20px; /* 内边距 */
-
-
+.header-left {
+  display: flex;
+  align-items: center;
+  gap: 20px;
 }
 
+/* 将原来错位的换行改为水平排布 */
+.collapse-trigger {
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  border-radius: 6px;
+  color: #4b5563;
+  transition: background 0.2s;
+}
+
+.collapse-trigger:hover {
+  background: #f3f4f6;
+  color: #111827;
+}
+
+.page-header-info {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.page-title {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 600;
+  color: #111827;
+  line-height: 1;
+}
+
+.header-right {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+}
+
+.admin-badge {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 14px;
+  color: #4b5563;
+  font-weight: 500;
+}
+
+.admin-badge .dot {
+  width: 8px;
+  height: 8px;
+  background-color: #10b981;
+  border-radius: 50%;
+  box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.2);
+}
+
+.logout-btn {
+  border: none;
+  background: #fef2f2;
+}
+.logout-btn:hover {
+  background: #fee2e2;
+}
+
+/* ================= 内容区 ================= */
+.admin-main {
+  padding: 0; /* padding 移到内部包装器，配合滚动条 */
+  overflow: hidden; /* 让 el-scrollbar 接管滚动 */
+  display: flex;
+  flex-direction: column;
+}
+
+.admin-content-wrapper {
+  padding: 24px;
+  min-height: 100%;
+  box-sizing: border-box;
+}
+
+.admin-content {
+  background: #ffffff;
+  border-radius: 12px;
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -1px rgba(0, 0, 0, 0.03);
+  padding: 24px;
+  min-height: calc(100vh - 64px - 48px); /* 100vh - header高度 - wrapper的上下padding */
+}
+
+/* 路由切换动画 */
+.fade-transform-leave-active,
+.fade-transform-enter-active {
+  transition: all 0.3s;
+}
+.fade-transform-enter-from {
+  opacity: 0;
+  transform: translateX(-15px);
+}
+.fade-transform-leave-to {
+  opacity: 0;
+  transform: translateX(15px);
+}
+
+/* ================= 移动端适配 ================= */
+@media (max-width: 768px) {
+  .admin-aside {
+    position: absolute;
+    height: 100vh;
+    left: 0;
+    transform: translateX(0);
+  }
+
+  .admin-aside.is-collapsed {
+    transform: translateX(-100%);
+  }
+
+  .header-left {
+    gap: 12px;
+  }
+
+  .page-subtitle, .admin-badge {
+    display: none;
+  }
+
+  .admin-content-wrapper {
+    padding: 16px;
+  }
+
+  .admin-content {
+    min-height: calc(100vh - 64px - 32px);
+    padding: 16px;
+  }
+}
 </style>

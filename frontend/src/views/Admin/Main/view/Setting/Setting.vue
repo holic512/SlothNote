@@ -133,8 +133,6 @@ onMounted(async () => {
     <div class="setting-page">
       <section class="hero-card">
         <div>
-          <p class="eyebrow">System Settings</p>
-          <h1>系统初始化</h1>
           <p class="hero-text">
             用于处理迁移后的历史脏数据。该功能会重置所有用户相关表数据，保留管理员账号与管理员表。
           </p>
@@ -256,14 +254,6 @@ onMounted(async () => {
   align-items: flex-start;
 }
 
-.eyebrow {
-  margin: 0 0 8px;
-  font-size: 12px;
-  letter-spacing: 0.18em;
-  text-transform: uppercase;
-  color: #986c46;
-}
-
 .hero-card h1,
 .stats-header h2,
 .danger-head h2 {
@@ -271,7 +261,12 @@ onMounted(async () => {
   color: #2a211b;
 }
 
-.hero-text,
+.hero-text {
+  margin: 0;
+  color: #67584d;
+  line-height: 1.7;
+}
+
 .stats-header p,
 .danger-head p {
   margin: 10px 0 0;

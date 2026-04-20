@@ -211,13 +211,6 @@ const openNoteDetail = (id: number) => { currentNoteId.value = id; noteDetailVis
 <template>
   <el-scrollbar height="100%">
     <div class="common-layout">
-      <div class="title-container">
-        <div class="title">
-          <h1>收藏管理</h1>
-          <p>统一管理收藏文件夹与收藏记录</p>
-        </div>
-      </div>
-
       <el-tabs v-model="activeTab" type="card">
         <!-- ================== FOLDER TAB ================== -->
         <el-tab-pane label="收藏文件夹" name="folder">
@@ -410,9 +403,6 @@ const openNoteDetail = (id: number) => { currentNoteId.value = id; noteDetailVis
 <style scoped>
 /* 基础样式 */
 .common-layout { height: 100%; padding-left: 1px; padding-right: 15px; background-color: white; }
-.title-container { margin-bottom: 10px; }
-.title h1 { color: #334155; font-size: 22px; margin: 0; font-weight: 700; }
-.title p { color: #64748b; font-size: 14px; margin: 0; }
 .custom-icon { font-size: 16px; }
 .custom-input { font-size: 14px; padding: 5px 10px; height: 32px; width: 180px; }
 
