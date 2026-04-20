@@ -143,7 +143,7 @@ public class GetNoteTreeServiceImpl implements GetNoteTreeService {
         Optional<Note> result = noteRepM.findById(NoteId);
 
         // 如果查询为空 证明笔记还没有编辑
-        if (result.isEmpty()) {
+        if (result.isEmpty() || result.get().getLastSavedAt() == null) {
             return new Pair<>(UNEDITED, null);
         }
 

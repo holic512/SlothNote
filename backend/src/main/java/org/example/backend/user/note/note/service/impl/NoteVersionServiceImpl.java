@@ -89,7 +89,7 @@ public class NoteVersionServiceImpl implements NoteVersionService {
             created.setNoteId(noteId);
             return created;
         });
-        note.setContent(version.getContentJson());
+        note.setContent(version.getContentJson() == null ? "" : version.getContentJson());
         note.setLastSavedAt(LocalDateTime.now());
         Note saved = uNoteRepM.save(note);
 

@@ -35,17 +35,6 @@ spring:
     password: 123456
     driver-class-name: com.mysql.cj.jdbc.Driver
 
-  data:
-    mongodb:
-      host: localhost
-      port: 27017
-      database: slothnote
-      username: admin
-      password: "123456"
-      authentication-database: admin
-
-
-
   rabbitmq:
     host: localhost
     port: 5672
@@ -90,6 +79,13 @@ storage:
     public-base-url: http://localhost:8080/files
     enable-date-path: true
     keep-extension: true
+
+note-content:
+  migration:
+    enabled: false
+    mongo-uri:
+    database: slothnote
+    collection: notes
 
 # 自定义发件人信息
 mail:

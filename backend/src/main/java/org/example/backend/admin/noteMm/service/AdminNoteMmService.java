@@ -233,7 +233,7 @@ public class AdminNoteMmService {
                 nn.setNoteId(noteId);
                 return nn;
             });
-            n.setContent(content);
+            n.setContent(content == null ? "" : content);
             n.setLastSavedAt(LocalDateTime.now());
             noteRepo.save(n);
             return AdminNoteMmEnum.Success;

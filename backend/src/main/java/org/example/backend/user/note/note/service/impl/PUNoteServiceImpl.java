@@ -9,7 +9,6 @@
  */
 package org.example.backend.user.note.note.service.impl;
 
-import org.bson.codecs.jsr310.LocalDateTimeCodec;
 import org.example.backend.common.domain.Note;
 import org.example.backend.user.note.note.repository.UNoteInfoRep;
 import org.example.backend.user.note.note.repository.UNoteRepM;
@@ -43,6 +42,9 @@ public class PUNoteServiceImpl implements PUNoteService {
      */
     @Override
     public String SaveNote(Long userId, Note note) {
+        if (note == null || note.getNoteId() == null) {
+            return null;
+        }
         Long noteId = note.getNoteId();
 
         // 判断当前笔记是否存在
@@ -56,12 +58,16 @@ public class PUNoteServiceImpl implements PUNoteService {
             return null; // 如果当前用户不是笔记所有者，返回 null
         }
 
-        // 更新 保存时间
-        note.setLastSavedAt(LocalDateTime.now());
+        Note persisted = uNoteRepM.findById(noteId).orElseGet(() -> {
+            Note created = new Note();
+            created.setNoteId(noteId);
+            return created;
+        });
+        persisted.setContent(note.getContent() == null ? "" : note.getContent());
+        persisted.setLastSavedAt(LocalDateTime.now());
 
-        // 执行保存
-        uNoteRepM.save(note);
-        noteVersionService.createVersionIfChanged(userId, noteId, note.getContent(), "SAVE");
+        uNoteRepM.save(persisted);
+        noteVersionService.createVersionIfChanged(userId, noteId, persisted.getContent(), "SAVE");
         return "success"; // 保存成功
     }
 

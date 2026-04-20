@@ -10,8 +10,8 @@
 package org.example.backend.user.note.noteTree.repository;
 
 import org.example.backend.common.domain.Note;
-import org.springframework.data.mongodb.repository.MongoRepository;
+import org.springframework.data.jpa.repository.JpaRepository;
 
-public interface NoteTreeNoteRepM extends MongoRepository<Note, Long> {
+public interface NoteTreeNoteRepM extends JpaRepository<Note, Long> {
 
 }
