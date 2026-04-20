@@ -24,8 +24,20 @@ public class SearchServiceImpl implements SearchService {
 
     @Override
     public List<SearchResultDto> search(Long userId, String q) {
+        return search(userId, q, 10);
+    }
+
+    @Override
+    public List<SearchResultDto> search(Long userId, String q, int limit) {
         List<SearchResultDto> meta = infoRep.searchByTitleOrSummary(userId, q);
-        List<Note> contentMatches = noteRepM.findByContentLike(q);
+        List<Note> rawContentMatches = noteRepM.findByContentLike(q);
+        List<Long> rawIds = rawContentMatches.stream().map(Note::getNoteId).distinct().toList();
+        Set<Long> userOwnedIds = infoRep.findByIdInAndUserIdAndIsDeleted(rawIds, userId, 0).stream()
+                .map(org.example.backend.common.entity.NoteInfo::getId)
+                .collect(java.util.stream.Collectors.toSet());
+        List<Note> contentMatches = rawContentMatches.stream()
+                .filter(note -> userOwnedIds.contains(note.getNoteId()))
+                .toList();
         Map<Long, SearchResultDto> map = new LinkedHashMap<>();
         for (SearchResultDto s : meta) {
             map.put(s.getNoteId(), new SearchResultDto(s.getNoteId(), s.getTitle(), s.getSummary()));
@@ -38,7 +50,7 @@ public class SearchServiceImpl implements SearchService {
             s.setSnippet(snippet);
             map.put(id, s);
         }
-        return new ArrayList<>(map.values());
+        return new ArrayList<>(map.values()).stream().limit(Math.max(limit, 1)).toList();
     }
 
     private String buildSnippet(String content, String q) {

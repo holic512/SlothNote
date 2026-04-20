@@ -14,6 +14,7 @@ import org.example.backend.common.domain.Note;
 import org.example.backend.common.response.ApiResponse;
 import org.example.backend.common.util.StpKit;
 import org.example.backend.user.note.note.enums.GContextEnum;
+import org.example.backend.user.note.note.service.NoteVersionService;
 import org.example.backend.user.note.note.service.GUNoteService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
@@ -29,10 +30,12 @@ import java.util.Optional;
 public class GUNoteController {
 
     private final GUNoteService guNoteService;
+    private final NoteVersionService noteVersionService;
 
     @Autowired
-    public GUNoteController(GUNoteService guNoteService) {
+    public GUNoteController(GUNoteService guNoteService, NoteVersionService noteVersionService) {
         this.guNoteService = guNoteService;
+        this.noteVersionService = noteVersionService;
     }
 
     @GetMapping("context")
@@ -126,6 +129,27 @@ public class GUNoteController {
                 .status(200)
                 .message("OK")
                 .data(html)
+                .build());
+    }
+
+    @GetMapping("versions")
+    public ResponseEntity<Object> versions(@RequestParam Long noteId) {
+        Long userId = (Long) StpKit.USER.getSession().get("id");
+        return ResponseEntity.ok(new ApiResponse.Builder<>()
+                .status(200)
+                .message("获取历史版本成功")
+                .data(noteVersionService.listVersions(userId, noteId))
+                .build());
+    }
+
+    @GetMapping("version/detail")
+    public ResponseEntity<Object> versionDetail(@RequestParam Long noteId, @RequestParam Long versionId) {
+        Long userId = (Long) StpKit.USER.getSession().get("id");
+        var data = noteVersionService.getVersionDetail(userId, noteId, versionId);
+        return ResponseEntity.ok(new ApiResponse.Builder<>()
+                .status(data == null ? 404 : 200)
+                .message(data == null ? "历史版本不存在" : "获取历史版本成功")
+                .data(data)
                 .build());
     }
 

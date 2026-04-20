@@ -89,6 +89,11 @@ export default [
                     name: 'admin-main-favoriteMm',
                     component: () => import('./Main/view/FavoriteMm/FavoriteMm.vue'),
                 },
+                {
+                    path: 'aiMm',
+                    name: 'admin-main-aiMm',
+                    component: () => import('./Main/view/AiMm/AiMm.vue'),
+                },
                 ],
             },
         ]

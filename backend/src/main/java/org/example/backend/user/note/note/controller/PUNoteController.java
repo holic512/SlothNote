@@ -20,6 +20,8 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+import java.util.Map;
+
 @RestController
 @RequestMapping("/user/note")
 public class PUNoteController {
@@ -58,5 +60,24 @@ public class PUNoteController {
                     .message("笔记权限不足或笔记不存在")
                     .build());
         }
+    }
+
+    @PostMapping("RestoreVersion")
+    public ResponseEntity<Object> restoreVersion(@RequestBody Map<String, Object> body) {
+        Long userId = (Long) StpKit.USER.getSession().get("id");
+        Long noteId = Long.valueOf(body.get("noteId").toString());
+        Long versionId = Long.valueOf(body.get("versionId").toString());
+        Note restored = puNoteService.restoreVersion(userId, noteId, versionId);
+        if (restored == null) {
+            return ResponseEntity.ok(new ApiResponse.Builder<>()
+                    .status(404)
+                    .message("恢复失败，历史版本不存在或权限不足")
+                    .build());
+        }
+        return ResponseEntity.ok(new ApiResponse.Builder<>()
+                .status(200)
+                .message("恢复历史版本成功")
+                .data(restored)
+                .build());
     }
 }

@@ -6,14 +6,7 @@
  */
 package org.example.backend.common.util;
 
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.data.redis.core.RedisTemplate;
-import org.springframework.mail.javamail.JavaMailSender;
-import org.springframework.stereotype.Component;
-
 import java.security.SecureRandom;
-import java.util.Optional;
-import java.util.concurrent.TimeUnit;
 
 public class VerificationCodeUtil {
 

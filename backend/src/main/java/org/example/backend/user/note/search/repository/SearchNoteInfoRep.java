@@ -13,4 +13,6 @@ public interface SearchNoteInfoRep extends JpaRepository<NoteInfo, Long> {
             "FROM NoteInfo n WHERE n.userId = :userId AND n.isDeleted = 0 AND " +
             "(LOWER(n.noteTitle) LIKE LOWER(CONCAT('%', :q, '%')) OR LOWER(n.noteSummary) LIKE LOWER(CONCAT('%', :q, '%')))" )
     List<SearchResultDto> searchByTitleOrSummary(@Param("userId") Long userId, @Param("q") String q);
+
+    List<NoteInfo> findByIdInAndUserIdAndIsDeleted(List<Long> ids, Long userId, Integer isDeleted);
 }

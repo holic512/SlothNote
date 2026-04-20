@@ -1,4 +1,9 @@
 DROP TABLE IF EXISTS `comments`;
+DROP TABLE IF EXISTS `note_version`;
+DROP TABLE IF EXISTS `ai_chat_session_note_ref`;
+DROP TABLE IF EXISTS `ai_chat_message`;
+DROP TABLE IF EXISTS `ai_chat_session`;
+DROP TABLE IF EXISTS `auth_ticket`;
 DROP TABLE IF EXISTS `favorite_note_info`;
 DROP TABLE IF EXISTS `favorite_folder_info`;
 DROP TABLE IF EXISTS `note_info`;
@@ -222,3 +227,96 @@ CREATE TABLE `comments`
 ) ENGINE = InnoDB
   DEFAULT CHARSET = utf8mb4
   COLLATE = utf8mb4_unicode_ci COMMENT ='评论表';
+
+CREATE TABLE `note_version`
+(
+    `id`              BIGINT       NOT NULL AUTO_INCREMENT COMMENT '版本主键',
+    `note_id`         BIGINT       NOT NULL COMMENT '笔记ID',
+    `user_id`         BIGINT       NOT NULL COMMENT '用户ID',
+    `version_no`      INT          NOT NULL COMMENT '版本号',
+    `content_json`    LONGTEXT     NOT NULL COMMENT '版本正文JSON',
+    `content_preview` VARCHAR(500) NULL COMMENT '版本预览',
+    `source_type`     VARCHAR(32)  NOT NULL COMMENT '来源类型',
+    `created_at`      DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+    PRIMARY KEY (`id`),
+    UNIQUE KEY `uk_note_version_note_no` (`note_id`, `version_no`),
+    KEY `idx_note_version_note_user` (`note_id`, `user_id`, `created_at`),
+    CONSTRAINT `fk_note_version_note` FOREIGN KEY (`note_id`) REFERENCES `note_info` (`id`) ON DELETE CASCADE ON UPDATE CASCADE,
+    CONSTRAINT `fk_note_version_user` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE ON UPDATE CASCADE
+) ENGINE = InnoDB
+  DEFAULT CHARSET = utf8mb4
+  COLLATE = utf8mb4_unicode_ci COMMENT ='笔记历史版本表';
+
+CREATE TABLE `auth_ticket`
+(
+    `id`          BIGINT       NOT NULL AUTO_INCREMENT COMMENT '票据主键',
+    `ticket_id`   VARCHAR(64)  NOT NULL COMMENT '外部使用的票据标识',
+    `ticket_type` VARCHAR(32)  NOT NULL COMMENT '票据类型',
+    `subject_key` VARCHAR(128) NOT NULL COMMENT '主体键，例如用户名或邮箱',
+    `code`        VARCHAR(16)  NOT NULL COMMENT '验证码',
+    `payload_json` TEXT        NOT NULL COMMENT '附加数据',
+    `expire_at`   DATETIME     NOT NULL COMMENT '过期时间',
+    `used_at`     DATETIME     NULL COMMENT '使用时间',
+    `created_at`  DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+    `updated_at`  DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+    PRIMARY KEY (`id`),
+    UNIQUE KEY `uk_auth_ticket_ticket_id` (`ticket_id`),
+    KEY `idx_auth_ticket_type_subject` (`ticket_type`, `subject_key`),
+    KEY `idx_auth_ticket_expire_at` (`expire_at`)
+) ENGINE = InnoDB
+  DEFAULT CHARSET = utf8mb4
+  COLLATE = utf8mb4_unicode_ci COMMENT ='认证票据表';
+
+CREATE TABLE `ai_chat_session`
+(
+    `id`              BIGINT       NOT NULL AUTO_INCREMENT COMMENT '会话主键',
+    `user_id`         BIGINT       NOT NULL COMMENT '用户ID',
+    `title`           VARCHAR(255) NOT NULL COMMENT '会话标题',
+    `last_message_at` DATETIME     NOT NULL COMMENT '最近消息时间',
+    `is_deleted`      INT          NOT NULL DEFAULT 0 COMMENT '软删除',
+    `created_at`      DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+    `updated_at`      DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+    PRIMARY KEY (`id`),
+    KEY `idx_ai_chat_session_user` (`user_id`, `is_deleted`, `last_message_at`),
+    CONSTRAINT `fk_ai_chat_session_user` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE ON UPDATE CASCADE
+) ENGINE = InnoDB
+  DEFAULT CHARSET = utf8mb4
+  COLLATE = utf8mb4_unicode_ci COMMENT ='AI对话会话表';
+
+CREATE TABLE `ai_chat_message`
+(
+    `id`           BIGINT      NOT NULL AUTO_INCREMENT COMMENT '消息主键',
+    `session_id`   BIGINT      NOT NULL COMMENT '会话ID',
+    `user_id`      BIGINT      NOT NULL COMMENT '用户ID',
+    `role`         VARCHAR(16) NOT NULL COMMENT '消息角色',
+    `message_type` VARCHAR(32) NOT NULL COMMENT '消息类型',
+    `content_md`   LONGTEXT    NOT NULL COMMENT 'Markdown内容',
+    `status`       VARCHAR(16) NOT NULL COMMENT '消息状态',
+    `created_at`   DATETIME    NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+    `updated_at`   DATETIME    NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+    PRIMARY KEY (`id`),
+    KEY `idx_ai_chat_message_session` (`session_id`, `created_at`),
+    KEY `idx_ai_chat_message_user` (`user_id`, `created_at`),
+    CONSTRAINT `fk_ai_chat_message_session` FOREIGN KEY (`session_id`) REFERENCES `ai_chat_session` (`id`) ON DELETE CASCADE ON UPDATE CASCADE,
+    CONSTRAINT `fk_ai_chat_message_user` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE ON UPDATE CASCADE
+) ENGINE = InnoDB
+  DEFAULT CHARSET = utf8mb4
+  COLLATE = utf8mb4_unicode_ci COMMENT ='AI对话消息表';
+
+CREATE TABLE `ai_chat_session_note_ref`
+(
+    `id`         BIGINT   NOT NULL AUTO_INCREMENT COMMENT '上下文关联主键',
+    `session_id` BIGINT   NOT NULL COMMENT '会话ID',
+    `user_id`    BIGINT   NOT NULL COMMENT '用户ID',
+    `note_id`    BIGINT   NOT NULL COMMENT '笔记ID',
+    `sort_order` INT      NOT NULL DEFAULT 0 COMMENT '排序',
+    `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+    PRIMARY KEY (`id`),
+    UNIQUE KEY `uk_ai_chat_session_note_ref` (`session_id`, `note_id`),
+    KEY `idx_ai_chat_session_note_ref_user` (`user_id`, `session_id`),
+    CONSTRAINT `fk_ai_chat_session_note_ref_session` FOREIGN KEY (`session_id`) REFERENCES `ai_chat_session` (`id`) ON DELETE CASCADE ON UPDATE CASCADE,
+    CONSTRAINT `fk_ai_chat_session_note_ref_user` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE ON UPDATE CASCADE,
+    CONSTRAINT `fk_ai_chat_session_note_ref_note` FOREIGN KEY (`note_id`) REFERENCES `note_info` (`id`) ON DELETE CASCADE ON UPDATE CASCADE
+) ENGINE = InnoDB
+  DEFAULT CHARSET = utf8mb4
+  COLLATE = utf8mb4_unicode_ci COMMENT ='AI会话上下文笔记关联表';

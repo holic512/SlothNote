@@ -1,108 +1,78 @@
 package org.example.backend.user.ai;
 
-import org.springframework.beans.factory.annotation.Value;
-import org.springframework.http.*;
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RestController;
-import org.springframework.web.client.RestTemplate;
-
-import java.util.*;
+import org.example.backend.common.response.ApiResponse;
+import org.example.backend.user.ai.dto.ChatRequest;
+import org.example.backend.user.ai.dto.ContextNotesRequest;
+import org.example.backend.user.ai.dto.StopChatRequest;
+import org.example.backend.user.ai.service.UserAiService;
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.*;
+import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
 @RestController
-@RequestMapping("user/ai")
+@RequestMapping("/user/ai")
 public class UserAiController {
 
-    @Value("${xfyun.spark.api-key}")
-    private String apiKey;
+    private final UserAiService userAiService;
 
-    @Value("${xfyun.spark.api-url}")
-    private String apiUrl;
-
-    @Value("${xfyun.spark.model}")
-    private String model;
-
-    @PostMapping("/explain")
-    public ResponseEntity<Map<String, Object>> explainText(@RequestBody Map<String, String> request) {
-        String text = request.get("text");
-        if (text == null || text.isEmpty()) {
-            return ResponseEntity.badRequest().body(Collections.singletonMap("error", "Text cannot be empty"));
-        }
-
-        try {
-            // 构建请求头
-            HttpHeaders headers = new HttpHeaders();
-            headers.setContentType(MediaType.APPLICATION_JSON);
-            headers.set("Authorization", "Bearer " + apiKey);
-
-            // 构建请求体 - 修正后的版本
-            Map<String, Object> requestBody = new HashMap<>();
-            requestBody.put("model", model);
-
-            List<Map<String, String>> messages = new ArrayList<>();
-            // 系统角色消息
-            messages.add(new HashMap<String, String>() {{
-                put("role", "system");
-                put("content", "你是一个专业的文本解释助手，能够清晰准确地解释任何文本内容");
-            }});
-
-            // 用户角色消息 - 必须包含content
-            messages.add(new HashMap<String, String>() {{
-                put("role", "user");
-                put("content", "请解释以下文本内容: " + text);
-            }});
-
-            requestBody.put("messages", messages);
-            requestBody.put("temperature", 0.7);
-            requestBody.put("max_tokens", 1024);
-
-            HttpEntity<Map<String, Object>> entity = new HttpEntity<>(requestBody, headers);
-
-            // 发送请求
-            RestTemplate restTemplate = new RestTemplate();
-            ResponseEntity<Map> response = restTemplate.exchange(
-                    apiUrl,
-                    HttpMethod.POST,
-                    entity,
-                    Map.class);
-
-            // 处理响应
-            if (response.getStatusCode().is2xxSuccessful() && response.getBody() != null) {
-                Map<String, Object> result = new HashMap<>();
-                result.put("success", true);
-                result.put("explanation", extractExplanation(response.getBody()));
-                return ResponseEntity.ok(result);
-            } else {
-                return ResponseEntity.status(response.getStatusCode())
-                        .body(Collections.singletonMap("error",
-                                "Failed to get explanation from AI: " +
-                                        (response.getBody() != null ? response.getBody().toString() : "No response body")));
-            }
-        } catch (Exception e) {
-            return ResponseEntity.internalServerError()
-                    .body(Collections.singletonMap("error", "Internal server error: " + e.getMessage()));
-        }
+    public UserAiController(UserAiService userAiService) {
+        this.userAiService = userAiService;
     }
 
-    private String extractExplanation(Map<String, Object> response) {
-        try {
-            // 修正后的解析逻辑
-            if (response.containsKey("choices") && response.get("choices") instanceof List) {
-                List<Map<String, Object>> choices = (List<Map<String, Object>>) response.get("choices");
-                if (!choices.isEmpty()) {
-                    Map<String, Object> choice = choices.get(0);
-                    if (choice.containsKey("message")) {
-                        Map<String, Object> message = (Map<String, Object>) choice.get("message");
-                        if (message.containsKey("content")) {
-                            return message.get("content").toString();
-                        }
-                    }
-                }
-            }
-            return "No explanation available from API response";
-        } catch (Exception e) {
-            return "Error parsing API response: " + e.getMessage();
-        }
+    @GetMapping("/sessions")
+    public ResponseEntity<Object> sessions() {
+        Long userId = userAiService.currentUserId();
+        return ResponseEntity.ok(new ApiResponse.Builder<>()
+                .status(200)
+                .message("SUCCESS")
+                .data(userAiService.listSessions(userId))
+                .build());
+    }
+
+    @GetMapping("/sessions/{sessionId}/messages")
+    public ResponseEntity<Object> sessionDetail(@PathVariable Long sessionId) {
+        Long userId = userAiService.currentUserId();
+        return ResponseEntity.ok(new ApiResponse.Builder<>()
+                .status(200)
+                .message("SUCCESS")
+                .data(userAiService.getSessionDetail(userId, sessionId))
+                .build());
+    }
+
+    @DeleteMapping("/sessions/{sessionId}")
+    public ResponseEntity<Object> deleteSession(@PathVariable Long sessionId) {
+        Long userId = userAiService.currentUserId();
+        userAiService.deleteSession(userId, sessionId);
+        return ResponseEntity.ok(new ApiResponse<>(200, "SUCCESS"));
+    }
+
+    @DeleteMapping("/sessions")
+    public ResponseEntity<Object> deleteAllSessions() {
+        Long userId = userAiService.currentUserId();
+        userAiService.deleteAllSessions(userId);
+        return ResponseEntity.ok(new ApiResponse<>(200, "SUCCESS"));
+    }
+
+    @PutMapping("/sessions/{sessionId}/context-notes")
+    public ResponseEntity<Object> replaceContextNotes(@PathVariable Long sessionId, @RequestBody ContextNotesRequest request) {
+        Long userId = userAiService.currentUserId();
+        return ResponseEntity.ok(new ApiResponse.Builder<>()
+                .status(200)
+                .message("SUCCESS")
+                .data(userAiService.replaceContextNotes(userId, sessionId, request.getNoteIds()))
+                .build());
+    }
+
+    @PostMapping("/chat")
+    public SseEmitter chat(@RequestBody ChatRequest request) {
+        Long userId = userAiService.currentUserId();
+        return userAiService.chat(userId, request);
+    }
+
+    @PostMapping("/stop")
+    public ResponseEntity<Object> stop(@RequestBody StopChatRequest request) {
+        Long userId = userAiService.currentUserId();
+        userAiService.stop(userId, request);
+        return ResponseEntity.ok(new ApiResponse<>(200, "SUCCESS"));
     }
 }

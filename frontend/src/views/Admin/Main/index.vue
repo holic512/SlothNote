@@ -17,6 +17,7 @@ const route = useRoute()
     FOLDERMm, // 文件夹管理页面
     FAVORITEMm, // 收藏管理页面
     TODOMm, // 待做管理页面
+    AIMm, // AI记录管理页面
     SETTING // 设置页面
   }
 
@@ -53,6 +54,9 @@ const toRouter = (page: index) => {
       break;
     case index.TODOMm:
       router.push('/admin/main/todoMm');
+      break;
+    case index.AIMm:
+      router.push('/admin/main/aiMm');
       break;
     case index.SETTING:
       // 可添加设置页面的跳转逻辑
@@ -93,6 +97,9 @@ const initButtonState = () => {
       break;
     case '/admin/main/todoMm':
       button.value = index.TODOMm;
+      break;
+    case '/admin/main/aiMm':
+      button.value = index.AIMm;
       break;
     case '/admin/main/setting':
       button.value = index.SETTING;
@@ -162,6 +169,12 @@ onMounted(() => {
                 v-tooltip="{ value: '待做管理', showDelay: 1000, hideDelay: 300 }">
               <Button icon="pi pi-check-square" v-if="button == index.TODOMm"/>
               <Button icon="pi pi-check-square" text v-else @click="toRouter(index.TODOMm)"/>
+            </div>
+
+            <div
+                v-tooltip="{ value: 'AI记录管理', showDelay: 1000, hideDelay: 300 }">
+              <Button icon="pi pi-star" v-if="button == index.AIMm"/>
+              <Button icon="pi pi-star" text v-else @click="toRouter(index.AIMm)"/>
             </div>
           </div>
 

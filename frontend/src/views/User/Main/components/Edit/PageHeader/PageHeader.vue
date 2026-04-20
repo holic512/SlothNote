@@ -10,15 +10,26 @@ import Ai from "@/views/User/Main/components/Edit/PageHeader/components/Ai/Ai.vu
 import MyStar from "@/views/User/Main/components/MyStar/MyStar.vue";
 import {useFavoriteDialogStore} from "@/views/User/Main/components/Edit/Pinia/FavoriteDialogStore";
 import {ElMessage} from "element-plus";
+import {ref} from "vue";
+import VersionDialog from "@/views/User/Main/components/Edit/PageHeader/components/VersionDialog/VersionDialog.vue";
 
 const editor = defineModel()
 
 // 获取当前笔记 的 基础信息
 const currentNoteInfo = useCurrentNoteInfoStore()
 const favStore = useFavoriteDialogStore();
+const versionDialogVisible = ref(false)
 const openFavorite = () => {
   if (currentNoteInfo.noteId != null) {
     favStore.open(currentNoteInfo.noteId);
+  } else {
+    ElMessage.warning("请先打开一篇笔记");
+  }
+}
+
+const openVersionDialog = () => {
+  if (currentNoteInfo.noteId != null) {
+    versionDialogVisible.value = true
   } else {
     ElMessage.warning("请先打开一篇笔记");
   }
@@ -92,7 +103,7 @@ const openFavorite = () => {
           placement="bottom"
       >
 
-        <el-button text class="button"> <!--历史版本-->
+        <el-button text class="button" @click="openVersionDialog"> <!--历史版本-->
           <el-icon color="#000000" size="18">
             <Clock/>
           </el-icon>
@@ -139,6 +150,8 @@ const openFavorite = () => {
 
     </el-col>
   </el-row>
+
+  <VersionDialog v-model:visible="versionDialogVisible" v-model:editor="editor"/>
 </template>
 
 <style scoped>

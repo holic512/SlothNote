@@ -16,9 +16,11 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import org.antlr.v4.runtime.misc.Pair;
 import org.example.backend.common.Mail.dto.MailCodeMessage;
 import org.example.backend.common.dto.user.UserAuthDto;
+import org.example.backend.common.entity.AuthTicket;
 import org.example.backend.common.entity.UserProfile;
 import org.example.backend.common.enums.user.UserGenderEnum;
 import org.example.backend.common.repository.UserProfileRepository;
+import org.example.backend.common.service.AuthTicketService;
 import org.example.backend.common.util.*;
 import org.example.backend.common.rabbitMQ.enums.MQExchangeType;
 import org.example.backend.common.rabbitMQ.enums.MQRoutingKey;
@@ -31,38 +33,34 @@ import org.example.backend.common.entity.User;
 import org.example.backend.user.auth.service.UserAuthService;
 import org.springframework.amqp.rabbit.core.RabbitTemplate;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.HashMap;
 import java.util.Map;
-import java.util.concurrent.TimeUnit;
 
 @Service
 public class UserAuthServiceImpl implements UserAuthService {
 
     private final UserRepository userRepository;
-    private final RedisTemplate<String, Object> redisTemplate;
     private final RabbitTemplate rabbitTemplate;
     private final ObjectMapper objectMapper;
     private final UserProfileRepository profileRepository;
+    private final AuthTicketService authTicketService;
 
     @Autowired
     public UserAuthServiceImpl(UserRepository userRepository,
-                               RedisTemplate<String, Object> redisTemplate,
                                RabbitTemplate rabbitTemplate,
-                               UserProfileRepository profileRepository) {
+                               UserProfileRepository profileRepository,
+                               AuthTicketService authTicketService) {
         this.userRepository = userRepository;
-        this.redisTemplate = redisTemplate;
         this.rabbitTemplate = rabbitTemplate;
         this.objectMapper = new ObjectMapper();
         this.profileRepository = profileRepository;
+        this.authTicketService = authTicketService;
     }
 
     final int timeout = 5;
-    final String keyRegPend = "CodeNote:user:register:pending:";
-    final String keyReg = "CodeNote:user:register:";
 
     @Override
     public Pair<AuthServiceEnum, String> PLogin(String username, String password) {
@@ -99,9 +97,6 @@ public class UserAuthServiceImpl implements UserAuthService {
 
     @Override
     public Pair<AuthServiceEnum, String> sendLoginCode(String email) throws JsonProcessingException {
-        final String keyName = "CodeNote:user:login:";
-        final int timeout = 5;
-
         final boolean exists = userRepository.existsByEmail(email);
         if (!exists) {
             return new Pair<>(AuthServiceEnum.EmailNotFound, null);
@@ -120,10 +115,12 @@ public class UserAuthServiceImpl implements UserAuthService {
         String logID = UuidUtil.getUuid();
         String code = VerificationCodeUtil.generateVerificationCode();
 
-        AuthDto authDto = new AuthDto(user.getUid(), user.getStatus(), code);
-        String userInfo = objectMapper.writeValueAsString(authDto);
-
-        redisTemplate.opsForValue().set(keyName + logID, userInfo, timeout, TimeUnit.MINUTES);
+        Map<String, Object> payload = new HashMap<>();
+        payload.put("uid", user.getUid());
+        payload.put("userId", user.getId());
+        payload.put("status", user.getStatus());
+        payload.put("code", code);
+        authTicketService.createTicket(AuthTicketService.USER_LOGIN, email, logID, code, payload, timeout);
 
         MailCodeMessage mailCodeMessage = new MailCodeMessage(email, code, MailCodePurpose.UserLogin);
         String message = objectMapper.writeValueAsString(mailCodeMessage);
@@ -134,25 +131,27 @@ public class UserAuthServiceImpl implements UserAuthService {
 
     @Override
     public Pair<AuthServiceEnum, String> verifyLoginCode(String logID, String code) throws JsonProcessingException {
-        final String keyName = "CodeNote:user:login:";
-
-        String userInfoJson = (String) redisTemplate.opsForValue().get(keyName + logID);
-
-        if (userInfoJson == null) {
+        AuthTicket ticket = authTicketService.findValidTicket(logID, AuthTicketService.USER_LOGIN).orElse(null);
+        if (ticket == null) {
             return new Pair<>(AuthServiceEnum.LogIdNotFound, null);
         }
 
-        System.out.println(userInfoJson);
-
-        AuthDto authDto = objectMapper.readValue(userInfoJson, AuthDto.class);
+        AuthDto authDto = objectMapper.readValue(ticket.getPayloadJson(), AuthDto.class);
 
         if (!authDto.getCode().equals(code)) {
             return new Pair<>(AuthServiceEnum.INCORRECT, null);
         }
 
-        redisTemplate.delete(keyName + logID);
+        authTicketService.markUsed(ticket);
 
         StpKit.USER.login(authDto.getUid());
+        SaSession session = StpKit.USER.getSession();
+        Object dataId = authTicketService.readObjectMap(ticket).get("userId");
+        if (dataId instanceof Number number) {
+            session.set("id", number.longValue());
+        } else if (dataId != null) {
+            session.set("id", Long.valueOf(String.valueOf(dataId)));
+        }
         return new Pair<>(AuthServiceEnum.Success, StpKit.USER.getTokenValue());
     }
 
@@ -166,31 +165,8 @@ public class UserAuthServiceImpl implements UserAuthService {
             return new Pair<>(AuthServiceEnum.EmailAlreadyExists, null);
         }
 
-        // 查询redis中是否有已有的 注册请求
-        boolean exUser = Boolean.TRUE.equals(redisTemplate.hasKey(keyRegPend + username));
-        boolean exEmail = Boolean.TRUE.equals(redisTemplate.hasKey(keyRegPend + email));
-
-        if (exUser) {
-            String ex1 = (String) redisTemplate.opsForValue().get(keyRegPend + username);
-            redisTemplate.delete(keyRegPend + username);
-            if (ex1 != null) {
-                redisTemplate.delete(keyReg + ex1);
-            }
-        }
-        if (exEmail) {
-            String ex2 = (String) redisTemplate.opsForValue().get(keyRegPend + email);
-            redisTemplate.delete(keyRegPend + email);
-            if (ex2 != null) {
-                redisTemplate.delete(keyReg + ex2);
-            }
-        }
-
-        // 向 redis中插入新的注册请求
         String regID = UuidUtil.getUuid();  // 注册会话标识符
         String code = VerificationCodeUtil.generateVerificationCode();
-
-        redisTemplate.opsForValue().set(keyRegPend + username, regID, timeout, TimeUnit.MINUTES);
-        redisTemplate.opsForValue().set(keyRegPend + email, regID, timeout, TimeUnit.MINUTES);
 
         Map<String, String> registerData = new HashMap<>();
         registerData.put("username", username);
@@ -198,8 +174,8 @@ public class UserAuthServiceImpl implements UserAuthService {
         registerData.put("email", email);
         registerData.put("code", code);
 
-        String jsonString = objectMapper.writeValueAsString(registerData);
-        redisTemplate.opsForValue().set(keyReg + regID, jsonString, timeout, TimeUnit.MINUTES);
+        authTicketService.createTicket(AuthTicketService.USER_REGISTER, username, regID, code, registerData, timeout);
+        authTicketService.createTicket(AuthTicketService.USER_REGISTER_PENDING, email, regID, regID, Map.of("regId", regID), timeout);
 
         MailCodeMessage mailCodeMessage = new MailCodeMessage(email, code, MailCodePurpose.UserRegister);
         String message = objectMapper.writeValueAsString(mailCodeMessage);
@@ -212,13 +188,14 @@ public class UserAuthServiceImpl implements UserAuthService {
     @Transactional
     public AuthServiceEnum verificationReg(String regID, String code) {
 
-        // 获取注册信息
-        String userData = (String) redisTemplate.opsForValue().get(keyReg + regID);
-        if (userData == null) return AuthServiceEnum.RegIdNotFound;
+        AuthTicket ticket = authTicketService.findValidTicket(regID, AuthTicketService.USER_REGISTER).orElse(null);
+        if (ticket == null) {
+            return AuthServiceEnum.RegIdNotFound;
+        }
+
         Map<String, String> map;
         try {
-            map = objectMapper.readValue(userData, new TypeReference<>() {
-            });
+            map = objectMapper.readValue(ticket.getPayloadJson(), new TypeReference<>() {});
         } catch (JsonProcessingException e) {
             return AuthServiceEnum.JsonParseError;
         }
@@ -229,10 +206,7 @@ public class UserAuthServiceImpl implements UserAuthService {
             return AuthServiceEnum.INVALID_CODE; // 验证码错误
         }
 
-        // 验证成功
-        redisTemplate.delete(keyReg + regID);
-        redisTemplate.delete(keyRegPend + map.get("username"));
-        redisTemplate.delete(keyRegPend + map.get("email"));
+        authTicketService.markUsed(ticket);
 
         // 生成uid
         String uid;

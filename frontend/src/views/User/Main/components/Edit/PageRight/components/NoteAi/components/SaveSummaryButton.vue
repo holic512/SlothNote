@@ -23,7 +23,7 @@ const saveAsNoteSummary = async () => {
   try {
     // 获取当前笔记ID
     const noteId = currentNoteInfo.noteId || 1;
-    const noteTitle = currentNoteInfo.noteTitle || '当前笔记';
+    const noteTitle = currentNoteInfo.noteName || '当前笔记';
 
     ElMessageBox.confirm(
         `是否将此内容保存为笔记"${noteTitle}"的简介？`,

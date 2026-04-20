@@ -18,9 +18,6 @@ import org.example.backend.admin.userMm.service.AdminOUserMmService;
 import org.example.backend.common.response.ApiResponse;
 import org.example.backend.common.util.StpKit;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.data.redis.core.Cursor;
-import org.springframework.data.redis.core.RedisTemplate;
-import org.springframework.data.redis.core.ScanOptions;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
 
@@ -30,40 +27,16 @@ import java.util.*;
 @Service
 public class AdminOUserMmServiceImpl implements AdminOUserMmService {
 
-    private static RedisTemplate<String, Object> redisTemplate;
     private AdminUserRepository adminUserRepository;
 
     @Autowired
-    public void setRedisTemplate(RedisTemplate<String, Object> redisTemplate, AdminUserRepository adminUserRepository) {
-        AdminOUserMmServiceImpl.redisTemplate = redisTemplate;
+    public void setAdminUserRepository(AdminUserRepository adminUserRepository) {
         this.adminUserRepository = adminUserRepository;
     }
 
     @Override
     public int fetchOUserCount() {
-
-        int count = 0; // 计数器
-        String cursor; // 初始游标
-
-        do {
-            // 执行 SCAN 命令
-            ScanOptions scanOptions = ScanOptions.scanOptions()
-                    .match("satoken:user:session:*")  // 匹配模式
-                    .count(100)
-                    .build();
-            Cursor<String> scanResult = redisTemplate.scan(scanOptions);
-
-            while (scanResult.hasNext()) {
-                scanResult.next(); // 获取当前键
-                count++; // 增加计数器
-            }
-
-            // 更新游标
-            cursor = scanResult.getId().getCursorId(); // 更新游标
-
-        } while (!cursor.equals("0")); // 如果游标为0，表示遍历结束
-
-        return count; // 返回匹配的键的数量
+        return StpKit.USER.searchSessionId("", 0, Integer.MAX_VALUE, false).size();
     }
 
     @Override

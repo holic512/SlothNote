@@ -13,6 +13,7 @@ import org.bson.codecs.jsr310.LocalDateTimeCodec;
 import org.example.backend.common.domain.Note;
 import org.example.backend.user.note.note.repository.UNoteInfoRep;
 import org.example.backend.user.note.note.repository.UNoteRepM;
+import org.example.backend.user.note.note.service.NoteVersionService;
 import org.example.backend.user.note.note.service.PUNoteService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
@@ -24,11 +25,13 @@ public class PUNoteServiceImpl implements PUNoteService {
 
     private final UNoteInfoRep uNoteInfoRep;
     private final UNoteRepM uNoteRepM;
+    private final NoteVersionService noteVersionService;
 
     @Autowired
-    public PUNoteServiceImpl(UNoteInfoRep uNoteInfoRep, UNoteRepM uNoteRepM) {
+    public PUNoteServiceImpl(UNoteInfoRep uNoteInfoRep, UNoteRepM uNoteRepM, NoteVersionService noteVersionService) {
         this.uNoteInfoRep = uNoteInfoRep;
         this.uNoteRepM = uNoteRepM;
+        this.noteVersionService = noteVersionService;
     }
 
     /**
@@ -58,6 +61,19 @@ public class PUNoteServiceImpl implements PUNoteService {
 
         // 执行保存
         uNoteRepM.save(note);
+        noteVersionService.createVersionIfChanged(userId, noteId, note.getContent(), "SAVE");
         return "success"; // 保存成功
+    }
+
+    @Override
+    public Note restoreVersion(Long userId, Long noteId, Long versionId) {
+        if (!uNoteInfoRep.existsById(noteId)) {
+            return null;
+        }
+        Long ownerId = uNoteInfoRep.findUserIdByNoteId(noteId);
+        if (!ownerId.equals(userId)) {
+            return null;
+        }
+        return noteVersionService.restoreVersion(userId, noteId, versionId);
     }
 }

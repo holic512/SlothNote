@@ -2,7 +2,7 @@
 import { ref, watch, nextTick } from 'vue';
 import { searchNotes } from '../service/searchNotes'; // 请确保路径正确
 import { useRouter } from 'vue-router';
-import { useSearchDialogStore } from '../Pinia/searchDialogStore'; // 请确保路径正确
+import { useSearchDialogStore } from '../Pinia/SearchDialogStore'; // 请确保路径正确
 // 引入图标
 import { Search, Document, Loading, Right } from '@element-plus/icons-vue';
 

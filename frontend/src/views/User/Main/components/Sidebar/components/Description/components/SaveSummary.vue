@@ -23,7 +23,7 @@ const showSaveOptions = ref(false);
 // 当前选中的项目类型和ID
 const selectedItem = ref({
   type: 'NOTE',  // 'NOTE' 或 'FOLDER'
-  id: null,
+  id: null as number | null,
   label: ''
 });
 
@@ -31,18 +31,18 @@ const selectedItem = ref({
 const currentNoteInfo = useCurrentNoteInfoStore();
 
 // 获取当前笔记ID和标题
-const currentNoteId = ref(null);
+const currentNoteId = ref<number | null>(null);
 const currentNoteTitle = ref('');
 
 // 获取当前文件夹ID和标题
-const currentFolderId = ref(null);
+const currentFolderId = ref<number | null>(null);
 const currentFolderTitle = ref('所属文件夹');
 
 // 初始化数据
 onMounted(async () => {
   if (currentNoteInfo.noteId) {
     currentNoteId.value = currentNoteInfo.noteId;
-    currentNoteTitle.value = currentNoteInfo.noteTitle || '当前笔记';
+    currentNoteTitle.value = currentNoteInfo.noteName || '当前笔记';
     
     // 获取文件夹ID
     try {

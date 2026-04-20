@@ -6,4 +6,6 @@ import java.util.List;
 
 public interface SearchService {
     List<SearchResultDto> search(Long userId, String q);
+
+    List<SearchResultDto> search(Long userId, String q, int limit);
 }
