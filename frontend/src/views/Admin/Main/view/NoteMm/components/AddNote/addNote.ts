@@ -1,5 +1,5 @@
-import axios from '../../../../../../../axios';
 import type { Ref } from 'vue';
+import {addNote as submitAddNote} from '../../service/noteMm';
 
 export interface AddNoteForm {
   userId: number | null;
@@ -13,17 +13,15 @@ export interface AddNoteForm {
 }
 
 export const addNote = async (form: Ref<AddNoteForm>) => {
-  try {
-    const r = await axios.post('/admin/noteMm/add', {
-      userId: form.value.userId,
-      folderId: form.value.folderId,
-      noteTitle: form.value.noteTitle,
-      noteSummary: form.value.noteSummary,
-      noteAvatar: form.value.noteAvatar,
-      noteCoverUrl: form.value.noteCoverUrl,
-      notePassword: form.value.notePassword,
-      noteType: form.value.noteType,
-    });
-    return r.data.status;
-  } catch { return 500 }
+  const result = await submitAddNote({
+    userId: form.value.userId,
+    folderId: form.value.folderId,
+    noteTitle: form.value.noteTitle,
+    noteSummary: form.value.noteSummary,
+    noteAvatar: form.value.noteAvatar,
+    noteCoverUrl: form.value.noteCoverUrl,
+    notePassword: form.value.notePassword,
+    noteType: form.value.noteType,
+  });
+  return result;
 }

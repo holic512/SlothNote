@@ -4,25 +4,37 @@ import IconField from 'primevue/iconfield';
 import InputIcon from 'primevue/inputicon';
 import InputText from 'primevue/inputtext';
 import Tag from 'primevue/tag';
-import {computed, onBeforeUnmount, onMounted, ref} from 'vue';
+import {computed, onBeforeUnmount, onMounted, ref, watch} from 'vue';
 import DataTable from 'primevue/datatable';
 import Column from 'primevue/column';
-import axios from '../../../../../axios'; // 请确认路径
 import {ElMessage} from 'element-plus';
 import {calculateRows} from '../FolderMm/components/TableView/calculateRows';
-import {fetchUserOptions} from '../FolderMm/components/TableView/userOptions';
 import AddNote from './components/AddNote/addNote.vue';
 import NoteDetail from './components/NoteDetail/noteDetail.vue';
+import {
+  batchDeleteNotes,
+  batchRestoreNotes,
+  deleteNote,
+  fetchNoteContent,
+  fetchFolderOptions,
+  fetchUserOptions,
+  restoreNote,
+  searchNotes,
+  type FolderOption,
+  type NoteRow,
+  type UserOption,
+} from './service/noteMm';
 
 // --- 响应式折叠控制 ---
 const showFilters = ref(false);
 
 const q = ref<string | null>(null);
-const userIdFilter = ref<number | null>(null);
-const folderIdFilter = ref<number | null>(null);
+const userIdFilter = ref<number | undefined>(undefined);
+const folderIdFilter = ref<number | undefined>(undefined);
 const noteTypeFilter = ref<number | null>(null);
-const isDeletedFilter = ref<number | null>(null);
-const userOptions = ref<any[]>([]);
+const isDeletedFilter = ref<number | undefined>(undefined);
+const userOptions = ref<UserOption[]>([]);
+const folderOptions = ref<FolderOption[]>([]);
 
 const minHeight = 720;
 const stepHeight = 45;
@@ -30,17 +42,22 @@ let nowRow = ref(10);
 const noteCount = ref(0);
 const maxPage = ref(1);
 const nowPage = ref(1);
-const rows = ref([]);
+const rows = ref<NoteRow[]>([]);
+const selected = ref<NoteRow[]>([]);
 
 onMounted(async () => {
   nowRow.value = calculateRows(minHeight, stepHeight);
-  await axios.get('admin/noteMm/getCount').then((r)=>{ noteCount.value = r.data.data; maxPage.value = Math.ceil(noteCount.value / nowRow.value); });
-  rows.value = await fetchPageData(nowRow.value, nowPage.value);
-  userOptions.value = await fetchUserOptions(undefined, 50);
+  await Promise.all([loadNotes(), loadUserOptions()]);
   window.addEventListener('resize', handleResize);
 });
 
 onBeforeUnmount(() => { window.removeEventListener('resize', handleResize); });
+
+watch(userIdFilter, async () => {
+  folderIdFilter.value = undefined;
+  folderOptions.value = [];
+  await loadFolderOptions();
+});
 
 const DEBOUNCE_DELAY = 100;
 let resizeTimeout: ReturnType<typeof setTimeout>;
@@ -50,9 +67,7 @@ const handleResize = async () => {
     const rowsCount = calculateRows(minHeight, stepHeight);
     if (rowsCount !== nowRow.value) {
       nowRow.value = rowsCount;
-      maxPage.value = Math.ceil(noteCount.value / nowRow.value);
-      if (nowPage.value > maxPage.value) nowPage.value = maxPage.value;
-      rows.value = await fetchPageData(nowRow.value, nowPage.value);
+      await loadNotes();
     }
   }, DEBOUNCE_DELAY);
 };
@@ -63,78 +78,135 @@ enum pageTurn { FirstPage, PreviousPage, NextPage, LastPage }
 const turnPage = async (turn: pageTurn) => {
   switch (turn) {
     case pageTurn.FirstPage:
-      if (nowPage.value != 1) { nowPage.value = 1; rows.value = await fetchPageData(nowRow.value, nowPage.value); } else { ElMessage.warning('已经是第一页了') }
+      if (nowPage.value != 1) { nowPage.value = 1; await loadNotes(); } else { ElMessage.warning('已经是第一页了') }
       break;
     case pageTurn.PreviousPage:
-      if (nowPage.value > 1) { nowPage.value = nowPage.value - 1; rows.value = await fetchPageData(nowRow.value, nowPage.value); } else { ElMessage.warning('已经是第一页了') }
+      if (nowPage.value > 1) { nowPage.value = nowPage.value - 1; await loadNotes(); } else { ElMessage.warning('已经是第一页了') }
       break;
     case pageTurn.NextPage:
-      if (nowPage.value < maxPage.value) { nowPage.value = nowPage.value + 1; rows.value = await fetchPageData(nowRow.value, nowPage.value); } else { ElMessage.warning('已经是最后一页了') }
+      if (nowPage.value < maxPage.value) { nowPage.value = nowPage.value + 1; await loadNotes(); } else { ElMessage.warning('已经是最后一页了') }
       break;
     case pageTurn.LastPage:
-      if (nowPage.value != maxPage.value) { nowPage.value = maxPage.value; rows.value = await fetchPageData(nowRow.value, nowPage.value); } else { ElMessage.warning('已经是最后一页了') }
+      if (nowPage.value != maxPage.value) { nowPage.value = maxPage.value; await loadNotes(); } else { ElMessage.warning('已经是最后一页了') }
       break;
   }
 };
 
 const refresh = async () => {
-  await axios.get('admin/noteMm/getCount').then((r)=>{ noteCount.value = r.data.data; maxPage.value = Math.ceil(noteCount.value / nowRow.value); });
-  if (maxPage.value < nowPage.value) rows.value = await fetchPageData(nowRow.value, maxPage.value);
-  else rows.value = await fetchPageData(nowRow.value, nowPage.value);
+  await loadNotes();
   ElMessage.success('刷新成功');
 };
 
-const selected = ref();
 const batchDelete = async () => {
   if (!selected.value || selected.value.length === 0) { ElMessage.warning('选择为空'); return; }
-  const ids = selected.value.map((p: any) => p.id);
-  const r = await axios.post('admin/noteMm/batchDelete', ids);
-  if (r.data.status===200) { ElMessage.success('删除成功'); rows.value = await fetchPageData(nowRow.value, nowPage.value); } else { ElMessage.error('无法连接服务器') }
+  const ids = selected.value.map((p) => p.id);
+  const result = await batchDeleteNotes(ids);
+  if (result.status === 200) {
+    ElMessage.success('删除成功');
+    await loadNotes();
+  } else {
+    ElMessage.error(result.message || '无法连接服务器');
+  }
 };
 const batchRestore = async () => {
   if (!selected.value || selected.value.length === 0) { ElMessage.warning('选择为空'); return; }
-  const ids = selected.value.map((p: any) => p.id);
-  const r = await axios.post('admin/noteMm/batchRestore', ids);
-  if (r.data.status===200) { ElMessage.success('恢复成功'); rows.value = await fetchPageData(nowRow.value, nowPage.value); } else { ElMessage.error('无法连接服务器') }
+  const ids = selected.value.map((p) => p.id);
+  const result = await batchRestoreNotes(ids);
+  if (result.status === 200) {
+    ElMessage.success('恢复成功');
+    await loadNotes();
+  } else {
+    ElMessage.error(result.message || '无法连接服务器');
+  }
 };
 
 const doSearch = async () => {
-  const resp = await axios.post('admin/noteMm/search', {
-    q: q.value || undefined,
-    userId: userIdFilter.value === null ? undefined : userIdFilter.value,
-    folderId: folderIdFilter.value === null ? undefined : folderIdFilter.value,
-    noteType: noteTypeFilter.value === null ? undefined : noteTypeFilter.value,
-    isDeleted: isDeletedFilter.value === null ? undefined : isDeletedFilter.value,
-    pageNum: nowPage.value,
-    pageSize: nowRow.value,
-  });
-  const data = resp.data.data;
-  rows.value = data.list;
-  noteCount.value = data.total;
-  maxPage.value = Math.ceil(noteCount.value / nowRow.value);
+  nowPage.value = 1;
+  await loadNotes();
 };
 
 const previewVisible = ref<boolean>(false);
 const previewContent = ref<string>('');
-const openPreview = async (noteId: number) => {
-  const r = await axios.get('admin/noteMm/content/get', { params: { noteId } });
-  const content = r.data.data || '';
+const previewInvalid = ref(false);
+const previewMeta = ref<{ hasContent: boolean; lastSavedAt: string | null } | null>(null);
+const openPreview = async (row: NoteRow) => {
+  const content = await fetchNoteContent(row.id);
   try {
     const obj = JSON.parse(content);
-    previewContent.value = JSON.stringify(obj, null, 2).slice(0, 800);
-  } catch { previewContent.value = content.slice(0, 800); }
+    previewContent.value = JSON.stringify(obj, null, 2);
+    previewInvalid.value = false;
+  } catch {
+    previewContent.value = content;
+    previewInvalid.value = !!content;
+  }
+  previewMeta.value = { hasContent: row.hasContent, lastSavedAt: row.lastSavedAt };
   previewVisible.value = true;
 };
 
 const addVisible = ref<boolean>(false);
 const detailVisible = ref<boolean>(false);
-const currentId = ref<number | null>(null);
+const currentId = ref<number | undefined>(undefined);
 const openDetail = (id: number) => { currentId.value = id; detailVisible.value = true; };
 
-const fetchPageData = async (pageSize: number, pageNum: number) => {
-  const r = await axios.get('admin/noteMm/fetchPageData', { params: { pageSize, pageNum } });
-  return r.data.data;
-}
+const loadUserOptions = async (q?: string) => {
+  userOptions.value = await fetchUserOptions(q, 50);
+};
+
+const loadFolderOptions = async (q?: string) => {
+  folderOptions.value = await fetchFolderOptions(q, userIdFilter.value, 50);
+};
+
+const loadNotes = async () => {
+  const data = await searchNotes({
+    q: q.value || undefined,
+    userId: userIdFilter.value,
+    folderId: folderIdFilter.value,
+    noteType: noteTypeFilter.value ?? undefined,
+    isDeleted: isDeletedFilter.value,
+    pageNum: nowPage.value,
+    pageSize: nowRow.value,
+  });
+  noteCount.value = data.total;
+  maxPage.value = Math.max(1, Math.ceil(noteCount.value / nowRow.value));
+  if (nowPage.value > maxPage.value) {
+    nowPage.value = maxPage.value;
+    const latest = await searchNotes({
+      q: q.value || undefined,
+      userId: userIdFilter.value,
+      folderId: folderIdFilter.value,
+      noteType: noteTypeFilter.value ?? undefined,
+      isDeleted: isDeletedFilter.value,
+      pageNum: nowPage.value,
+      pageSize: nowRow.value,
+    });
+    rows.value = latest.list;
+    noteCount.value = latest.total;
+    selected.value = [];
+    return;
+  }
+  rows.value = data.list;
+  selected.value = [];
+};
+
+const handleSingleDelete = async (id: number) => {
+  const result = await deleteNote(id);
+  if (result.status === 200) {
+    ElMessage.success('删除成功');
+    await loadNotes();
+  } else {
+    ElMessage.error(result.message || '无法连接服务器');
+  }
+};
+
+const handleSingleRestore = async (id: number) => {
+  const result = await restoreNote(id);
+  if (result.status === 200) {
+    ElMessage.success('恢复成功');
+    await loadNotes();
+  } else {
+    ElMessage.error(result.message || '无法连接服务器');
+  }
+};
 
 </script>
 
@@ -221,10 +293,12 @@ const fetchPageData = async (pageSize: number, pageNum: number) => {
               <el-option label="已删除" :value="1" />
             </el-select>
 
-            <el-input-number v-model="folderIdFilter" :min="0" :step="1" placeholder="文件夹ID" controls-position="right" style="width: 120px" />
+            <el-select v-model="folderIdFilter" placeholder="选择文件夹" style="width: 220px" filterable remote clearable :disabled="!userIdFilter" :remote-method="(keyword:string)=>loadFolderOptions(keyword)" :reserve-keyword="true" @visible-change="(v:boolean)=>{ if(v && userIdFilter) loadFolderOptions() }">
+              <el-option v-for="folder in folderOptions" :key="folder.id" :label="`${folder.folderName} (#${folder.id})`" :value="folder.id" />
+            </el-select>
             <el-input-number v-model="noteTypeFilter" :min="0" :step="1" placeholder="类型" controls-position="right" style="width: 120px" />
             
-            <el-select v-model="userIdFilter" placeholder="选择用户" style="width: 200px" filterable remote clearable :remote-method="async (q:string)=>{ userOptions.value = await fetchUserOptions(q, 50) }" :reserve-keyword="true">
+            <el-select v-model="userIdFilter" placeholder="选择用户" style="width: 200px" filterable remote clearable :remote-method="(keyword:string)=>loadUserOptions(keyword)" :reserve-keyword="true">
               <el-option v-for="u in userOptions" :key="u.id" :label="`${u.username} (${u.email})`" :value="u.id" />
             </el-select>
 
@@ -234,24 +308,36 @@ const fetchPageData = async (pageSize: number, pageNum: number) => {
       </div>
 
       <div class="table-container">
-        <DataTable v-model:selection="selected" :value="rows" stripedRows dataKey="id" tableStyle="min-width: 1000px;" size="small" :style="{ minHeight: dynamicHeight }">
+        <DataTable v-model:selection="selected" :value="rows" stripedRows dataKey="id" tableStyle="min-width: 1260px;" size="small" :style="{ minHeight: dynamicHeight }">
           <Column selectionMode="multiple" headerStyle="width: 50px" position="fixed"></Column>
           <Column field="id" header="ID" headerStyle="width: 60px"></Column>
           <Column field="noteTitle" header="标题" headerStyle="width: 18%"></Column>
           <Column field="userId" header="用户ID" headerStyle="width: 10%"></Column>
           <Column field="folderId" header="文件夹ID" headerStyle="width: 10%"></Column>
           <Column field="noteType" header="类型" headerStyle="width: 10%"></Column>
+          <Column field="updatedAt" header="更新时间" headerStyle="width: 14%"></Column>
+          <Column field="hasContent" header="正文" headerStyle="width: 9%">
+            <template #body="{ data }">
+              <Tag :value="data.hasContent ? '有正文' : '无正文'" :severity="data.hasContent ? 'success' : 'info'" />
+            </template>
+          </Column>
+          <Column field="lastSavedAt" header="正文保存时间" headerStyle="width: 14%">
+            <template #body="{ data }">
+              <span>{{ data.lastSavedAt || '-' }}</span>
+            </template>
+          </Column>
           <Column field="isDeleted" header="状态" headerStyle="width: 10%">
             <template #body="{ data }">
               <Tag :value="data.isDeleted===1 ? '已删除' : '正常'" :severity="data.isDeleted===1 ? 'danger' : 'success'"/>
             </template>
           </Column>
-          <Column header="更多" headerStyle="width: 140px">
+          <Column header="更多" headerStyle="width: 180px">
             <template #body="{ data }">
               <div style="display: flex; gap: 6px; align-items: center;">
-                <Button type="button" icon="pi pi-eye" rounded outlined style=" height: 32px;width: 32px" @click="openPreview(data.id)"/>
+                <Button type="button" icon="pi pi-eye" rounded outlined style=" height: 32px;width: 32px" @click="openPreview(data)"/>
                 <Button type="button" icon="pi pi-pencil" rounded outlined style=" height: 32px;width: 32px" @click="openDetail(data.id)"/>
-                <Button type="button" icon="pi pi-trash" rounded outlined style=" height: 32px;width: 32px" @click="(async()=>{ const r = await axios.delete('admin/noteMm/delete', { params: { id: data.id } }); if(r.data.status===200){ ElMessage.success('删除成功'); rows.value = await fetchPageData(nowRow.value, nowPage.value) } else { ElMessage.error('无法连接服务器') } })()"/>
+                <Button v-if="data.isDeleted !== 1" type="button" icon="pi pi-trash" rounded outlined style=" height: 32px;width: 32px" @click="handleSingleDelete(data.id)"/>
+                <Button v-else type="button" icon="pi pi-refresh" rounded outlined style=" height: 32px;width: 32px" @click="handleSingleRestore(data.id)"/>
               </div>
             </template>
           </Column>
@@ -259,10 +345,15 @@ const fetchPageData = async (pageSize: number, pageNum: number) => {
       </div>
 
       <el-dialog v-model="previewVisible" title="内容预览" width="680px">
+        <div v-if="previewMeta" class="preview-meta">
+          <el-tag :type="previewMeta.hasContent ? 'success' : 'info'">{{ previewMeta.hasContent ? '有正文' : '无正文' }}</el-tag>
+          <el-tag :type="previewInvalid ? 'danger' : 'success'">{{ previewInvalid ? 'JSON异常' : 'JSON有效' }}</el-tag>
+          <span class="preview-time">最后保存：{{ previewMeta.lastSavedAt || '未保存' }}</span>
+        </div>
         <pre style="white-space: pre-wrap; word-break: break-word;">{{ previewContent }}</pre>
       </el-dialog>
-      <AddNote v-model="addVisible"/>
-      <NoteDetail v-model="detailVisible" v-model:noteId="currentId" />
+      <AddNote v-model="addVisible" @success="loadNotes" />
+      <NoteDetail v-model="detailVisible" v-model:noteId="currentId" @success="loadNotes" />
     </div>
   </el-scrollbar>
 </template>
@@ -343,6 +434,8 @@ const fetchPageData = async (pageSize: number, pageNum: number) => {
   padding: 4px; 
   margin-top: 5px;
 }
+.preview-meta { display: flex; gap: 8px; align-items: center; margin-bottom: 12px; flex-wrap: wrap; }
+.preview-time { color: #64748b; font-size: 13px; }
 
 /* 动画 */
 .fade-slide-enter-active,

@@ -1,6 +1,7 @@
 package org.example.backend.admin.noteMm.Controller;
 
 import jakarta.validation.Valid;
+import org.example.backend.admin.noteMm.enums.AdminNoteMmEnum;
 import org.example.backend.admin.noteMm.request.AddNoteRequest;
 import org.example.backend.admin.noteMm.request.SearchNoteRequest;
 import org.example.backend.admin.noteMm.request.UpdateNoteRequest;
@@ -59,11 +60,7 @@ public class AdminNoteMmController {
 
     @PutMapping("/update")
     public ResponseEntity<Object> update(@RequestBody UpdateNoteRequest request) {
-        boolean ok = service.update(request);
-        return ResponseEntity.ok(new ApiResponse.Builder<>()
-                .status(ok ? 200 : 500)
-                .message(ok ? "修改成功" : "无法连接服务器")
-                .build());
+        return buildMutationResponse(service.update(request), "修改成功");
     }
 
     @DeleteMapping("/delete")
@@ -99,6 +96,16 @@ public class AdminNoteMmController {
                 .build());
     }
 
+    @PostMapping("/restore")
+    public ResponseEntity<Object> restore(@RequestBody Map<String, Object> body) {
+        Long id = Long.valueOf(body.get("id").toString());
+        boolean ok = service.restore(id);
+        return ResponseEntity.ok(new ApiResponse.Builder<>()
+                .status(ok ? 200 : 500)
+                .message(ok ? "恢复成功" : "无法连接服务器")
+                .build());
+    }
+
     @GetMapping("/fetchInitial")
     public ResponseEntity<Object> fetchInitial(@RequestParam int count) {
         var data = service.fetchInitial(count);
@@ -121,11 +128,7 @@ public class AdminNoteMmController {
 
     @PostMapping("/add")
     public ResponseEntity<Object> add(@Valid @RequestBody AddNoteRequest request) {
-        boolean ok = service.add(request);
-        return ResponseEntity.ok(new ApiResponse.Builder<>()
-                .status(ok ? 200 : 500)
-                .message(ok ? "添加成功" : "无法连接服务器")
-                .build());
+        return buildMutationResponse(service.add(request), "添加成功");
     }
 
     @GetMapping("/content/get")
@@ -142,10 +145,80 @@ public class AdminNoteMmController {
     public ResponseEntity<Object> updateContent(@RequestBody Map<String, Object> body) {
         Long noteId = Long.valueOf(body.get("noteId").toString());
         String content = (String) body.get("content");
-        boolean ok = service.updateContent(noteId, content);
-        return ResponseEntity.ok(new ApiResponse.Builder<>()
-                .status(ok ? 200 : 500)
-                .message(ok ? "更新成功" : "无法连接服务器")
+        AdminNoteMmEnum result = service.updateContent(noteId, content);
+        var builder = new ApiResponse.Builder<>().message("更新成功");
+        if (result == AdminNoteMmEnum.Success) {
+            return ResponseEntity.ok(builder
+                    .status(200)
+                    .data(service.getContentMeta(noteId))
+                    .build());
+        }
+        if (result == AdminNoteMmEnum.InvalidContent) {
+            return ResponseEntity.ok(builder
+                    .status(400)
+                    .message("内容不是合法的 JSON")
+                    .build());
+        }
+        if (result == AdminNoteMmEnum.NotFound) {
+            return ResponseEntity.ok(builder
+                    .status(404)
+                    .message("笔记不存在")
+                    .build());
+        }
+        return ResponseEntity.ok(builder
+                .status(500)
+                .message("无法连接服务器")
                 .build());
+    }
+
+    @GetMapping("/userOptions")
+    public ResponseEntity<Object> userOptions(@RequestParam(required = false) String q, @RequestParam(defaultValue = "50") int limit) {
+        return ResponseEntity.ok(new ApiResponse.Builder<>()
+                .status(200)
+                .message("成功获取用户选项")
+                .data(service.userOptions(q, limit))
+                .build());
+    }
+
+    @GetMapping("/folderOptions")
+    public ResponseEntity<Object> folderOptions(
+            @RequestParam(required = false) String q,
+            @RequestParam(required = false) Long userId,
+            @RequestParam(defaultValue = "50") int limit
+    ) {
+        return ResponseEntity.ok(new ApiResponse.Builder<>()
+                .status(200)
+                .message("成功获取文件夹选项")
+                .data(service.folderOptions(q, userId, limit))
+                .build());
+    }
+
+    private ResponseEntity<Object> buildMutationResponse(AdminNoteMmEnum result, String successMessage) {
+        return switch (result) {
+            case Success -> ResponseEntity.ok(new ApiResponse.Builder<>()
+                    .status(200)
+                    .message(successMessage)
+                    .build());
+            case NotFound -> ResponseEntity.ok(new ApiResponse.Builder<>()
+                    .status(404)
+                    .message("笔记不存在")
+                    .build());
+            case UserNotFound -> ResponseEntity.ok(new ApiResponse.Builder<>()
+                    .status(404)
+                    .message("用户不存在")
+                    .build());
+            case FolderNotFound -> ResponseEntity.ok(new ApiResponse.Builder<>()
+                    .status(404)
+                    .message("文件夹不存在")
+                    .build());
+            case FolderUserMismatch -> ResponseEntity.ok(new ApiResponse.Builder<>()
+                    .status(409)
+                    .message("文件夹不属于当前用户")
+                    .build());
+            default -> ResponseEntity.ok(new ApiResponse.Builder<>()
+                    .status(500)
+                    .message("无法连接服务器")
+                    .build());
+        };
     }
 }

@@ -15,6 +15,8 @@ public class NoteInfoDto {
     private String notePassword;
     private Integer noteType;
     private Integer isDeleted;
+    private Boolean hasContent;
+    private LocalDateTime lastSavedAt;
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
 }

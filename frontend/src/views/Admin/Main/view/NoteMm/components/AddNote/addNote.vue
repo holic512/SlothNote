@@ -1,11 +1,14 @@
 <script setup lang="ts">
-import {reactive, ref} from 'vue';
+import {reactive, ref, watch} from 'vue';
 import {ElMessage, FormInstance, FormRules} from 'element-plus';
 import Dialog from 'primevue/dialog';
 import {addNote, AddNoteForm} from './addNote';
-import {fetchUserOptions} from '../../../FolderMm/components/TableView/userOptions';
+import {fetchFolderOptions, fetchUserOptions, type FolderOption, type UserOption} from '../../service/noteMm';
 
-const visible = defineModel();
+const visible = defineModel<boolean>();
+const emit = defineEmits<{
+  success: []
+}>();
 
 const form = ref<AddNoteForm>({ userId: null, folderId: null, noteTitle: '', noteSummary: '', noteAvatar: '', noteCoverUrl: '', notePassword: '', noteType: 0 });
 const rules = reactive<FormRules<AddNoteForm>>({
@@ -14,19 +17,45 @@ const rules = reactive<FormRules<AddNoteForm>>({
   noteType: [{ required: true, message: '请输入类型', trigger: 'blur' }],
 });
 const formEl = ref<FormInstance>();
-const userOptions = ref<any[]>([]);
-const loadUserOptions = async (q?: string) => { userOptions.value = await fetchUserOptions(q, 50); }
+const userOptions = ref<UserOption[]>([]);
+const folderOptions = ref<FolderOption[]>([]);
+const loadUserOptions = async (q?: string) => { userOptions.value = await fetchUserOptions(q, 50); };
+const loadFolderOptions = async (q?: string) => {
+  folderOptions.value = await fetchFolderOptions(q, form.value.userId, 50);
+};
+
+watch(() => form.value.userId, async () => {
+  form.value.folderId = null;
+  folderOptions.value = [];
+  if (form.value.userId) {
+    await loadFolderOptions();
+  }
+});
 
 const onSubmit = async () => {
   if (!formEl.value) return;
   try {
     await formEl.value.validate();
-    const s = await addNote(form);
-    if (s===200) { ElMessage.success('添加成功'); formEl.value.resetFields(); visible.value=false } else { ElMessage.error('无法连接服务器') }
+    const result = await addNote(form);
+    if (result.status === 200) {
+      ElMessage.success('添加成功');
+      formEl.value.resetFields();
+      folderOptions.value = [];
+      visible.value = false;
+      emit('success');
+    } else {
+      ElMessage.error(result.message || '无法连接服务器');
+    }
   } catch { ElMessage.warning('请填写完整信息'); }
 }
 
-const resetForm = () => { if (formEl.value) { formEl.value.resetFields(); visible.value=false } }
+const resetForm = () => {
+  if (formEl.value) {
+    formEl.value.resetFields();
+  }
+  folderOptions.value = [];
+  visible.value = false;
+};
 </script>
 
 <template>
@@ -37,8 +66,10 @@ const resetForm = () => { if (formEl.value) { formEl.value.resetFields(); visibl
           <el-option v-for="u in userOptions" :key="u.id" :label="`${u.username} (${u.email})`" :value="u.id" />
         </el-select>
       </el-form-item>
-      <el-form-item label="文件夹ID" prop="folderId">
-        <el-input-number v-model="form.folderId" :min="0" :step="1" class="input" placeholder="请输入文件夹ID"/>
+      <el-form-item label="文件夹" prop="folderId">
+        <el-select v-model="form.folderId" class="input" placeholder="可选文件夹" filterable remote clearable :disabled="!form.userId" :remote-method="loadFolderOptions" :reserve-keyword="true" @visible-change="(v:boolean)=>{ if(v && form.userId) loadFolderOptions() }">
+          <el-option v-for="folder in folderOptions" :key="folder.id" :label="`${folder.folderName} (#${folder.id})`" :value="folder.id" />
+        </el-select>
       </el-form-item>
       <el-form-item label="标题" prop="noteTitle">
         <el-input v-model="form.noteTitle" class="input" placeholder="请输入标题"/>
