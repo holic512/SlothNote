@@ -32,7 +32,7 @@ public class Admin {
     @Column(name = "password", nullable = false, length = 255)
     private String password;  // 密码
 
-    @Column(name = "email", unique = true, nullable = false, length = 100)
+    @Column(name = "email", unique = true, length = 100)
     private String email;  // 邮箱
 
     @Column(name = "created_at", nullable = false, updatable = false)

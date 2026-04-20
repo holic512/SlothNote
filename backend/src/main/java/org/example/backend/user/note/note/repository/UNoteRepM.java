@@ -1,16 +1,39 @@
-/**
- * File Name: UNoteRepM.java
- * Description: Todo
- * Author: holic512
- * Created Date: 2024-11-12
- * Version: 1.0
- * Usage:
- * Todo
- */
 package org.example.backend.user.note.note.repository;
 
 import org.example.backend.common.domain.Note;
-import org.springframework.data.jpa.repository.JpaRepository;
+import org.example.backend.common.mapper.NoteMapper;
+import org.springframework.stereotype.Repository;
 
-public interface UNoteRepM extends JpaRepository<Note, Long> {
+import java.util.Collection;
+import java.util.List;
+import java.util.Optional;
+
+@Repository
+public class UNoteRepM {
+
+    private final NoteMapper noteMapper;
+
+    public UNoteRepM(NoteMapper noteMapper) {
+        this.noteMapper = noteMapper;
+    }
+
+    public Optional<Note> findById(Long id) {
+        return Optional.ofNullable(noteMapper.selectById(id));
+    }
+
+    public List<Note> findAllById(Collection<Long> ids) {
+        return ids == null || ids.isEmpty() ? List.of() : noteMapper.selectBatchIds(ids);
+    }
+
+    public Note save(Note note) {
+        if (note == null) {
+            return null;
+        }
+        if (noteMapper.selectById(note.getNoteId()) == null) {
+            noteMapper.insert(note);
+        } else {
+            noteMapper.updateById(note);
+        }
+        return noteMapper.selectById(note.getNoteId());
+    }
 }

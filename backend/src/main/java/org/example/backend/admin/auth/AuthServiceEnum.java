@@ -11,6 +11,8 @@ package org.example.backend.admin.auth;
 
 public enum AuthServiceEnum {
     Success,                // 成功
+    NeedInit,               // 需要初始化管理员
+    AdminAlreadyInitialized,// 管理员已初始化
     EmailAlreadyExists,     // 邮箱已存在
     UserAlreadyExists,      // 用户已存在
     EmailSendFailure,       // 邮箱发送失败
@@ -20,5 +22,5 @@ public enum AuthServiceEnum {
     INVALID_CODE,           // 验证码无效
     UserNotExists,          // 用户不存在
     INCORRECT,              // 密码错误(与数据库存储比对不符)
-
+    InvalidEmail            // 邮箱格式错误
 }

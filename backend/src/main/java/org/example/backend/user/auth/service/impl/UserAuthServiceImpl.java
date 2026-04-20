@@ -14,6 +14,7 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.antlr.v4.runtime.misc.Pair;
+import org.example.backend.common.Mail.Service.MailCodeService;
 import org.example.backend.common.Mail.dto.MailCodeMessage;
 import org.example.backend.common.dto.user.UserAuthDto;
 import org.example.backend.common.entity.AuthTicket;
@@ -22,8 +23,6 @@ import org.example.backend.common.enums.user.UserGenderEnum;
 import org.example.backend.common.repository.UserProfileRepository;
 import org.example.backend.common.service.AuthTicketService;
 import org.example.backend.common.util.*;
-import org.example.backend.common.rabbitMQ.enums.MQExchangeType;
-import org.example.backend.common.rabbitMQ.enums.MQRoutingKey;
 import org.example.backend.common.Mail.enums.MailCodePurpose;
 import org.example.backend.user.auth.dto.AuthDto;
 import org.example.backend.user.auth.enums.AuthServiceEnum;
@@ -31,7 +30,6 @@ import org.example.backend.common.enums.user.UserStatusEnum;
 import org.example.backend.common.repository.UserRepository;
 import org.example.backend.common.entity.User;
 import org.example.backend.user.auth.service.UserAuthService;
-import org.springframework.amqp.rabbit.core.RabbitTemplate;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -43,21 +41,21 @@ import java.util.Map;
 public class UserAuthServiceImpl implements UserAuthService {
 
     private final UserRepository userRepository;
-    private final RabbitTemplate rabbitTemplate;
     private final ObjectMapper objectMapper;
     private final UserProfileRepository profileRepository;
     private final AuthTicketService authTicketService;
+    private final MailCodeService mailCodeService;
 
     @Autowired
     public UserAuthServiceImpl(UserRepository userRepository,
-                               RabbitTemplate rabbitTemplate,
                                UserProfileRepository profileRepository,
-                               AuthTicketService authTicketService) {
+                               AuthTicketService authTicketService,
+                               MailCodeService mailCodeService) {
         this.userRepository = userRepository;
-        this.rabbitTemplate = rabbitTemplate;
         this.objectMapper = new ObjectMapper();
         this.profileRepository = profileRepository;
         this.authTicketService = authTicketService;
+        this.mailCodeService = mailCodeService;
     }
 
     final int timeout = 5;
@@ -123,8 +121,7 @@ public class UserAuthServiceImpl implements UserAuthService {
         authTicketService.createTicket(AuthTicketService.USER_LOGIN, email, logID, code, payload, timeout);
 
         MailCodeMessage mailCodeMessage = new MailCodeMessage(email, code, MailCodePurpose.UserLogin);
-        String message = objectMapper.writeValueAsString(mailCodeMessage);
-        rabbitTemplate.convertAndSend(MQExchangeType.DIRECT_EXCHANGE.getValue(), MQRoutingKey.EMAIL_ROUTING_KEY.getKey(), message);
+        mailCodeService.sendVerificationCode(mailCodeMessage);
 
         return new Pair<>(AuthServiceEnum.Success, logID);
     }
@@ -178,8 +175,7 @@ public class UserAuthServiceImpl implements UserAuthService {
         authTicketService.createTicket(AuthTicketService.USER_REGISTER_PENDING, email, regID, regID, Map.of("regId", regID), timeout);
 
         MailCodeMessage mailCodeMessage = new MailCodeMessage(email, code, MailCodePurpose.UserRegister);
-        String message = objectMapper.writeValueAsString(mailCodeMessage);
-        rabbitTemplate.convertAndSend(MQExchangeType.DIRECT_EXCHANGE.getValue(), MQRoutingKey.EMAIL_ROUTING_KEY.getKey(), message);
+        mailCodeService.sendVerificationCode(mailCodeMessage);
 
         return new Pair<>(AuthServiceEnum.Success, regID);
     }

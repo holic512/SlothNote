@@ -1,5 +1,8 @@
 package org.example.backend.admin.setting.service;
 
+import org.example.backend.common.entity.Admin;
+import org.example.backend.common.repository.AdminRepository;
+import org.example.backend.common.util.StpKit;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -8,16 +11,21 @@ import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
+import java.util.regex.Pattern;
 
 @Service
 public class AdminSettingService {
 
     private static final String RESET_CONFIRM_TEXT = "INITIALIZE";
+    private static final Pattern EMAIL_PATTERN = Pattern.compile("^[A-Za-z0-9+_.-]+@[A-Za-z0-9.-]+$");
 
     private final JdbcTemplate jdbcTemplate;
+    private final AdminRepository adminRepository;
 
-    public AdminSettingService(JdbcTemplate jdbcTemplate) {
+    public AdminSettingService(JdbcTemplate jdbcTemplate, AdminRepository adminRepository) {
         this.jdbcTemplate = jdbcTemplate;
+        this.adminRepository = adminRepository;
     }
 
     public Map<String, Object> getSystemResetSummary() {
@@ -25,6 +33,31 @@ public class AdminSettingService {
         data.put("confirmText", RESET_CONFIRM_TEXT);
         data.put("tables", buildTableCounts());
         return data;
+    }
+
+    public Map<String, Object> getProfile() {
+        Admin admin = requireCurrentAdmin();
+        Map<String, Object> data = new LinkedHashMap<>();
+        data.put("id", admin.getId());
+        data.put("username", admin.getUsername());
+        data.put("email", admin.getEmail());
+        data.put("hasEmail", admin.getEmail() != null && !admin.getEmail().isBlank());
+        return data;
+    }
+
+    @Transactional
+    public Map<String, Object> updateProfile(String email) {
+        Admin admin = requireCurrentAdmin();
+        String normalizedEmail = normalizeEmail(email);
+        if (normalizedEmail != null && !EMAIL_PATTERN.matcher(normalizedEmail).matches()) {
+            throw new IllegalArgumentException("邮箱格式错误");
+        }
+        if (normalizedEmail != null && !normalizedEmail.equals(admin.getEmail()) && adminRepository.existsByEmail(normalizedEmail)) {
+            throw new IllegalArgumentException("邮箱已存在");
+        }
+        admin.setEmail(normalizedEmail);
+        adminRepository.save(admin);
+        return getProfile();
     }
 
     @Transactional
@@ -122,5 +155,22 @@ public class AdminSettingService {
                 "auth_ticket",
                 "users"
         );
+    }
+
+    private Admin requireCurrentAdmin() {
+        Long adminId = StpKit.ADMIN.getLoginIdAsLong();
+        Optional<Admin> admin = adminRepository.findByIdAndIsDeleted(adminId, 0);
+        if (admin.isEmpty()) {
+            throw new IllegalArgumentException("未找到当前管理员");
+        }
+        return admin.get();
+    }
+
+    private String normalizeEmail(String email) {
+        if (email == null) {
+            return null;
+        }
+        String normalized = email.trim();
+        return normalized.isEmpty() ? null : normalized;
     }
 }

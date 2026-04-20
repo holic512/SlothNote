@@ -1,52 +1,85 @@
-// login.ts
 import axios from "../../../../axios";
-import {logIDStore} from "@/pinia/logIDStore";
-import {tokenStore} from "@/pinia/token";
-import {UnwrapRef} from "vue";
+import { logIDStore } from "@/pinia/logIDStore";
+import { tokenStore } from "@/pinia/token";
 
+type AuthPayload = {
+    token?: string | null;
+    requiresVerification?: boolean;
+    logId?: string | null;
+    hasEmail?: boolean;
+    needInit?: boolean;
+};
 
-async function login(username: string, password: string) {
+type AuthResponse = {
+    status: number;
+    message: string;
+    data?: AuthPayload;
+};
+
+async function login(username: string, password: string): Promise<AuthResponse> {
     try {
-        const response = await axios.post(
-            "admin/auth/login",
-            {
-                username: username,
-                password: password,
-            }
-        );
-        const status = response.data.status;
-
-        if (status === 200) {
-            logIDStore().setLogID(response.data.data);
-            return status;
-        }
-        // 成功请求验证 准备进行邮箱验证
-        return status;
-    } catch (error) {
-        return 500;
-    }
-}
-
-async function verCode(code: UnwrapRef<string>) {
-    try {
-        const logID = logIDStore().getLogID()
-        const response = await axios.post(
-            "admin/auth/verLogin",
-            {
-                code: code,
-                logID: logID,
-            }
-        )
-
-        const status = response.data.status;
-        if (status === 200) {
-            tokenStore().setAdminToken(response.data.data);
+        const response = await axios.post("admin/auth/login", { username, password });
+        const payload = response.data?.data as AuthPayload | undefined;
+        if (payload?.logId) {
+            logIDStore().setLogID(payload.logId);
+        } else {
             logIDStore().clearLogID();
         }
-        return status;
+        if (payload?.token) {
+            tokenStore().setAdminToken(payload.token);
+        }
+        return {
+            status: response.data.status,
+            message: response.data.message,
+            data: payload,
+        };
     } catch (error) {
-        return 500;
+        return { status: 500, message: "服务器连接失败" };
     }
 }
 
-export {login, verCode};
+async function initAdmin(username: string, password: string, email?: string): Promise<AuthResponse> {
+    try {
+        const response = await axios.post("admin/auth/init", {
+            username,
+            password,
+            email,
+        });
+        const payload = response.data?.data as AuthPayload | undefined;
+        logIDStore().clearLogID();
+        if (payload?.token) {
+            tokenStore().setAdminToken(payload.token);
+        }
+        return {
+            status: response.data.status,
+            message: response.data.message,
+            data: payload,
+        };
+    } catch (error) {
+        return { status: 500, message: "服务器连接失败" };
+    }
+}
+
+async function verCode(code: string): Promise<AuthResponse> {
+    try {
+        const logID = logIDStore().getLogID();
+        const response = await axios.post("admin/auth/verLogin", {
+            code,
+            logID,
+        });
+        const payload = response.data?.data as AuthPayload | undefined;
+        if (response.data.status === 200 && payload?.token) {
+            tokenStore().setAdminToken(payload.token);
+            logIDStore().clearLogID();
+        }
+        return {
+            status: response.data.status,
+            message: response.data.message,
+            data: payload,
+        };
+    } catch (error) {
+        return { status: 500, message: "服务器连接失败" };
+    }
+}
+
+export { login, initAdmin, verCode };

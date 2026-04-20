@@ -1,17 +1,21 @@
-/**
- * File Name: NoteTreeNoteRepM.java
- * Description: Todo
- * Author: holic512
- * Created Date: 2024-12-09
- * Version: 1.0
- * Usage:
- * Todo
- */
 package org.example.backend.user.note.noteTree.repository;
 
 import org.example.backend.common.domain.Note;
-import org.springframework.data.jpa.repository.JpaRepository;
+import org.example.backend.common.mapper.NoteMapper;
+import org.springframework.stereotype.Repository;
 
-public interface NoteTreeNoteRepM extends JpaRepository<Note, Long> {
+import java.util.Optional;
 
+@Repository
+public class NoteTreeNoteRepM {
+
+    private final NoteMapper noteMapper;
+
+    public NoteTreeNoteRepM(NoteMapper noteMapper) {
+        this.noteMapper = noteMapper;
+    }
+
+    public Optional<Note> findById(Long id) {
+        return Optional.ofNullable(noteMapper.selectById(id));
+    }
 }

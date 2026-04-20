@@ -41,7 +41,7 @@ CREATE TABLE `admins`
     `id`         BIGINT       NOT NULL AUTO_INCREMENT COMMENT '自增主键，管理员ID',
     `username`   VARCHAR(50)  NOT NULL COMMENT '管理员用户名',
     `password`   VARCHAR(255) NOT NULL COMMENT '密码Hash',
-    `email`      VARCHAR(100) NOT NULL COMMENT '邮箱',
+    `email`      VARCHAR(100) DEFAULT NULL COMMENT '邮箱，可为空',
     `is_deleted` INT          NOT NULL DEFAULT 0 COMMENT '伪删除标志，0未删，1已删',
     `created_at` DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
     `updated_at` DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',

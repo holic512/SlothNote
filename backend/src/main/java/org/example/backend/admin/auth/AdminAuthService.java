@@ -13,31 +13,32 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.antlr.v4.runtime.misc.Pair;
+import org.example.backend.common.Mail.Service.MailCodeService;
 import org.example.backend.common.Mail.dto.MailCodeMessage;
 import org.example.backend.common.Mail.enums.MailCodePurpose;
 import org.example.backend.common.entity.Admin;
 import org.example.backend.common.entity.AuthTicket;
-import org.example.backend.common.rabbitMQ.enums.MQExchangeType;
-import org.example.backend.common.rabbitMQ.enums.MQRoutingKey;
 import org.example.backend.common.repository.AdminRepository;
 import org.example.backend.common.service.AuthTicketService;
 import org.example.backend.common.util.SCryptUtil;
 import org.example.backend.common.util.StpKit;
 import org.example.backend.common.util.UuidUtil;
 import org.example.backend.common.util.VerificationCodeUtil;
-import org.springframework.amqp.rabbit.core.RabbitTemplate;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import java.util.HashMap;
 import java.util.Map;
+import java.util.regex.Pattern;
 
 @Service
 public class AdminAuthService {
+    private static final Pattern EMAIL_PATTERN = Pattern.compile("^[A-Za-z0-9+_.-]+@[A-Za-z0-9.-]+$");
+    private static final boolean REQUIRE_EMAIL_VERIFICATION = false;
 
     private final AdminRepository adminRepository;
-    private final RabbitTemplate rabbitTemplate;
     private final AuthTicketService authTicketService;
+    private final MailCodeService mailCodeService;
 
     private final ObjectMapper objectMapper;
 
@@ -45,11 +46,11 @@ public class AdminAuthService {
 
     @Autowired
     public AdminAuthService(AdminRepository adminRepository,
-                            RabbitTemplate rabbitTemplate,
-                            AuthTicketService authTicketService) {
+                            AuthTicketService authTicketService,
+                            MailCodeService mailCodeService) {
         this.adminRepository = adminRepository;
-        this.rabbitTemplate = rabbitTemplate;
         this.authTicketService = authTicketService;
+        this.mailCodeService = mailCodeService;
         this.objectMapper = new ObjectMapper();
     }
 
@@ -61,15 +62,24 @@ public class AdminAuthService {
      * @throws JsonProcessingException json解析错误
      */
     public Pair<AuthServiceEnum, String> login(String username, String password) throws JsonProcessingException {
+        if (!hasInitializedAdmin()) {
+            return new Pair<>(AuthServiceEnum.NeedInit, null);
+        }
+
         // 根据username 获取用户数据
         Admin admin = adminRepository.findByUsername(username);
 
-        if (admin == null) {
+        if (admin == null || !Integer.valueOf(0).equals(admin.getIsDeleted())) {
             return new Pair<>(AuthServiceEnum.UserNotExists, null);
         }
 
         if (!SCryptUtil.verifyPassword(password, admin.getPassword())) {
             return new Pair<>(AuthServiceEnum.INCORRECT, null);
+        }
+
+        if (!shouldRequireVerification(admin)) {
+            StpKit.ADMIN.login(admin.getId());
+            return new Pair<>(AuthServiceEnum.Success, StpKit.ADMIN.getTokenValue());
         }
 
         // 密码验证成功->开始二次邮箱验证
@@ -85,11 +95,40 @@ public class AdminAuthService {
 
         // 验证码发送邮箱操作 添加到队列
         MailCodeMessage mailCodeMessage = new MailCodeMessage(email, code, MailCodePurpose.AdminLogin);
-        String message = objectMapper.writeValueAsString(mailCodeMessage);
-        rabbitTemplate.convertAndSend(MQExchangeType.DIRECT_EXCHANGE.getValue(), MQRoutingKey.EMAIL_ROUTING_KEY.getKey(), message);
+        mailCodeService.sendVerificationCode(mailCodeMessage);
 
         // success
         return new Pair<>(AuthServiceEnum.Success, logID);
+    }
+
+    public Pair<AuthServiceEnum, String> initAdmin(String username, String password, String email) {
+        if (hasInitializedAdmin()) {
+            return new Pair<>(AuthServiceEnum.AdminAlreadyInitialized, null);
+        }
+
+        String normalizedUsername = username == null ? null : username.trim();
+        String normalizedEmail = normalizeEmail(email);
+        if (normalizedUsername == null || normalizedUsername.isBlank() || password == null || password.isBlank()) {
+            return new Pair<>(AuthServiceEnum.UserNotExists, null);
+        }
+        if (adminRepository.existsByUsername(normalizedUsername)) {
+            return new Pair<>(AuthServiceEnum.UserAlreadyExists, null);
+        }
+        if (normalizedEmail != null && !EMAIL_PATTERN.matcher(normalizedEmail).matches()) {
+            return new Pair<>(AuthServiceEnum.InvalidEmail, null);
+        }
+        if (normalizedEmail != null && adminRepository.existsByEmail(normalizedEmail)) {
+            return new Pair<>(AuthServiceEnum.EmailAlreadyExists, null);
+        }
+
+        Admin admin = new Admin();
+        admin.setUsername(normalizedUsername);
+        admin.setPassword(SCryptUtil.hashPassword(password));
+        admin.setEmail(normalizedEmail);
+        admin.setIsDeleted(0);
+        Admin saved = adminRepository.save(admin);
+        StpKit.ADMIN.login(saved.getId());
+        return new Pair<>(AuthServiceEnum.Success, StpKit.ADMIN.getTokenValue());
     }
 
     public Pair<AuthServiceEnum, String> verLogin(String logID, String code) {
@@ -116,6 +155,22 @@ public class AdminAuthService {
         Long adminId = Long.valueOf(map.get("adminId"));
         StpKit.ADMIN.login(adminId);
         return new Pair<>(AuthServiceEnum.Success, StpKit.ADMIN.getTokenValue());
+    }
+
+    public boolean hasInitializedAdmin() {
+        return adminRepository.countByIsDeleted(0) > 0;
+    }
+
+    private boolean shouldRequireVerification(Admin admin) {
+        return REQUIRE_EMAIL_VERIFICATION && admin.getEmail() != null && !admin.getEmail().isBlank();
+    }
+
+    private String normalizeEmail(String email) {
+        if (email == null) {
+            return null;
+        }
+        String normalized = email.trim();
+        return normalized.isEmpty() ? null : normalized;
     }
 }
 

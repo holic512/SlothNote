@@ -1,11 +1,11 @@
 /**
  * File Name: MQEmailCode.java
- * Description: 发送到 消息队列 用于序列化的 邮箱验证码消息类
+ * Description: 邮箱验证码消息类
  * Author: holic512
  * Created Date: 2024-09-10
  * Version: 1.0
  * Usage:
- * 将发送的 邮箱验证码信息 添加到此类 并上传到rabbitMQ消息队列中,以便于被消费者读取使用
+ * 封装发送验证码邮件所需的最小信息
  */
 package org.example.backend.common.Mail.dto;
 

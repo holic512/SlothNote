@@ -1,20 +1,30 @@
 <script setup lang="ts">
-import { ref } from 'vue';
+import { computed, ref } from 'vue';
 import { ElMessage } from 'element-plus';
-import { login, verCode } from "../services/login";
+import { initAdmin, login, verCode } from "../services/login";
 import InputOtp from 'primevue/inputotp';
 import { useRouter } from 'vue-router';
-import { Monitor, Lock } from '@element-plus/icons-vue'; // 引入图标，需确保安装了 @element-plus/icons-vue
+import { Lock, Message, Monitor } from '@element-plus/icons-vue';
 
 const router = useRouter();
-const logView = ref(true);
-const isLoading = ref(false); // 添加加载状态
+const currentView = ref<'login' | 'otp' | 'init'>('login');
+const isLoading = ref(false);
 
-// 账号密码
-const username = ref<string>('');
-const password = ref<string>('');
+const username = ref('');
+const password = ref('');
+const codeValue = ref('');
 
-// 登录逻辑
+const initUsername = ref('');
+const initPassword = ref('');
+const initConfirmPassword = ref('');
+const initEmail = ref('');
+
+const initEmailHint = computed(() => initEmail.value.trim() ? '已配置邮箱，后续可用于安全通知。' : '邮箱可暂时留空，后续可在设置页补录。');
+
+const enterAdmin = async () => {
+  await router.push("/admin/main");
+};
+
 const sendLogin = async () => {
   if (!username.value || !password.value) {
     ElMessage.warning('请输入完整的账号和密码');
@@ -23,34 +33,30 @@ const sendLogin = async () => {
 
   isLoading.value = true;
   try {
-    const status = await login(username.value, password.value);
-    const messages: { [key: number]: string } = {
-      200: '验证通过',
-      401: '账号或密码错误',
-      404: '账号不存在',
-      500: '服务器连接失败'
-    };
-
-    if (status === 200) {
-      ElMessage.success(messages[status]);
-      // 延迟一点切换，让用户感觉到状态变化
-      setTimeout(() => {
-        logView.value = false;
-        isLoading.value = false;
-      }, 500);
-    } else {
-      ElMessage.error(messages[status] || '登录失败');
-      isLoading.value = false;
+    const result = await login(username.value, password.value);
+    if (result.status === 200 && result.data?.token) {
+      ElMessage.success(result.message || '欢迎回来，管理员');
+      await enterAdmin();
+      return;
     }
-  } catch (e) {
+    if (result.data?.needInit) {
+      initUsername.value = username.value;
+      currentView.value = 'init';
+      ElMessage.warning(result.message || '系统尚未初始化管理员');
+      return;
+    }
+    if (result.data?.requiresVerification) {
+      currentView.value = 'otp';
+      ElMessage.success(result.message || '验证码已发送');
+      return;
+    }
+    ElMessage.error(result.message || '登录失败');
+  } finally {
     isLoading.value = false;
-    ElMessage.error('未知错误');
   }
 };
 
-// 二次邮箱验证逻辑
-const codeValue = ref<string>('');
-const verLogin = async () => {
+const verifyLogin = async () => {
   if (!codeValue.value || codeValue.value.length !== 6) {
     ElMessage.warning('请输入6位验证码');
     return;
@@ -58,27 +64,49 @@ const verLogin = async () => {
 
   isLoading.value = true;
   try {
-    const status = await verCode(codeValue.value);
-    const messages: { [key: number]: string } = {
-      200: '欢迎回来，管理员',
-      401: '验证码错误',
-      404: '请求已失效',
-      400: '数据格式错误',
-      500: '服务器连接失败'
-    };
-
-    if (status === 200) {
-      ElMessage.success(messages[status]);
-      await router.push("/admin/main");
-    } else {
-      ElMessage.error(messages[status] || '验证失败');
+    const result = await verCode(codeValue.value);
+    if (result.status === 200 && result.data?.token) {
+      ElMessage.success(result.message || '欢迎回来，管理员');
+      await enterAdmin();
+      return;
     }
-  } catch (e) {
-    ElMessage.error('验证过程发生错误');
+    ElMessage.error(result.message || '验证失败');
   } finally {
     isLoading.value = false;
   }
-}
+};
+
+const submitInit = async () => {
+  if (!initUsername.value || !initPassword.value) {
+    ElMessage.warning('请输入管理员账号和密码');
+    return;
+  }
+  if (initPassword.value !== initConfirmPassword.value) {
+    ElMessage.warning('两次输入的密码不一致');
+    return;
+  }
+
+  isLoading.value = true;
+  try {
+    const result = await initAdmin(initUsername.value, initPassword.value, initEmail.value.trim());
+    if (result.status === 200 && result.data?.token) {
+      ElMessage.success(result.message || '管理员初始化成功');
+      await enterAdmin();
+      return;
+    }
+    if (result.status === 409 && !result.data?.needInit) {
+      currentView.value = 'login';
+    }
+    ElMessage.error(result.message || '管理员初始化失败');
+  } finally {
+    isLoading.value = false;
+  }
+};
+
+const backToLogin = () => {
+  codeValue.value = '';
+  currentView.value = 'login';
+};
 </script>
 
 <template>
@@ -101,8 +129,7 @@ const verLogin = async () => {
       <!-- 动画过渡容器 -->
       <Transition name="fade-slide" mode="out-in">
 
-        <!-- 阶段一：账号密码 -->
-        <div class="form-card" v-if="logView" key="step1">
+        <div class="form-card" v-if="currentView === 'login'" key="step1">
           <h3 class="card-title">身份验证</h3>
           <el-form @submit.prevent="sendLogin">
             <div class="input-item">
@@ -133,14 +160,13 @@ const verLogin = async () => {
                 :loading="isLoading"
                 @click="sendLogin"
             >
-              下一步
+              登录后台
             </el-button>
           </el-form>
         </div>
 
-        <!-- 阶段二：二次验证 -->
-        <div class="form-card" v-else key="step2">
-          <div class="back-btn" @click="logView = true">← 返回</div>
+        <div class="form-card" v-else-if="currentView === 'otp'" key="step2">
+          <div class="back-btn" @click="backToLogin">← 返回</div>
           <div class="otp-header">
             <div class="lock-icon">
               <el-icon :size="28"><Lock /></el-icon>
@@ -157,10 +183,53 @@ const verLogin = async () => {
               type="primary"
               class="submit-btn"
               :loading="isLoading"
-              @click="verLogin"
+              @click="verifyLogin"
           >
             验证并进入
           </el-button>
+        </div>
+
+        <div class="form-card" v-else key="step3">
+          <div class="back-btn" @click="backToLogin">← 返回登录</div>
+          <div class="otp-header">
+            <div class="lock-icon">
+              <el-icon :size="28"><Monitor /></el-icon>
+            </div>
+            <h3 class="card-title">初始化管理员</h3>
+            <p class="otp-desc">当前系统尚未创建管理员账号，请先完成首次初始化。</p>
+          </div>
+
+          <el-form @submit.prevent="submitInit">
+            <div class="input-item">
+              <label>管理员账号</label>
+              <el-input v-model="initUsername" placeholder="admin" class="custom-input" :prefix-icon="Monitor" />
+            </div>
+
+            <div class="input-item">
+              <label>密码</label>
+              <el-input v-model="initPassword" type="password" placeholder="请输入密码" show-password class="custom-input" />
+            </div>
+
+            <div class="input-item">
+              <label>确认密码</label>
+              <el-input v-model="initConfirmPassword" type="password" placeholder="请再次输入密码" show-password class="custom-input" />
+            </div>
+
+            <div class="input-item">
+              <label>邮箱（可选）</label>
+              <el-input v-model="initEmail" placeholder="admin@example.com" class="custom-input" :prefix-icon="Message" />
+              <p class="inline-hint">{{ initEmailHint }}</p>
+            </div>
+
+            <el-button
+                type="primary"
+                class="submit-btn"
+                :loading="isLoading"
+                @click="submitInit"
+            >
+              创建并进入后台
+            </el-button>
+          </el-form>
         </div>
 
       </Transition>
@@ -270,6 +339,13 @@ const verLogin = async () => {
   margin-bottom: 8px;
   text-transform: uppercase;
   letter-spacing: 0.5px;
+}
+
+.inline-hint {
+  margin: 8px 0 0;
+  font-size: 12px;
+  line-height: 1.5;
+  color: #8a7768;
 }
 
 /* 深度修改 Element Plus Input 样式 */

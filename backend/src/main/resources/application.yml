@@ -35,14 +35,6 @@ spring:
     password: 123456
     driver-class-name: com.mysql.cj.jdbc.Driver
 
-  rabbitmq:
-    host: localhost
-    port: 5672
-    username: admin
-    password: admin
-    # username: guest
-    # password: guest
-
   jpa:
     open-in-view: false
     hibernate:

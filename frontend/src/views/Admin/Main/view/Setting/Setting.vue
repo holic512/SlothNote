@@ -10,14 +10,62 @@ type TableSummary = {
   count: number
 }
 
+type AdminProfile = {
+  id?: number
+  username?: string
+  email?: string | null
+  hasEmail?: boolean
+}
+
 const loading = ref(false)
 const resetting = ref(false)
+const profileLoading = ref(false)
+const profileSaving = ref(false)
 const confirmText = ref('')
 const requiredConfirmText = ref('INITIALIZE')
 const tables = ref<TableSummary[]>([])
+const profile = ref<AdminProfile>({})
+const profileEmail = ref('')
 
 const totalRecords = computed(() => tables.value.reduce((sum, item) => sum + (item.count || 0), 0))
 const canReset = computed(() => confirmText.value.trim() === requiredConfirmText.value && !resetting.value)
+
+const loadProfile = async () => {
+  profileLoading.value = true
+  try {
+    const response = await axios.get('/admin/setting/profile')
+    if (response.data.status === 200) {
+      profile.value = response.data.data || {}
+      profileEmail.value = response.data.data?.email || ''
+      return
+    }
+    ElMessage.error(response.data.message || '无法获取管理员资料')
+  } catch {
+    ElMessage.error('无法获取管理员资料')
+  } finally {
+    profileLoading.value = false
+  }
+}
+
+const saveProfile = async () => {
+  profileSaving.value = true
+  try {
+    const response = await axios.put('/admin/setting/profile', {
+      email: profileEmail.value.trim(),
+    })
+    if (response.data.status === 200) {
+      profile.value = response.data.data || {}
+      profileEmail.value = response.data.data?.email || ''
+      ElMessage.success('管理员邮箱已更新')
+      return
+    }
+    ElMessage.error(response.data.message || '管理员资料更新失败')
+  } catch {
+    ElMessage.error('管理员资料更新失败')
+  } finally {
+    profileSaving.value = false
+  }
+}
 
 const loadSummary = async () => {
   loading.value = true
@@ -76,7 +124,7 @@ const executeReset = async () => {
 }
 
 onMounted(async () => {
-  await loadSummary()
+  await Promise.all([loadProfile(), loadSummary()])
 })
 </script>
 
@@ -92,6 +140,32 @@ onMounted(async () => {
           </p>
         </div>
         <Button icon="pi pi-refresh" text rounded :loading="loading" @click="loadSummary" />
+      </section>
+
+      <section class="stats-card">
+        <div class="stats-header">
+          <div>
+            <h2>管理员资料</h2>
+            <p>邮箱为可选项。留空时不启用管理员邮箱验证码，后续可随时补录。</p>
+          </div>
+          <Button icon="pi pi-user-edit" text rounded :loading="profileLoading" @click="loadProfile" />
+        </div>
+
+        <div class="profile-grid">
+          <div class="profile-item">
+            <label>管理员账号</label>
+            <InputText :model-value="profile.username || '-'" disabled />
+          </div>
+          <div class="profile-item">
+            <label>邮箱（可选）</label>
+            <InputText v-model="profileEmail" placeholder="admin@example.com" />
+          </div>
+        </div>
+
+        <div class="profile-actions">
+          <span class="profile-tip">{{ profile.hasEmail ? '当前已配置邮箱，可继续修改。' : '当前未配置邮箱，管理员将保持单步密码登录。' }}</span>
+          <Button label="保存邮箱" :loading="profileSaving" @click="saveProfile" />
+        </div>
       </section>
 
       <section class="stats-card">
@@ -238,6 +312,37 @@ onMounted(async () => {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
   gap: 12px;
+}
+
+.profile-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 14px;
+}
+
+.profile-item {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.profile-item label {
+  font-size: 13px;
+  color: #756456;
+}
+
+.profile-actions {
+  margin-top: 16px;
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  align-items: center;
+}
+
+.profile-tip {
+  color: #67584d;
+  font-size: 13px;
+  line-height: 1.6;
 }
 
 .stat-item {
