@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import {RightPageModeEnum, useRightPageState} from "@/views/User/Main/components/Edit/Pinia/RightPageState";
-import {onMounted, ref, watch} from "vue";
+import {ref, watch} from "vue";
 import NoteComment from "@/views/User/Main/components/Edit/PageRight/components/NoteComment/NoteComment.vue";
 import NoteAI from "@/views/User/Main/components/Edit/PageRight/components/NoteAi/NoteAi.vue"
 // 控制右侧边栏状态
@@ -21,11 +21,11 @@ watch(() => rightPageState.model, (newValue) => {
       RightPageWidth.value = 380;
       break;
     case RightPageModeEnum.Ai:
-      RightPageWidth.value = 380; // Same width as comments or adjust as needed
+      RightPageWidth.value = 430;
       break;
   }
 
-})
+}, {immediate: true})
 </script>
 
 <template>

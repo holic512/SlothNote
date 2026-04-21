@@ -167,7 +167,12 @@ public class UserAuthController {
         String password = requestBody.get("password");
         String email = requestBody.get("email");
 
-        if (email == null || email.isEmpty() || password == null || password.isEmpty() || username.isEmpty()) {
+        if (StringUtils.isBlank(email) || StringUtils.isBlank(password) || StringUtils.isBlank(username)) {
+            return ResponseEntity.ok(new ApiResponse<>(400, "参数格式不正确"));
+        }
+
+        Matcher matcher = EMAIL_PATTERN.matcher(email);
+        if (!matcher.matches()) {
             return ResponseEntity.ok(new ApiResponse<>(400, "参数格式不正确"));
         }
 
@@ -176,7 +181,7 @@ public class UserAuthController {
 
         switch (regService.a) {
             case Success -> {
-                return ResponseEntity.ok(new ApiResponse<>(200, "请求注册成功", regService.b));
+                return ResponseEntity.ok(new ApiResponse<>(200, "注册成功"));
             }
             case EmailAlreadyExists -> {
                 return ResponseEntity.ok(new ApiResponse<>(409, "邮箱已存在"));
@@ -211,6 +216,12 @@ public class UserAuthController {
             }
             case RegIdNotFound -> {
                 return ResponseEntity.ok(new ApiResponse<>(409, "未找到注册请求"));
+            }
+            case EmailAlreadyExists -> {
+                return ResponseEntity.ok(new ApiResponse<>(409, "邮箱已存在"));
+            }
+            case UserAlreadyExists -> {
+                return ResponseEntity.ok(new ApiResponse<>(409, "用户已存在"));
             }
             case INVALID_CODE -> {
                 return ResponseEntity.ok(new ApiResponse<>(409, "验证码错误"));

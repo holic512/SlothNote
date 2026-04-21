@@ -76,6 +76,9 @@ const click1 = (label: string) => {
     case '引用':
       InsertBlockquote(editor.value);
       break;
+    case '代码块':
+      editor.value?.chain().focus().toggleCodeBlock().run();
+      break;
 
   }
 

@@ -253,7 +253,7 @@ CREATE TABLE `auth_ticket`
     `ticket_id`   VARCHAR(64)  NOT NULL COMMENT '外部使用的票据标识',
     `ticket_type` VARCHAR(32)  NOT NULL COMMENT '票据类型',
     `subject_key` VARCHAR(128) NOT NULL COMMENT '主体键，例如用户名或邮箱',
-    `code`        VARCHAR(16)  NOT NULL COMMENT '验证码',
+    `code`        VARCHAR(64)  NOT NULL COMMENT '验证码或票据码',
     `payload_json` TEXT        NOT NULL COMMENT '附加数据',
     `expire_at`   DATETIME     NOT NULL COMMENT '过期时间',
     `used_at`     DATETIME     NULL COMMENT '使用时间',

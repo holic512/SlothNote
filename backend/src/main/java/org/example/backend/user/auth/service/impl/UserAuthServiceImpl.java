@@ -154,30 +154,23 @@ public class UserAuthServiceImpl implements UserAuthService {
 
     @Override
     public Pair<AuthServiceEnum, String> initiateReg(String username, String password, String email) throws JsonProcessingException {
+        String normalizedUsername = username == null ? null : username.trim();
+        String normalizedEmail = email == null ? null : email.trim();
+
         // 查询是否存在 用户名或邮箱地址
-        if (userRepository.existsByUsername(username)) {
+        if (userRepository.existsByUsername(normalizedUsername)) {
             return new Pair<>(AuthServiceEnum.UserAlreadyExists, null);
         }
-        if (userRepository.existsByEmail(email)) {
+        if (userRepository.existsByEmail(normalizedEmail)) {
             return new Pair<>(AuthServiceEnum.EmailAlreadyExists, null);
         }
 
-        String regID = UuidUtil.getUuid();  // 注册会话标识符
-        String code = VerificationCodeUtil.generateVerificationCode();
-
-        Map<String, String> registerData = new HashMap<>();
-        registerData.put("username", username);
-        registerData.put("password", SCryptUtil.hashPassword(password));
-        registerData.put("email", email);
-        registerData.put("code", code);
-
-        authTicketService.createTicket(AuthTicketService.USER_REGISTER, username, regID, code, registerData, timeout);
-        authTicketService.createTicket(AuthTicketService.USER_REGISTER_PENDING, email, regID, regID, Map.of("regId", regID), timeout);
-
-        MailCodeMessage mailCodeMessage = new MailCodeMessage(email, code, MailCodePurpose.UserRegister);
-        mailCodeService.sendVerificationCode(mailCodeMessage);
-
-        return new Pair<>(AuthServiceEnum.Success, regID);
+        AuthServiceEnum result = createUserWithProfile(
+                normalizedUsername,
+                SCryptUtil.hashPassword(password),
+                normalizedEmail
+        );
+        return new Pair<>(result, null);
     }
 
     @Override
@@ -204,7 +197,17 @@ public class UserAuthServiceImpl implements UserAuthService {
 
         authTicketService.markUsed(ticket);
 
-        // 生成uid
+        return createUserWithProfile(map.get("username"), map.get("password"), map.get("email"));
+    }
+
+    private AuthServiceEnum createUserWithProfile(String username, String passwordHash, String email) {
+        if (userRepository.existsByUsername(username)) {
+            return AuthServiceEnum.UserAlreadyExists;
+        }
+        if (userRepository.existsByEmail(email)) {
+            return AuthServiceEnum.EmailAlreadyExists;
+        }
+
         String uid;
         do {
             uid = UuidUtil.getUid();
@@ -212,22 +215,16 @@ public class UserAuthServiceImpl implements UserAuthService {
 
         User user = new User.Builder()
                 .uid(uid)
-                .username(map.get("username"))
-                .password(map.get("password"))
+                .username(username)
+                .password(passwordHash)
                 .status(UserStatusEnum.ACTIVE.getValue())
-                .email(map.get("email"))
+                .email(email)
                 .build();
 
-        // 保存用户
-        user = userRepository.save(user);  // save() 会返回保存后的实体对象
+        user = userRepository.save(user);
 
-        // 获取生成的主键
-        Long userId = user.getId();  // 获取数据库自动生成的主键（id）
-
-        // 生成用户随机详细信息 并根据uid插入
         String nickName = NicknameGenerator.generateNickname();
-        UserProfile userProfile = new UserProfile(userId,nickName,UserGenderEnum.OTHER.getValue());
-        // 保存用户详情信息
+        UserProfile userProfile = new UserProfile(user.getId(), nickName, UserGenderEnum.OTHER.getValue());
         profileRepository.save(userProfile);
 
         return AuthServiceEnum.Success;

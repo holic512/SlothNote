@@ -1,13 +1,18 @@
 <script setup lang="ts">
-import {ModelRef, ref, watch} from "vue";
+import {ModelRef, onBeforeUnmount, ref, watch} from "vue";
 import {Editor} from "@tiptap/vue-3";
 import IconText from "@/views/User/Main/components/Edit/Main/Tools/icon/IconText.vue";
 import IconBColor from "@/views/User/Main/components/Edit/Main/Tools/icon/IconBColor.vue";
+import type {DropdownInstance} from "element-plus";
 
 const editor: ModelRef<Editor | undefined> = defineModel();
 
 // 文本颜色
 const GetTextBColor = ref('#333333');  // 使用 ref 来存储颜色值
+
+const syncTextColor = () => {
+  GetTextBColor.value = editor.value?.getAttributes('textStyle').color || '#333333';
+}
 
 
 const boolBColor = (color: string | null) => {
@@ -24,10 +29,29 @@ const removeHigh = () => {
 }
 
 
-// 监听 颜色 的变化，并更新颜色
-watch(() => editor.value?.getAttributes('textStyle').color, (newColor) => {
-  GetTextBColor.value = newColor || '#333333'; // 如果没有颜色值，使用默认值
+let removeListeners: (() => void) | undefined;
+
+watch(() => editor.value, (instance) => {
+  removeListeners?.();
+  removeListeners = undefined;
+
+  if (!instance) {
+    syncTextColor();
+    return;
+  }
+
+  const events = ['selectionUpdate', 'transaction', 'focus'] as const;
+  events.forEach((eventName) => instance.on(eventName, syncTextColor));
+  syncTextColor();
+
+  removeListeners = () => {
+    events.forEach((eventName) => instance.off(eventName, syncTextColor));
+  };
 }, {immediate: true});
+
+onBeforeUnmount(() => {
+  removeListeners?.();
+});
 
 // 颜色选项
 const colorOptions = [

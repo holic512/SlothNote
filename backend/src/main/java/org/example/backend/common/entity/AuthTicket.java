@@ -23,7 +23,7 @@ public class AuthTicket {
     @Column(name = "subject_key", nullable = false, length = 128)
     private String subjectKey;
 
-    @Column(nullable = false, length = 16)
+    @Column(nullable = false, length = 64)
     private String code;
 
     @Column(name = "payload_json", nullable = false, columnDefinition = "TEXT")

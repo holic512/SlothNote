@@ -156,7 +156,7 @@ public class GNoteTreeController {
 
 
     /**
-     * 获取 用户-笔记的 保存时间(MongoDb)
+     * 获取 用户-笔记的 保存时间
      */
     @GetMapping("NoteSaveAt")
     public ResponseEntity<Object> getNoteSaveAt(@RequestParam Long noteId) {

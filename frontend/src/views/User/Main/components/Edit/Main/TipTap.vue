@@ -4,7 +4,7 @@ import '/src/fonts/alibabaFy.css'
 import Tools from "./Tools/Tools.vue";
 
 import {Editor, EditorContent} from '@tiptap/vue-3'
-import {onMounted, ref, ShallowRef, watch} from "vue";
+import {onBeforeUnmount, onMounted, ref, ShallowRef, watch} from "vue";
 import BubbleMenu from "@/views/User/Main/components/Edit/Main/BubbleMenu/BubbleMenu.vue";
 import ToCItem from "@/views/User/Main/components/Edit/Main/ToCltem/ToCItem.vue";
 import {useIndexItemsStore} from "@/views/User/Main/components/Edit/Pinia/IndexItems";
@@ -14,8 +14,6 @@ import {updateNoteTitle} from "@/views/User/Main/components/Edit/Main/Service/up
 import {useNoteTreeUpdate} from "@/views/User/Main/components/Sidebar/Pinia/isNoteTreeUpdated";
 import SetCover from "@/views/User/Main/components/Edit/Main/SetCover/SetCover.vue";
 import {useNoteCoverState} from "@/views/User/Main/components/Edit/Main/SetCover/paina/NoteCoverState";
-import {useUserPreferencesStore} from "@/views/User/Main/Pinia/userPreferencesStore";
-import VerticalTools from "@/views/User/Main/components/Edit/Main/Tools/VerticalTools/VerticalTools.vue";
 
 const editor: ShallowRef<Editor | undefined> = defineModel()
 
@@ -42,13 +40,54 @@ const InputNoteTitle = ref<string>();
 // 定义 背景框
 const noteCover = ref<string>();
 
+let titleSyncTimer: ReturnType<typeof setTimeout> | undefined;
+
+const syncNoteTitle = async (noteTitle: string) => {
+  const nextTitle = noteTitle.trim();
+
+  if (currentNoteInfo.noteId == null || !nextTitle || nextTitle === currentNoteInfo.noteName) {
+    InputNoteTitle.value = currentNoteInfo.noteName;
+    return;
+  }
+
+  const status = await updateNoteTitle(currentNoteInfo.noteId, nextTitle);
+  if (status !== 200) {
+    InputNoteTitle.value = currentNoteInfo.noteName;
+    return;
+  }
+
+  currentNoteInfo.noteName = nextTitle;
+
+  const isNoteTreeUpdated = useNoteTreeUpdate();
+  isNoteTreeUpdated.UpdatedNoteTree();
+}
+
+const scheduleNoteTitleSync = (noteTitle: string) => {
+  if (titleSyncTimer) {
+    clearTimeout(titleSyncTimer);
+  }
+
+  titleSyncTimer = setTimeout(() => {
+    void syncNoteTitle(noteTitle);
+  }, 450);
+}
+
 // 钩子函数
 onMounted(() => {
   SetupInfo()
 })
 
+onBeforeUnmount(() => {
+  if (titleSyncTimer) {
+    clearTimeout(titleSyncTimer);
+  }
+})
+
 // 监听 当前笔记 是否改变
 watch(() => currentNoteInfo.noteId, () => {
+  if (titleSyncTimer) {
+    clearTimeout(titleSyncTimer);
+  }
   SetupInfo()
 })
 
@@ -61,20 +100,9 @@ const SetupInfo = () => {
 // 监听 InputNoteTitle 是否改变 并执行重命名
 watch(() => InputNoteTitle.value, async (newValue) => {
   if (currentNoteInfo.noteId != null && newValue != null) {
-
-    // 执行更新
-    await updateNoteTitle(currentNoteInfo.noteId, newValue)
-    // 并且更新 page
-    currentNoteInfo.noteName = newValue;
-
-    // 刷新笔记
-    const isNoteTreeUpdated = useNoteTreeUpdate();
-    isNoteTreeUpdated.UpdatedNoteTree();
+    scheduleNoteTitleSync(newValue)
   }
 })
-
-// 获取个性化实例
-const PreferencesStore = useUserPreferencesStore()
 
 </script>
 
@@ -83,7 +111,7 @@ const PreferencesStore = useUserPreferencesStore()
     <!--编辑器-->
     <div style="height: 100%; display: flex; flex-direction: column; width: 100%;">
       <!--  横装 工具栏-->
-      <Tools v-model="editor" v-if="PreferencesStore.editorToolbarVisible"/>
+      <Tools v-model="editor"/>
 
       <!--  笔记内容  -->
       <el-scrollbar style="flex: 1;">
@@ -175,11 +203,6 @@ const PreferencesStore = useUserPreferencesStore()
 
   <!--  设置背景菜单  -->
   <SetCover/>
-
-  <!--  竖装工具栏  -->
-  <VerticalTools v-model="editor" v-if="!PreferencesStore.editorToolbarVisible"/>
-
-
 </template>
 
 

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import {ref} from "vue";
+import {onMounted, ref, watch} from "vue";
 import {ElMessage} from "element-plus";
 import {useRouter} from "vue-router";
 import Dialog from "primevue/dialog";
@@ -7,6 +7,8 @@ import UserAgreement from "../components/userAgreement.vue";
 // 假设 service 路径正确
 import pwLogin from "./service/pwLogin"
 import {sendMail, verifyLoginCode} from "./service/emLogin";
+
+const REMEMBER_PASSWORD_KEY = 'user-login-remember-password';
 
 const router = useRouter();
 const loginType = ref<string>('password');
@@ -17,6 +19,39 @@ const code = ref('');
 const codeSent = ref(false);
 const agreedToTerms = ref(false);
 const addUserVisible = ref(false);
+const rememberPassword = ref(false);
+
+type RememberedLogin = {
+  username: string;
+  password: string;
+};
+
+const loadRememberedLogin = () => {
+  const saved = localStorage.getItem(REMEMBER_PASSWORD_KEY);
+  if (!saved) return;
+
+  try {
+    const rememberedLogin: RememberedLogin = JSON.parse(saved);
+    username.value = rememberedLogin.username ?? '';
+    password.value = rememberedLogin.password ?? '';
+    rememberPassword.value = Boolean(rememberedLogin.username || rememberedLogin.password);
+  } catch (error) {
+    localStorage.removeItem(REMEMBER_PASSWORD_KEY);
+  }
+};
+
+const syncRememberedLogin = () => {
+  if (!rememberPassword.value) {
+    localStorage.removeItem(REMEMBER_PASSWORD_KEY);
+    return;
+  }
+
+  const rememberedLogin: RememberedLogin = {
+    username: username.value,
+    password: password.value,
+  };
+  localStorage.setItem(REMEMBER_PASSWORD_KEY, JSON.stringify(rememberedLogin));
+};
 
 const switchLoginType = () => {
   loginType.value = loginType.value === 'password' ? 'code' : 'password';
@@ -44,10 +79,14 @@ const handlePasswordLogin = async () => {
     ElMessage.warning('请输入账号密码');
     return;
   }
-  // 模拟登录逻辑...
+
   const status = await pwLogin(username.value, password.value);
-  if (status === 200) router.push("/user/main");
-  else ElMessage.error('登录失败');
+  if (status === 200) {
+    syncRememberedLogin();
+    router.push("/user/main");
+  } else {
+    ElMessage.error('登录失败');
+  }
 };
 
 const sendEmCode = async () => {
@@ -65,6 +104,16 @@ const handleCodeLogin = async () => {
   const status = await verifyLoginCode(code.value);
   if (status === 200) router.push("/user/main");
 };
+
+onMounted(() => {
+  loadRememberedLogin();
+});
+
+watch(rememberPassword, (enabled) => {
+  if (!enabled) {
+    localStorage.removeItem(REMEMBER_PASSWORD_KEY);
+  }
+});
 </script>
 
 <template>
@@ -82,6 +131,12 @@ const handleCodeLogin = async () => {
         <div class="input-group">
           <label>密码</label>
           <el-input type="password" v-model="password" placeholder="请输入密码" show-password class="notion-input"></el-input>
+        </div>
+
+        <div class="remember-row">
+          <el-checkbox v-model="rememberPassword" size="large">
+            记住密码
+          </el-checkbox>
         </div>
       </div>
 
@@ -208,6 +263,14 @@ const handleCodeLogin = async () => {
 .send-btn:disabled {
   color: #9b9a97;
   cursor: not-allowed;
+}
+
+.remember-row {
+  display: flex;
+  align-items: center;
+  margin-top: -4px;
+  margin-bottom: 16px;
+  color: #76746e;
 }
 
 /* 自定义按钮 */

@@ -1,12 +1,12 @@
-<script setup>
+<script setup lang="ts">
 
 import TipTap from "@/views/User/Main/components/Edit/Main/TipTap.vue";
 import PageHeader from "@/views/User/Main/components/Edit/PageHeader/PageHeader.vue";
 import {onBeforeUnmount, onMounted, ref, watch} from "vue";
 
-import {createEditorInstance} from "@/views/User/Main/components/Edit/editor/editor.ts";
-import {useCurrentNoteInfoStore} from "@/views/User/Main/components/Edit/Pinia/currentNoteInfo.ts";
-import {getNoteContent} from "@/views/User/Main/components/Edit/service/GetNoteContent.ts";
+import {createEditorInstance} from "@/views/User/Main/components/Edit/editor/editor";
+import {useCurrentNoteInfoStore} from "@/views/User/Main/components/Edit/Pinia/currentNoteInfo";
+import {getNoteContent} from "@/views/User/Main/components/Edit/service/GetNoteContent";
 import PageRight from "@/views/User/Main/components/Edit/PageRight/PageRight.vue";
 
 
@@ -16,43 +16,42 @@ const editor = createEditorInstance();
 // 当前笔记实例
 const currentNoteInfo = useCurrentNoteInfoStore();
 
+let lastLoadRequestId = 0;
+
+const applyEditorContent = async (noteId: number | null | undefined) => {
+  const requestId = ++lastLoadRequestId;
+
+  if (noteId == null || !editor.value) {
+    editor.value?.commands.clearContent(false);
+    return;
+  }
+
+  const context = await getNoteContent(noteId);
+
+  if (requestId !== lastLoadRequestId || !editor.value) {
+    return;
+  }
+
+  if (context?.content) {
+    const parsedContent = JSON.parse(context.content);
+    editor.value.commands.setContent(parsedContent, false);
+    return;
+  }
+
+  editor.value.commands.clearContent(false);
+}
+
 
 // 钩子函数
 onMounted(async () => {
-  // 获取当前笔记的 context
-  const context = await getNoteContent(currentNoteInfo.noteId);
-
-  //当前笔记不为空
-  if (context !== null) {
-    const Json = context.content
-    const parsedContent = JSON.parse(Json);    // 输入到 编辑器 中
-    editor.value.commands.setContent(parsedContent);
-  }
-  // 当前笔记为空 清空当前 编辑器内容
-  else {
-    editor.value.commands.clearContent();
-  }
+  await applyEditorContent(currentNoteInfo.noteId);
 })
 
 // 监听 当前笔记数据是否发生改变 -> 获取新笔记的  context
 watch(
     () => [currentNoteInfo.noteId],
     async ([newNoteId]) => {
-
-      // 获取当前笔记的 context
-      const context = await getNoteContent(newNoteId);
-
-      // 当 当前笔记不为空
-      if (context !== null) {
-        const Json = context.content
-        const parsedContent = JSON.parse(Json);    // 输入到 编辑器 中
-        editor.value.commands.setContent(parsedContent);
-      }
-      // 当前笔记为空 清空当前 编辑器内容
-      else {
-        editor.value.commands.clearContent();
-      }
-
+      await applyEditorContent(newNoteId);
     })
 
 // ui  适配

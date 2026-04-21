@@ -23,18 +23,19 @@ const getCurrentRoute = () => {
 
 // 创建请求拦截器
 instance.interceptors.request.use(config => {
-    // 判断是 在 切换路由 true:交给路由守卫处理 false 自己处理
-    if (!routerStore().getGuard()) {
-        const UserToken = tokenStore().getUserToken();
-        const AdminToken = tokenStore().getAdminToken();
-        const currentRoute = getCurrentRoute(); // 使用计算属性获取当前路由路径
+    const UserToken = tokenStore().getUserToken();
+    const AdminToken = tokenStore().getAdminToken();
+    const currentRoute = getCurrentRoute(); // 使用计算属性获取当前路由路径
 
-        if (UserToken && currentRoute.startsWith('/user')) {
-            config.headers.satoken = UserToken;
-        }
-        if (AdminToken && currentRoute.startsWith('/admin')) {
-            config.headers.satoken = AdminToken;
-        }
+    if (config.headers?.satoken) {
+        return config;
+    }
+
+    if (UserToken && currentRoute.startsWith('/user')) {
+        config.headers.satoken = UserToken;
+    }
+    if (AdminToken && currentRoute.startsWith('/admin')) {
+        config.headers.satoken = AdminToken;
     }
     return config;
 }, error => {

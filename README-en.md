@@ -49,7 +49,7 @@ Coming soon
 
 ## Technologies Used
 
-- Backend: Java 17 + SpringBoot + Sa-token + Mysql + Redis + MongoDb + Swagger
+- Backend: Java 17 + SpringBoot + Sa-token + Mysql + Redis + Swagger
 - Frontend: Vue 3 + TypeScript + Axios + Router + Element Plus + TipTap
 
 ## Links

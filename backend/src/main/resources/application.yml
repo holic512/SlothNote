@@ -72,13 +72,6 @@ storage:
     enable-date-path: true
     keep-extension: true
 
-note-content:
-  migration:
-    enabled: false
-    mongo-uri:
-    database: slothnote
-    collection: notes
-
 # 自定义发件人信息
 mail:
   from: 2423580694@qq.com

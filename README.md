@@ -54,7 +54,7 @@
 
 ## 所用技术
 
-- 后端: Java 17 + SpringBoot + Sa-token + Mysql + Redis + MongoDb + Swagger
+- 后端: Java 17 + SpringBoot + Sa-token + Mysql + Redis + Swagger
 - 前端: Vue3 + Ts + Axios + Router + ElementPlus + TipTap
 
 ## 链接
