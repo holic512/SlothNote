@@ -347,9 +347,16 @@ onMounted(async () => {
 .chat-viewport {
   flex: 1;
   padding: 0 16px;
+
+  :deep(.el-scrollbar__wrap) {
+    height: 100%;
+  }
+  :deep(.el-scrollbar__view) {
+    height: 100%;
+  }
 }
 
-/* 空状态：轻量化 */
+/* 空状态：居中并微调下移 */
 .empty-state {
   display: flex;
   flex-direction: column;
@@ -358,7 +365,7 @@ onMounted(async () => {
   height: 100%;
   color: #6b7280;
   text-align: center;
-  padding-bottom: 20%;
+  margin-top: 6vh;
 
   .empty-icon {
     width: 48px;
