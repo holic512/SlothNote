@@ -1,5 +1,5 @@
 <script setup lang="ts">
-
+const activePanel = defineModel<'account' | 'system'>({default: 'account'})
 </script>
 
 <template>
@@ -7,9 +7,18 @@
 
   <el-divider style="margin: 4px 0 4px 0"/>
 
-  <div class="sidebar-div">
+  <div class="sidebar-div" :class="{ active: activePanel === 'account' }" @click="activePanel = 'account'">
     <span class="pi pi-user" style="font-size: 0.9rem;margin-left: 2px;margin-right: 4px;margin-top: 1px;"></span>
     <el-text style="color: #000;">我的账号</el-text>
+  </div>
+
+  <el-text size="small" tag="b" style="margin-top: 12px;">系统</el-text>
+
+  <el-divider style="margin: 4px 0 4px 0"/>
+
+  <div class="sidebar-div" :class="{ active: activePanel === 'system' }" @click="activePanel = 'system'">
+    <span class="pi pi-cog" style="font-size: 0.9rem;margin-left: 2px;margin-right: 4px;margin-top: 1px;"></span>
+    <el-text style="color: #000;">系统设置</el-text>
   </div>
 
 </template>
@@ -29,5 +38,9 @@
 
 .sidebar-div:hover {
   background-color: #EFEFED;
+}
+
+.sidebar-div.active {
+  background-color: #E6F1FC;
 }
 </style>

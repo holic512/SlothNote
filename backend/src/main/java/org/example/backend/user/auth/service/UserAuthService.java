@@ -50,4 +50,9 @@ public interface UserAuthService {
      * @return 用户授权服务 状态(枚举)
      */
     AuthServiceEnum verificationReg(String regID, String code);
+
+    /**
+     * 退出当前用户登录状态
+     */
+    void logout();
 }

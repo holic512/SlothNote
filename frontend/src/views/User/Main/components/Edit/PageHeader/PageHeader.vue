@@ -12,6 +12,7 @@ import {useFavoriteDialogStore} from "@/views/User/Main/components/Edit/Pinia/Fa
 import {ElMessage} from "element-plus";
 import {ref} from "vue";
 import VersionDialog from "@/views/User/Main/components/Edit/PageHeader/components/VersionDialog/VersionDialog.vue";
+import {useRouter} from "vue-router";
 
 const editor = defineModel()
 
@@ -19,6 +20,7 @@ const editor = defineModel()
 const currentNoteInfo = useCurrentNoteInfoStore()
 const favStore = useFavoriteDialogStore();
 const versionDialogVisible = ref(false)
+const router = useRouter();
 const openFavorite = () => {
   if (currentNoteInfo.noteId != null) {
     favStore.open(currentNoteInfo.noteId);
@@ -32,6 +34,29 @@ const openVersionDialog = () => {
     versionDialogVisible.value = true
   } else {
     ElMessage.warning("请先打开一篇笔记");
+  }
+}
+
+const copyShareLink = async () => {
+  if (currentNoteInfo.noteId == null) {
+    ElMessage.warning("请先打开一篇笔记");
+    return;
+  }
+
+  const href = router.resolve({
+    path: "/user/main/edit",
+    query: {
+      noteId: String(currentNoteInfo.noteId)
+    }
+  }).href;
+  const shareLink = new URL(href, window.location.origin).toString();
+
+  try {
+    await navigator.clipboard.writeText(shareLink);
+    ElMessage.success("分享链接已复制");
+  } catch (error) {
+    console.error(error);
+    ElMessage.error("复制失败，请检查浏览器剪贴板权限");
   }
 }
 
@@ -84,7 +109,7 @@ const openVersionDialog = () => {
           placement="bottom"
       >
 
-        <el-button text class="button">
+        <el-button text class="button" @click="copyShareLink">
           <el-icon color="#000000" size="18">
             <Share/>
           </el-icon>

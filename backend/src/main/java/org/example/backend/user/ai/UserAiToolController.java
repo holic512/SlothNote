@@ -3,6 +3,7 @@ package org.example.backend.user.ai;
 import org.example.backend.common.response.ApiResponse;
 import org.example.backend.user.ai.dto.AiToolReadNoteRequest;
 import org.example.backend.user.ai.dto.AiToolSearchRequest;
+import org.example.backend.user.ai.dto.ChatRequest;
 import org.example.backend.user.ai.service.UserAiService;
 import org.example.backend.user.ai.service.UserAiToolService;
 import org.springframework.http.ResponseEntity;
@@ -26,6 +27,12 @@ public class UserAiToolController {
     @GetMapping
     public ResponseEntity<Object> listTools() {
         return ResponseEntity.ok(new ApiResponse<>(200, "SUCCESS", userAiToolService.listTools()));
+    }
+
+    @PostMapping("/plan")
+    public ResponseEntity<Object> previewPlan(@RequestBody ChatRequest request) {
+        Long userId = userAiService.currentUserId();
+        return ResponseEntity.ok(new ApiResponse<>(200, "SUCCESS", userAiService.previewToolPlan(userId, request)));
     }
 
     @PostMapping("/search-notes")

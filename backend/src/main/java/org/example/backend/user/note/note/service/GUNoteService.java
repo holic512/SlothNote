@@ -11,6 +11,7 @@ package org.example.backend.user.note.note.service;
 
 import org.antlr.v4.runtime.misc.Pair;
 import org.example.backend.common.domain.Note;
+import org.example.backend.user.note.note.dto.NoteShareInfoDto;
 import org.example.backend.user.note.note.enums.GContextEnum;
 
 import java.util.Optional;
@@ -20,4 +21,6 @@ public interface GUNoteService {
     Pair<GContextEnum, Optional<Note>> GetContext(Long userId, Long noteId);
 
     String exportHtml(Long userId, Long noteId);
+
+    NoteShareInfoDto getShareInfo(Long userId, Long noteId);
 }

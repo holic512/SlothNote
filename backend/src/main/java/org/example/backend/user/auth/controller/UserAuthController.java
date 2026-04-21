@@ -233,5 +233,11 @@ public class UserAuthController {
 
     }
 
+    @PostMapping("/logout")
+    public ResponseEntity<Object> logout() {
+        userAuthService.logout();
+        return ResponseEntity.ok(new ApiResponse<>(200, "退出登录成功"));
+    }
+
 
 }

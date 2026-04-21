@@ -15,11 +15,13 @@ import {
   Clock,
   Link,
   DocumentAdd,
-  MoreFilled
+  MoreFilled,
+  Brush,
+  Picture
 } from '@element-plus/icons-vue'
 import MarkdownIt from 'markdown-it'
 import DOMPurify from 'dompurify'
-import { useAiChatStore, type ChatMessage, type ContextNote } from '@/views/User/Main/components/Edit/PageRight/components/NoteAi/service/AiChat'
+import { useAiChatStore, type AiTimelineItem, type ChatMessage, type ContextNote, type ToolPlanPreview } from '@/views/User/Main/components/Edit/PageRight/components/NoteAi/service/AiChat'
 import { searchNotes } from '@/views/User/Main/components/SidebarM/service/searchNotes'
 import { useCurrentNoteInfoStore } from '@/views/User/Main/components/Edit/Pinia/currentNoteInfo'
 import SaveSummaryButton from './components/SaveSummaryButton.vue'
@@ -27,7 +29,7 @@ import SaveSummaryButton from './components/SaveSummaryButton.vue'
 const aiChat = useAiChatStore()
 const currentNoteInfo = useCurrentNoteInfoStore()
 const inputText = ref('')
-const selectedAction = ref<'chat' | 'explain' | 'polish' | 'summary'>('chat')
+const selectedAction = ref<'chat' | 'explain' | 'polish' | 'summary' | 'agent_update_summary' | 'agent_generate_summary_to_note' | 'agent_update_title' | 'agent_update_cover'>('chat')
 const scrollbarRef = ref()
 const noteSearchVisible = ref(false)
 const noteKeyword = ref('')
@@ -35,6 +37,13 @@ const noteSearching = ref(false)
 const noteSearchResults = ref<ContextNote[]>([])
 const quickMenuVisible = ref(false)
 const historyVisible = ref(false)
+const authorizeDialogVisible = ref(false)
+const authorizeSubmitting = ref(false)
+const pendingAuthorizePreview = ref<ToolPlanPreview | null>(null)
+const pendingAuthorizeInput = ref('')
+const pendingAuthorizeAction = ref<'chat' | 'explain' | 'polish' | 'summary' | 'agent_update_summary' | 'agent_generate_summary_to_note' | 'agent_update_title' | 'agent_update_cover'>('chat')
+const lastSendAt = ref(0)
+const SEND_DEBOUNCE_MS = 500
 
 const editor = defineModel<any>()
 
@@ -42,6 +51,7 @@ const md = new MarkdownIt({ html: false, breaks: true, linkify: true })
 
 const hasSelectedText = computed(() => !!aiChat.getSelectedText().trim())
 const isSummaryMessage = (message: ChatMessage) => message.role === 'assistant' && message.messageType === 'summary'
+const FENCED_BLOCK_REGEX = /```([\w-]*)\n([\s\S]*?)\n```/g
 
 const renderMarkdown = (content: string) => DOMPurify.sanitize(md.render(content || ''))
 
@@ -55,15 +65,39 @@ const scrollToBottom = () => {
   })
 }
 
-const insertText = (content: string) => {
+const insertCodeBlock = (code: string, language?: string) => {
   if (!editor?.value) return
-  try {
-    editor.value.commands.insertContent(renderMarkdown(content))
-    ElMessage.success('已插入到笔记')
-  } catch {
-    editor.value.commands.insertContent(content)
-    ElMessage.success('已按原始 Markdown 插入到笔记')
+  const content = {
+    type: 'codeBlock',
+    attrs: language ? { language } : {},
+    content: code ? [{ type: 'text', text: code }] : []
   }
+  editor.value.chain().focus().insertContent(content).run()
+  ElMessage.success('代码块已插入到笔记')
+}
+
+const extractCodeBlocks = (content: string) => {
+  const blocks: Array<{ language: string; code: string }> = []
+  const normalized = content || ''
+  for (const match of normalized.matchAll(FENCED_BLOCK_REGEX)) {
+    blocks.push({
+      language: (match[1] || '').trim(),
+      code: match[2] || ''
+    })
+  }
+  return blocks
+}
+
+const getTimeline = (messageId: number) => aiChat.getTimeline(messageId)
+
+const timelineLabel = (item: AiTimelineItem) => {
+  if (item.kind === 'status') {
+    return item.label || item.status || '处理中'
+  }
+  if (item.kind === 'tool_call') {
+    return item.summary || `调用工具 ${item.tool}`
+  }
+  return item.summary || (item.success ? '工具执行完成' : '工具执行失败')
 }
 
 const reloadSearchResults = async () => {
@@ -111,24 +145,117 @@ const selectContextNote = async (note: ContextNote) => {
   noteSearchVisible.value = false
 }
 
-const selectQuickAction = (action: 'chat' | 'explain' | 'polish' | 'summary') => {
+const actionLabelMap: Record<string, string> = {
+  chat: '智能指令',
+  explain: '解释',
+  polish: '润色',
+  summary: '摘要',
+  agent_update_summary: '修改简介',
+  agent_generate_summary_to_note: '生成摘要',
+  agent_update_title: '修改标题',
+  agent_update_cover: '修改封面'
+}
+
+const requireCurrentNoteForAgent = (action: string) => {
+  if (!action.startsWith('agent_')) {
+    return true
+  }
+  if (currentNoteInfo.noteId) {
+    return true
+  }
+  ElMessage.warning('请先打开一篇笔记，再使用笔记 agent 功能')
+  return false
+}
+
+const selectQuickAction = (action: 'chat' | 'explain' | 'polish' | 'summary' | 'agent_update_summary' | 'agent_generate_summary_to_note' | 'agent_update_title' | 'agent_update_cover') => {
+  if (!requireCurrentNoteForAgent(action)) {
+    return
+  }
   quickMenuVisible.value = false
   selectedAction.value = action
 }
 
-const send = async () => {
-  if (aiChat.loading) return
-  if (!inputText.value.trim() && selectedAction.value === 'chat') return
-  if (selectedAction.value !== 'chat' && !hasSelectedText.value && !inputText.value.trim()) {
-    ElMessage.warning('请先选中文本或输入内容')
-    return
+const resetAuthorizeDialog = () => {
+  authorizeDialogVisible.value = false
+  authorizeSubmitting.value = false
+  pendingAuthorizePreview.value = null
+  pendingAuthorizeInput.value = ''
+  pendingAuthorizeAction.value = 'chat'
+}
+
+const executeSend = async (
+  text: string,
+  action: 'chat' | 'explain' | 'polish' | 'summary' | 'agent_update_summary' | 'agent_generate_summary_to_note' | 'agent_update_title' | 'agent_update_cover',
+  preview: ToolPlanPreview | null = null
+) => {
+  const options: { allowCurrentNoteWrite?: boolean; plannedToolName?: string; plannedToolArgumentsJson?: string } = {}
+  if (preview?.requiresConfirmation && preview.writeTool) {
+    options.allowCurrentNoteWrite = true
+    options.plannedToolName = preview.tool
+    options.plannedToolArgumentsJson = preview.argumentsJson
   }
 
-  await aiChat.sendMessage(inputText.value, selectedAction.value)
+  await aiChat.sendMessage(text, action, options)
   inputText.value = ''
   if (selectedAction.value !== 'chat') {
     selectedAction.value = 'chat'
   }
+}
+
+const confirmAuthorizeAndSend = async () => {
+  if (!pendingAuthorizePreview.value) {
+    return
+  }
+  authorizeSubmitting.value = true
+  try {
+    await executeSend(
+      pendingAuthorizeInput.value,
+      pendingAuthorizeAction.value,
+      pendingAuthorizePreview.value
+    )
+    resetAuthorizeDialog()
+  } finally {
+    authorizeSubmitting.value = false
+  }
+}
+
+const send = async () => {
+  if (aiChat.loading) return
+  if (Date.now() - lastSendAt.value < SEND_DEBOUNCE_MS) return
+  if (!inputText.value.trim() && selectedAction.value === 'chat') return
+  if (['explain', 'polish', 'summary'].includes(selectedAction.value) && !hasSelectedText.value && !inputText.value.trim()) {
+    ElMessage.warning('请先选中文本或输入内容')
+    return
+  }
+  if (!requireCurrentNoteForAgent(selectedAction.value)) {
+    return
+  }
+  lastSendAt.value = Date.now()
+
+  if (!selectedAction.value.startsWith('agent_')) {
+    await executeSend(inputText.value, selectedAction.value, null)
+    return
+  }
+
+  let preview: ToolPlanPreview | null = null
+  try {
+    preview = await aiChat.previewToolPlan(inputText.value, selectedAction.value)
+  } catch (error) {
+    console.warn('[NoteAI] preview tool plan failed, fallback to direct send', error)
+  }
+  if (preview?.requiresConfirmation && preview.writeTool) {
+    if (!currentNoteInfo.noteId) {
+      ElMessage.warning('当前没有打开的笔记，无法执行 AI 写入')
+      return
+    }
+    pendingAuthorizePreview.value = preview
+    pendingAuthorizeInput.value = inputText.value
+    pendingAuthorizeAction.value = selectedAction.value
+    authorizeDialogVisible.value = true
+    return
+  }
+
+  await executeSend(inputText.value, selectedAction.value, null)
 }
 
 const clearAll = async () => {
@@ -205,16 +332,23 @@ onMounted(async () => {
           </div>
 
           <div class="msg-content">
+            <div v-if="message.role === 'assistant' && getTimeline(message.id).length" class="timeline-list">
+              <div v-for="item in getTimeline(message.id)" :key="item.id" :class="['timeline-item', item.kind, { success: item.success, failed: item.success === false }]">
+                {{ timelineLabel(item) }}
+              </div>
+            </div>
             <div v-if="message.role === 'user'" class="bubble user">
               {{ message.content }}
             </div>
-            <div v-else class="bubble ai markdown-body" v-html="renderMarkdown(message.content)"></div>
+            <div v-else class="bubble ai markdown-body" v-html="renderMarkdown(message.renderedContent || message.content)"></div>
 
             <!-- AI Message Actions -->
             <div v-if="message.role === 'assistant' && message.status === 'completed'" class="msg-actions">
-              <el-button size="small" text @click="insertText(message.content)">
-                <el-icon><Plus /></el-icon>插入笔记
-              </el-button>
+              <template v-for="(block, index) in extractCodeBlocks(message.content)" :key="`${message.id}-${index}`">
+                <el-button size="small" text @click="insertCodeBlock(block.code, block.language)">
+                  <el-icon><Plus /></el-icon>插入代码块{{ block.language ? ` (${block.language})` : '' }}
+                </el-button>
+              </template>
               <SaveSummaryButton v-if="isSummaryMessage(message)" :summary="message.content" />
             </div>
           </div>
@@ -239,7 +373,7 @@ onMounted(async () => {
             :autosize="{ minRows: 1, maxRows: 6 }"
             resize="none"
             :disabled="aiChat.loading"
-            :placeholder="selectedAction === 'chat' ? '输入指令，Enter 发送...' : `当前模式: ${selectedAction}，可输入额外要求`"
+            :placeholder="selectedAction === 'chat' ? '输入指令，Enter 发送...' : `当前模式: ${actionLabelMap[selectedAction]}，可输入额外要求`"
             @keydown.enter.exact.prevent="send"
         />
 
@@ -262,7 +396,7 @@ onMounted(async () => {
             <el-dropdown trigger="click" placement="top-start" @command="selectQuickAction">
               <el-button text round size="small" class="mode-btn">
                 <el-icon><MoreFilled /></el-icon>
-                {{ selectedAction === 'chat' ? '智能指令' : selectedAction }}
+                {{ actionLabelMap[selectedAction] }}
               </el-button>
               <template #dropdown>
                 <el-dropdown-menu class="minimal-menu">
@@ -270,6 +404,10 @@ onMounted(async () => {
                   <el-dropdown-item command="explain" divided><el-icon><Document /></el-icon> 解释选中内容</el-dropdown-item>
                   <el-dropdown-item command="polish"><el-icon><Edit /></el-icon> 润色选中内容</el-dropdown-item>
                   <el-dropdown-item command="summary"><el-icon><Document /></el-icon> 生成摘要</el-dropdown-item>
+                  <el-dropdown-item command="agent_update_summary" divided><el-icon><Brush /></el-icon> Agent 修改简介</el-dropdown-item>
+                  <el-dropdown-item command="agent_generate_summary_to_note"><el-icon><Document /></el-icon> Agent 生成摘要并写入</el-dropdown-item>
+                  <el-dropdown-item command="agent_update_title"><el-icon><Edit /></el-icon> Agent 修改标题</el-dropdown-item>
+                  <el-dropdown-item command="agent_update_cover"><el-icon><Picture /></el-icon> Agent 修改封面</el-dropdown-item>
                 </el-dropdown-menu>
               </template>
             </el-dropdown>
@@ -299,6 +437,54 @@ onMounted(async () => {
         </div>
       </div>
     </el-dialog>
+
+    <el-dialog
+      v-model="authorizeDialogVisible"
+      width="460px"
+      class="ai-authorize-dialog"
+      :show-close="false"
+      align-center
+      @closed="resetAuthorizeDialog"
+    >
+      <template #header>
+        <div class="authorize-header">
+          <div class="authorize-icon">
+            <el-icon><Edit /></el-icon>
+          </div>
+          <div>
+            <div class="authorize-title">授权 AI 编辑当前笔记</div>
+            <div class="authorize-subtitle">本次操作会写入你当前打开的笔记</div>
+          </div>
+        </div>
+      </template>
+
+      <div class="authorize-body">
+        <div class="authorize-card">
+          <div class="authorize-label">目标笔记</div>
+          <div class="authorize-value">{{ currentNoteInfo.noteName || '当前笔记' }}</div>
+          <div class="authorize-meta">ID: {{ currentNoteInfo.noteId || '-' }}</div>
+        </div>
+
+        <div class="authorize-card" v-if="pendingAuthorizePreview">
+          <div class="authorize-label">计划操作</div>
+          <div class="authorize-value">{{ pendingAuthorizePreview.summary }}</div>
+          <div class="authorize-meta">工具: {{ pendingAuthorizePreview.tool }}</div>
+        </div>
+
+        <div class="authorize-tip">
+          AI 只会修改当前打开的笔记，不会写入其他笔记。你可以在执行后继续检查并手动撤销。
+        </div>
+      </div>
+
+      <template #footer>
+        <div class="authorize-footer">
+          <el-button @click="resetAuthorizeDialog">取消</el-button>
+          <el-button type="primary" :loading="authorizeSubmitting" @click="confirmAuthorizeAndSend">
+            允许本次编辑
+          </el-button>
+        </div>
+      </template>
+    </el-dialog>
   </div>
 </template>
 
@@ -311,6 +497,114 @@ onMounted(async () => {
   background-color: #ffffff;
   color: #111827;
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+}
+
+.timeline-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 8px;
+}
+
+.timeline-item {
+  font-size: 11px;
+  line-height: 1;
+  padding: 6px 8px;
+  border-radius: 999px;
+  background: #eef2ff;
+  color: #4338ca;
+}
+
+.timeline-item.tool_call {
+  background: #eff6ff;
+  color: #1d4ed8;
+}
+
+.timeline-item.tool_result.success {
+  background: #ecfdf5;
+  color: #047857;
+}
+
+.timeline-item.tool_result.failed {
+  background: #fef2f2;
+  color: #b91c1c;
+}
+
+.authorize-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.authorize-icon {
+  width: 38px;
+  height: 38px;
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #eff6ff;
+  color: #2563eb;
+  font-size: 18px;
+}
+
+.authorize-title {
+  font-size: 16px;
+  font-weight: 600;
+  color: #111827;
+}
+
+.authorize-subtitle {
+  margin-top: 4px;
+  font-size: 12px;
+  color: #6b7280;
+}
+
+.authorize-body {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.authorize-card {
+  padding: 14px 16px;
+  border-radius: 14px;
+  border: 1px solid #e5e7eb;
+  background: #f9fafb;
+}
+
+.authorize-label {
+  font-size: 12px;
+  color: #6b7280;
+}
+
+.authorize-value {
+  margin-top: 6px;
+  font-size: 14px;
+  font-weight: 600;
+  color: #111827;
+  line-height: 1.5;
+}
+
+.authorize-meta {
+  margin-top: 6px;
+  font-size: 12px;
+  color: #6b7280;
+}
+
+.authorize-tip {
+  padding: 12px 14px;
+  border-radius: 12px;
+  background: #eff6ff;
+  color: #1d4ed8;
+  font-size: 12px;
+  line-height: 1.6;
+}
+
+.authorize-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
 }
 
 /* 顶部 Header：极致极简 */

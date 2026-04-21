@@ -14,8 +14,12 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
+import java.util.Optional;
+
 public interface UNoteInfoRep extends JpaRepository<NoteInfo, Long> {
 
     @Query("SELECT n.userId FROM NoteInfo n WHERE n.id = :id")
     Long findUserIdByNoteId(@Param("id") Long id);
+
+    Optional<NoteInfo> findByIdAndUserId(Long id, Long userId);
 }

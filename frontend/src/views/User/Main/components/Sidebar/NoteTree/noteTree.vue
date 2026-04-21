@@ -68,12 +68,12 @@ const handleNodeClick = (data: Tree, node: Node) => {
           getCurrentNoteInfo(node);
           // 重置保存状态
           SaveNoteState.saveContent();
-          router.push('/user/main/edit')
+          router.push({path: '/user/main/edit', query: {noteId: String(data.id)}})
         })
   } else {
     // 设置当前显示笔记信息
     getCurrentNoteInfo(node);
-    router.push('/user/main/edit')
+    router.push({path: '/user/main/edit', query: {noteId: String(data.id)}})
   }
 }
 

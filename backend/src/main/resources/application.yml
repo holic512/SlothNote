@@ -40,12 +40,13 @@ spring:
     hibernate:
       ddl-auto: none            # 禁止自动建表
 
-# 讯飞星火模型配置
-xfyun:
-  spark:
-    api-key: ajzyauyyoqVTxpYznyTB:edjXfunfXVrpUbRCliVS
-    api-url: https://spark-api-open.xf-yun.com/v1/chat/completions
-    model: generalv3.5
+# OpenAI 兼容模型配置
+# 可直接替换为 OpenAI 或任意兼容 OpenAI Chat Completions 协议的服务商地址
+ai:
+  openai:
+    base-url: http://49.232.155.38:3001/v1
+    api-key: ${OPENAI_API_KEY:sk-D2PYrpw44dohTZWxE99a2407xkFgTZpqEFAbSrjsAIRprKvc}
+    model: gpt-5.4-mini
 
 
 server:

@@ -72,6 +72,18 @@ public class GUNoteController {
 
     }
 
+    @GetMapping("share/info")
+    public ResponseEntity<Object> shareInfo(@RequestParam Long noteId) {
+        Long userId = (Long) StpKit.USER.getSession().get("id");
+        var data = guNoteService.getShareInfo(userId, noteId);
+
+        return ResponseEntity.ok(new ApiResponse.Builder<>()
+                .status(data == null ? 404 : 200)
+                .message(data == null ? "笔记不存在" : "获取分享信息成功")
+                .data(data)
+                .build());
+    }
+
     @GetMapping("export/html")
     public ResponseEntity<Object> exportHtml(@RequestParam Long noteId) {
         Long UserId = (Long) StpKit.USER.getSession().get("id");

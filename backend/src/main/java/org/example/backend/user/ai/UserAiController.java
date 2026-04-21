@@ -5,6 +5,7 @@ import org.example.backend.user.ai.dto.ChatRequest;
 import org.example.backend.user.ai.dto.ContextNotesRequest;
 import org.example.backend.user.ai.dto.StopChatRequest;
 import org.example.backend.user.ai.service.UserAiService;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
@@ -63,7 +64,7 @@ public class UserAiController {
                 .build());
     }
 
-    @PostMapping("/chat")
+    @PostMapping(value = "/chat", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
     public SseEmitter chat(@RequestBody ChatRequest request) {
         Long userId = userAiService.currentUserId();
         return userAiService.chat(userId, request);

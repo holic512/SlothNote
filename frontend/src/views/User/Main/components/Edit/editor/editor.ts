@@ -149,7 +149,10 @@ export function createEditorInstance() {
                 const selectedText = editor.state.doc.textBetween(from, to, ' ');
                 // 更新选中的文本到AI聊天存储
                 aiChat.setSelectedText(selectedText);
+                return;
             }
+
+            aiChat.setSelectedText('');
         }
     })
 

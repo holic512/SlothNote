@@ -200,6 +200,11 @@ public class UserAuthServiceImpl implements UserAuthService {
         return createUserWithProfile(map.get("username"), map.get("password"), map.get("email"));
     }
 
+    @Override
+    public void logout() {
+        StpKit.USER.logout();
+    }
+
     private AuthServiceEnum createUserWithProfile(String username, String passwordHash, String email) {
         if (userRepository.existsByUsername(username)) {
             return AuthServiceEnum.UserAlreadyExists;

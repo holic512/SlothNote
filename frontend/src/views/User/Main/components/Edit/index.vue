@@ -3,11 +3,16 @@
 import TipTap from "@/views/User/Main/components/Edit/Main/TipTap.vue";
 import PageHeader from "@/views/User/Main/components/Edit/PageHeader/PageHeader.vue";
 import {onBeforeUnmount, onMounted, ref, watch} from "vue";
+import {useRoute, useRouter} from "vue-router";
 
 import {createEditorInstance} from "@/views/User/Main/components/Edit/editor/editor";
 import {useCurrentNoteInfoStore} from "@/views/User/Main/components/Edit/Pinia/currentNoteInfo";
 import {getNoteContent} from "@/views/User/Main/components/Edit/service/GetNoteContent";
 import PageRight from "@/views/User/Main/components/Edit/PageRight/PageRight.vue";
+import {getNoteShareInfo} from "@/views/User/Main/components/Edit/PageHeader/service/getNoteShareInfo";
+import {ElMessage} from "element-plus";
+import {useAiChatStore} from "@/views/User/Main/components/Edit/PageRight/components/NoteAi/service/AiChat";
+import {useSaveNoteState} from "@/views/User/Main/components/Edit/Pinia/SaveNoteState";
 
 
 // 创建 editor 实例
@@ -15,8 +20,45 @@ const editor = createEditorInstance();
 
 // 当前笔记实例
 const currentNoteInfo = useCurrentNoteInfoStore();
+const aiChat = useAiChatStore();
+const saveNoteState = useSaveNoteState();
+const route = useRoute();
+const router = useRouter();
 
 let lastLoadRequestId = 0;
+
+const normalizeNoteId = (value: unknown): number | null => {
+  if (typeof value !== "string" || value.trim() === "") {
+    return null;
+  }
+
+  const parsed = Number(value);
+  return Number.isInteger(parsed) && parsed > 0 ? parsed : null;
+}
+
+const syncNoteInfoFromRoute = async () => {
+  const routeNoteId = normalizeNoteId(route.query.noteId);
+
+  if (routeNoteId == null || currentNoteInfo.noteId === routeNoteId) {
+    return;
+  }
+
+  const shareInfo = await getNoteShareInfo(routeNoteId);
+
+  if (shareInfo == null) {
+    ElMessage.warning("分享链接对应的笔记不存在或无权访问");
+    await router.replace({path: route.path});
+    return;
+  }
+
+  currentNoteInfo.setNoteInfo(
+      shareInfo.noteId,
+      shareInfo.noteName,
+      shareInfo.noteLocation,
+      shareInfo.avatar,
+      shareInfo.cover
+  );
+}
 
 const applyEditorContent = async (noteId: number | null | undefined) => {
   const requestId = ++lastLoadRequestId;
@@ -44,6 +86,7 @@ const applyEditorContent = async (noteId: number | null | undefined) => {
 
 // 钩子函数
 onMounted(async () => {
+  await syncNoteInfoFromRoute();
   await applyEditorContent(currentNoteInfo.noteId);
 })
 
@@ -53,6 +96,25 @@ watch(
     async ([newNoteId]) => {
       await applyEditorContent(newNoteId);
     })
+
+watch(
+    () => route.query.noteId,
+    async () => {
+      await syncNoteInfoFromRoute();
+    }
+)
+
+watch(
+    () => aiChat.lastNoteMutation?.timestamp,
+    async () => {
+      if (!aiChat.lastNoteMutation || aiChat.lastNoteMutation.noteId !== currentNoteInfo.noteId) {
+        return;
+      }
+      await applyEditorContent(currentNoteInfo.noteId);
+      saveNoteState.saveContent();
+      ElMessage.success(aiChat.lastNoteMutation.summary || "AI 已同步更新当前笔记");
+    }
+)
 
 // ui  适配
 const mainHeight = ref(window.innerHeight - 48);

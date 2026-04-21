@@ -12,14 +12,19 @@ package org.example.backend.user.note.note.service.impl;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.antlr.v4.runtime.misc.Pair;
 import org.example.backend.common.domain.Note;
+import org.example.backend.common.entity.FolderInfo;
+import org.example.backend.common.entity.NoteInfo;
+import org.example.backend.user.note.note.dto.NoteShareInfoDto;
 import org.example.backend.user.note.note.enums.GContextEnum;
 import org.example.backend.user.note.note.repository.UNoteInfoRep;
 import org.example.backend.user.note.note.repository.UNoteRepM;
 import org.example.backend.user.note.note.service.GUNoteService;
+import org.example.backend.user.repository.UserFolderInfoRepository;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -31,11 +36,15 @@ public class GUNoteServiceImpl implements GUNoteService {
 
     private final UNoteInfoRep uNoteInfoRep;
     private final UNoteRepM uNoteRepM;
+    private final UserFolderInfoRepository userFolderInfoRepository;
 
     @Autowired
-    public GUNoteServiceImpl(UNoteInfoRep uNoteInfoRep, UNoteRepM uNoteRepM) {
+    public GUNoteServiceImpl(UNoteInfoRep uNoteInfoRep,
+                             UNoteRepM uNoteRepM,
+                             UserFolderInfoRepository userFolderInfoRepository) {
         this.uNoteInfoRep = uNoteInfoRep;
         this.uNoteRepM = uNoteRepM;
+        this.userFolderInfoRepository = userFolderInfoRepository;
     }
 
     @Override
@@ -69,9 +78,44 @@ public class GUNoteServiceImpl implements GUNoteService {
         }
     }
 
+    @Override
+    public NoteShareInfoDto getShareInfo(Long userId, Long noteId) {
+        Optional<NoteInfo> noteInfoOpt = uNoteInfoRep.findByIdAndUserId(noteId, userId);
+        if (noteInfoOpt.isEmpty()) {
+            return null;
+        }
+
+        NoteInfo noteInfo = noteInfoOpt.get();
+        return new NoteShareInfoDto(
+                noteInfo.getId(),
+                noteInfo.getNoteTitle(),
+                buildLocation(noteInfo.getFolderId()),
+                noteInfo.getNoteAvatar() == null ? "" : new String(noteInfo.getNoteAvatar()),
+                noteInfo.getNote_cover_url()
+        );
+    }
+
     private String escape(String s) {
         if (s == null) return "";
         return s.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;");
+    }
+
+    private List<String> buildLocation(Long folderId) {
+        List<String> locations = new ArrayList<>();
+        Long currentFolderId = folderId;
+
+        while (currentFolderId != null && currentFolderId != 0) {
+            Optional<FolderInfo> folderOpt = userFolderInfoRepository.findById(currentFolderId);
+            if (folderOpt.isEmpty()) {
+                break;
+            }
+
+            FolderInfo folderInfo = folderOpt.get();
+            locations.add(0, folderInfo.getFolderName());
+            currentFolderId = folderInfo.getParentId();
+        }
+
+        return locations;
     }
 
     private String renderNode(Object nodeObj) {
