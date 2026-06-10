@@ -1,0 +1,66 @@
+# OS metadata
+.DS_Store
+Thumbs.db
+
+# IDE and editor state
+.idea/
+.vscode/
+*.iml
+*.iws
+*.ipr
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+
+# Logs
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+hs_err_pid*
+replay_pid*
+
+# Environment and local-only config
+.env
+.env.*
+!.env.example
+*.local
+
+# Frontend build and dependencies
+frontend/node_modules/
+frontend/dist/
+frontend/dist-ssr/
+frontend/build/
+frontend/lib/
+frontend/.env
+frontend/.env.*
+!frontend/.env.example
+
+# Backend build output
+backend/target/
+backend/.mvn/timing.properties
+
+# Backend local Spring Boot config
+backend/src/main/resources/application.yml
+backend/src/main/resources/application.yaml
+backend/src/main/resources/application.properties
+backend/src/main/resources/application-*.yml
+backend/src/main/resources/application-*.yaml
+backend/src/main/resources/application-*.properties
+!backend/src/main/resources/application.example.yml
+!backend/src/main/resources/application.example.yaml
+!backend/src/main/resources/application.example.properties
+!backend/src/main/resources/application-*.example.yml
+!backend/src/main/resources/application-*.example.yaml
+!backend/src/main/resources/application-*.example.properties
+
+# Runtime uploads and local storage
+file/
+image/
+backend/file/
+backend/image/

@@ -1,0 +1,70 @@
+spring:
+  profiles:
+    active: dev
+
+  mail:
+    host: "${MAIL_HOST:smtp.qq.com}"
+    port: ${MAIL_PORT:465}
+    username: "${MAIL_USERNAME:TODO@example.com}"
+    password: "${MAIL_PASSWORD:TODO_MAIL_PASSWORD}"
+    protocol: smtps
+    default-encoding: UTF-8
+    properties:
+      mail:
+        smtp:
+          auth: true
+          ssl:
+            enable: true
+          starttls:
+            enable: true
+            required: true
+
+  application:
+    name: SlothNote
+
+  servlet:
+    multipart:
+      enabled: true
+      max-file-size: 5MB
+      max-request-size: 10MB
+
+  datasource:
+    url: "${DB_URL:jdbc:mysql://localhost:3306/slothnote?useUnicode=true&characterEncoding=utf8&serverTimezone=Asia/Shanghai}"
+    username: "${DB_USERNAME:root}"
+    password: "${DB_PASSWORD:TODO_DB_PASSWORD}"
+    driver-class-name: com.mysql.cj.jdbc.Driver
+
+  jpa:
+    open-in-view: false
+    hibernate:
+      ddl-auto: none
+
+ai:
+  openai:
+    base-url: "${OPENAI_BASE_URL:TODO_OPENAI_COMPATIBLE_BASE_URL}"
+    api-key: "${OPENAI_API_KEY:TODO_OPENAI_API_KEY}"
+    model: "${OPENAI_MODEL:TODO_MODEL_NAME}"
+
+server:
+  port: ${SERVER_PORT:8080}
+
+sa-token:
+  token-name: satoken
+  timeout: 2592000
+  active-timeout: -1
+  is-concurrent: true
+  is-share: true
+  token-style: uuid
+  is-log: false
+  is-read-cookie: false
+
+storage:
+  local:
+    root-dir: "${STORAGE_LOCAL_ROOT_DIR:./file}"
+    public-base-url: "${STORAGE_PUBLIC_BASE_URL:http://localhost:8080/files}"
+    enable-date-path: true
+    keep-extension: true
+
+mail:
+  from: "${MAIL_FROM:TODO@example.com}"
+  from-name: "${MAIL_FROM_NAME:SlothNote}"
