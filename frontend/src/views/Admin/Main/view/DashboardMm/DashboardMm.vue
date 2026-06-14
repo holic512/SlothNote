@@ -26,8 +26,27 @@ import * as echarts from 'echarts';
 import { fetchMetrics, fetchRecent, todoDelete, todoBatchDelete, todoBatchEnable, todoBatchDisable } from "./components/api";
 import { debounceImmediate } from "@/util/debounce";
 
+type DashboardMetrics = {
+  userCount: number;
+  noteCount: number;
+  folderCount: number;
+  commentCount: number;
+  favoriteNoteCount: number;
+  favoriteFolderCount: number;
+  todoCount: number;
+}
+
+type MetricCard = {
+  key: string;
+  label: string;
+  value: number | string;
+  icon: string;
+  tone: string;
+  helper?: string;
+}
+
 // --- 状态定义 ---
-const metrics = ref<any>({});
+const metrics = ref<Partial<DashboardMetrics>>({});
 const category = ref<string>('comment');
 const q = ref<string>('');
 const userIdFilter = ref<number | null>(null);
@@ -43,6 +62,54 @@ const chartPieRef = ref<HTMLElement | null>(null);
 const chartBarRef = ref<HTMLElement | null>(null);
 let pieChartInst: echarts.ECharts | null = null;
 let barChartInst: echarts.ECharts | null = null;
+
+const toCount = (value?: number) => value ?? 0;
+const formatRatio = (value: number) => `${Number.isFinite(value) ? value.toFixed(1) : '0.0'}%`;
+
+const contentTotal = computed(() => (
+  toCount(metrics.value.noteCount) +
+  toCount(metrics.value.folderCount) +
+  toCount(metrics.value.commentCount) +
+  toCount(metrics.value.todoCount)
+));
+
+const favoriteTotal = computed(() => (
+  toCount(metrics.value.favoriteNoteCount) +
+  toCount(metrics.value.favoriteFolderCount)
+));
+
+const avgNotesPerUser = computed(() => {
+  const users = toCount(metrics.value.userCount);
+  return users === 0 ? '0.0' : (toCount(metrics.value.noteCount) / users).toFixed(1);
+});
+
+const commentCoverage = computed(() => {
+  const notes = toCount(metrics.value.noteCount);
+  return formatRatio(notes === 0 ? 0 : (toCount(metrics.value.commentCount) / notes) * 100);
+});
+
+const favoriteCoverage = computed(() => {
+  const base = toCount(metrics.value.noteCount) + toCount(metrics.value.folderCount);
+  return formatRatio(base === 0 ? 0 : (favoriteTotal.value / base) * 100);
+});
+
+const metricCards = computed<MetricCard[]>(() => [
+  { key: 'user', label: '用户总数', value: toCount(metrics.value.userCount), icon: 'pi pi-users', tone: 'blue', helper: '平台注册账户' },
+  { key: 'note', label: '笔记总数', value: toCount(metrics.value.noteCount), icon: 'pi pi-book', tone: 'green', helper: '已创建笔记' },
+  { key: 'folder', label: '文件夹数', value: toCount(metrics.value.folderCount), icon: 'pi pi-folder', tone: 'slate', helper: '笔记归档结构' },
+  { key: 'comment', label: '评论总数', value: toCount(metrics.value.commentCount), icon: 'pi pi-comments', tone: 'amber', helper: '内容互动量' },
+  { key: 'todo', label: '待办事项', value: toCount(metrics.value.todoCount), icon: 'pi pi-check-square', tone: 'violet', helper: '用户任务记录' },
+  { key: 'favoriteNote', label: '收藏笔记', value: toCount(metrics.value.favoriteNoteCount), icon: 'pi pi-star', tone: 'cyan', helper: '被收藏内容' },
+  { key: 'favoriteFolder', label: '收藏文件夹', value: toCount(metrics.value.favoriteFolderCount), icon: 'pi pi-bookmark', tone: 'rose', helper: '被收藏目录' },
+  { key: 'content', label: '内容总量', value: contentTotal.value, icon: 'pi pi-database', tone: 'indigo', helper: '笔记/评论/文件夹/待办' },
+]);
+
+const dashboardFacts = computed(() => [
+  { label: '收藏总量', value: favoriteTotal.value },
+  { label: '收藏覆盖', value: favoriteCoverage.value },
+  { label: '人均笔记', value: avgNotesPerUser.value },
+  { label: '评论覆盖', value: commentCoverage.value },
+]);
 
 // --- 生命周期 & 加载 ---
 onMounted(async () => {
@@ -73,16 +140,17 @@ const initCharts = () => {
 
   // 1. 饼图：系统数据构成
   if (chartPieRef.value) {
-    pieChartInst = echarts.init(chartPieRef.value);
+    pieChartInst = pieChartInst ?? echarts.init(chartPieRef.value);
     pieChartInst.setOption({
-      title: { text: '数据分布', left: 'center', textStyle: { fontSize: 16 } },
+      title: { text: '数据分布', left: 'center', textStyle: { fontSize: 14, fontWeight: 600, color: '#1f2937' } },
       tooltip: { trigger: 'item' },
-      legend: { bottom: '0%', left: 'center' },
+      color: ['#3b82f6', '#22c55e', '#64748b', '#f59e0b'],
+      legend: { bottom: '0%', left: 'center', itemWidth: 10, itemHeight: 10, textStyle: { color: '#64748b' } },
       series: [{
         name: '数据统计',
         type: 'pie',
-        radius: ['40%', '70%'],
-        itemStyle: { borderRadius: 10, borderColor: '#fff', borderWidth: 2 },
+        radius: ['48%', '70%'],
+        itemStyle: { borderRadius: 5, borderColor: '#fff', borderWidth: 2 },
         data: [
           { value: metrics.value.noteCount || 0, name: '笔记' },
           { value: metrics.value.commentCount || 0, name: '评论' },
@@ -95,25 +163,28 @@ const initCharts = () => {
 
   // 2. 柱状图：收藏比率分析
   if (chartBarRef.value) {
-    barChartInst = echarts.init(chartBarRef.value);
+    barChartInst = barChartInst ?? echarts.init(chartBarRef.value);
     barChartInst.setOption({
-      title: { text: '收藏转化情况', left: 'center', textStyle: { fontSize: 16 } },
+      title: { text: '收藏转化情况', left: 'center', textStyle: { fontSize: 14, fontWeight: 600, color: '#1f2937' } },
       tooltip: { trigger: 'axis' },
-      grid: { left: '3%', right: '4%', bottom: '10%', containLabel: true },
-      xAxis: { type: 'category', data: ['笔记', '文件夹'] },
-      yAxis: { type: 'value' },
+      legend: { top: 28, itemWidth: 10, itemHeight: 10, textStyle: { color: '#64748b' } },
+      grid: { left: '3%', right: '4%', top: 72, bottom: '8%', containLabel: true },
+      xAxis: { type: 'category', data: ['笔记', '文件夹'], axisTick: { show: false }, axisLine: { lineStyle: { color: '#d7dde6' } } },
+      yAxis: { type: 'value', splitLine: { lineStyle: { color: '#edf1f5' } } },
       series: [
         {
           name: '总数',
           type: 'bar',
           data: [metrics.value.noteCount || 0, metrics.value.folderCount || 0],
-          itemStyle: { color: '#91cc75' }
+          barWidth: 28,
+          itemStyle: { color: '#60a5fa', borderRadius: [4, 4, 0, 0] }
         },
         {
           name: '被收藏数',
           type: 'bar',
           data: [metrics.value.favoriteNoteCount || 0, metrics.value.favoriteFolderCount || 0],
-          itemStyle: { color: '#fac858' }
+          barWidth: 28,
+          itemStyle: { color: '#f59e0b', borderRadius: [4, 4, 0, 0] }
         }
       ]
     });
@@ -198,41 +269,22 @@ const tableColumns = computed(() => {
 <template>
   <el-scrollbar height="100%" class="dashboard-bg">
     <div class="dashboard-container">
-      <div class="header-section">
-        <div class="header-actions">
-          <Button icon="pi pi-refresh" rounded text @click="load" v-tooltip="'刷新列表'"/>
+      <!-- 2. 关键指标卡片区 (Grid Layout) -->
+      <div class="metrics-grid">
+        <div v-for="item in metricCards" :key="item.key" class="metric-card" :class="`tone-${item.tone}`">
+          <div class="metric-icon"><i :class="item.icon"></i></div>
+          <div class="metric-info">
+            <span class="label">{{ item.label }}</span>
+            <span class="value">{{ item.value }}</span>
+            <span class="helper">{{ item.helper }}</span>
+          </div>
         </div>
       </div>
 
-      <!-- 2. 关键指标卡片区 (Grid Layout) -->
-      <div class="metrics-grid">
-        <div class="metric-card user-card">
-          <div class="metric-icon"><i class="pi pi-users"></i></div>
-          <div class="metric-info">
-            <span class="label">用户总数</span>
-            <span class="value">{{ metrics?.userCount || 0 }}</span>
-          </div>
-        </div>
-        <div class="metric-card note-card">
-          <div class="metric-icon"><i class="pi pi-book"></i></div>
-          <div class="metric-info">
-            <span class="label">笔记总数</span>
-            <span class="value">{{ metrics?.noteCount || 0 }}</span>
-          </div>
-        </div>
-        <div class="metric-card comment-card">
-          <div class="metric-icon"><i class="pi pi-comments"></i></div>
-          <div class="metric-info">
-            <span class="label">评论总数</span>
-            <span class="value">{{ metrics?.commentCount || 0 }}</span>
-          </div>
-        </div>
-        <div class="metric-card todo-card">
-          <div class="metric-icon"><i class="pi pi-check-square"></i></div>
-          <div class="metric-info">
-            <span class="label">待办事项</span>
-            <span class="value">{{ metrics?.todoCount || 0 }}</span>
-          </div>
+      <div class="facts-strip">
+        <div v-for="fact in dashboardFacts" :key="fact.label" class="fact-item">
+          <span>{{ fact.label }}</span>
+          <strong>{{ fact.value }}</strong>
         </div>
       </div>
 
@@ -248,16 +300,14 @@ const tableColumns = computed(() => {
 
       <!-- 4. 数据管理列表区 -->
       <div class="data-panel">
-        
-        <!-- 工具栏 -->
         <div class="panel-toolbar">
           <div class="toolbar-left">
             <el-radio-group v-model="category" @change="changeCategory" size="small">
-              <el-radio-button value="comment">评论管理</el-radio-button>
-              <el-radio-button value="todo">待办管理</el-radio-button>
-              <el-radio-button value="note">笔记管理</el-radio-button>
+              <el-radio-button value="comment">评论</el-radio-button>
+              <el-radio-button value="todo">待办</el-radio-button>
+              <el-radio-button value="note">笔记</el-radio-button>
             </el-radio-group>
-            
+
             <IconField class="search-field">
               <InputIcon class="pi pi-search"/>
               <InputText v-model="q" placeholder="搜索关键词..." class="p-inputtext-sm" @keydown.enter="handleDebouncedLoad"/>
@@ -335,73 +385,109 @@ const tableColumns = computed(() => {
 
 <style scoped>
 .dashboard-bg {
-  background-color: #f8f9fa;
+  background: transparent;
   height: 100%;
 }
 
 .dashboard-container {
-  max-width: 1600px;
-  margin: 0 auto;
-  padding: 20px;
+  width: 100%;
+  margin: 0;
+  padding: 0;
   display: flex;
   flex-direction: column;
-  gap: 20px;
-}
-
-/* Header */
-.header-section {
-  display: flex;
-  justify-content: flex-end;
-  align-items: center;
+  gap: 12px;
 }
 
 /* Metric Cards */
 .metrics-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
-  gap: 20px;
+  grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+  gap: 10px;
 }
 .metric-card {
-  background: white;
-  border-radius: 12px;
-  padding: 20px;
+  background: #ffffff;
+  border: 1px solid #edf1f5;
+  border-radius: 8px;
+  padding: 12px;
   display: flex;
   align-items: center;
-  gap: 20px;
-  box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.05);
-  transition: transform 0.2s;
+  gap: 10px;
+  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.03);
+  transition: border-color 0.2s, box-shadow 0.2s;
 }
 .metric-card:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 10px 15px -3px rgb(0 0 0 / 0.1);
+  border-color: #dbe5f0;
+  box-shadow: 0 2px 6px rgba(15, 23, 42, 0.05);
 }
 .metric-icon {
-  width: 50px;
-  height: 50px;
-  border-radius: 10px;
+  width: 34px;
+  height: 34px;
+  border-radius: 7px;
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 24px;
+  flex-shrink: 0;
+  font-size: 16px;
 }
-/* Card Colors */
-.user-card .metric-icon { background: #e0f2fe; color: #0284c7; }
-.note-card .metric-icon { background: #dcfce7; color: #16a34a; }
-.comment-card .metric-icon { background: #fef9c3; color: #ca8a04; }
-.todo-card .metric-icon { background: #f3e8ff; color: #9333ea; }
+
+.tone-blue .metric-icon { background: #eff6ff; color: #2563eb; }
+.tone-green .metric-icon { background: #f0fdf4; color: #16a34a; }
+.tone-slate .metric-icon { background: #f1f5f9; color: #475569; }
+.tone-amber .metric-icon { background: #fffbeb; color: #d97706; }
+.tone-violet .metric-icon { background: #f5f3ff; color: #7c3aed; }
+.tone-cyan .metric-icon { background: #ecfeff; color: #0891b2; }
+.tone-rose .metric-icon { background: #fff1f2; color: #e11d48; }
+.tone-indigo .metric-icon { background: #eef2ff; color: #4f46e5; }
 
 .metric-info {
   display: flex;
   flex-direction: column;
+  min-width: 0;
 }
 .metric-info .label {
-  color: #64748b;
-  font-size: 13px;
+  color: #526174;
+  font-size: 12px;
   font-weight: 500;
+  line-height: 1.2;
 }
 .metric-info .value {
   color: #1e293b;
-  font-size: 24px;
+  font-size: 20px;
+  font-weight: 700;
+  line-height: 1.25;
+}
+.metric-info .helper {
+  overflow: hidden;
+  color: #94a3b8;
+  font-size: 11px;
+  line-height: 1.2;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.facts-strip {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 8px;
+  padding: 10px 12px;
+  border: 1px solid #edf1f5;
+  border-radius: 8px;
+  background: #fbfcfd;
+}
+
+.fact-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  min-width: 0;
+  color: #64748b;
+  font-size: 12px;
+}
+
+.fact-item strong {
+  color: #1f2937;
+  font-size: 14px;
   font-weight: 700;
 }
 
@@ -409,45 +495,47 @@ const tableColumns = computed(() => {
 .charts-row {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: 20px;
+  gap: 12px;
 }
 .chart-container {
-  background: white;
-  border-radius: 12px;
-  padding: 20px;
-  box-shadow: 0 2px 4px rgb(0 0 0 / 0.05);
+  background: #ffffff;
+  border: 1px solid #edf1f5;
+  border-radius: 8px;
+  padding: 12px;
+  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.03);
 }
 .echart-instance {
   width: 100%;
-  height: 300px;
+  height: 260px;
 }
 
 /* Data Panel */
 .data-panel {
-  background: white;
-  border-radius: 12px;
-  box-shadow: 0 2px 4px rgb(0 0 0 / 0.05);
-  padding: 20px;
+  background: #ffffff;
+  border: 1px solid #edf1f5;
+  border-radius: 8px;
+  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.03);
+  padding: 12px;
   display: flex;
   flex-direction: column;
-  gap: 15px;
+  gap: 10px;
 }
 .panel-toolbar {
   display: flex;
   justify-content: space-between;
   align-items: center;
   flex-wrap: wrap;
-  gap: 15px;
-  border-bottom: 1px solid #f1f5f9;
-  padding-bottom: 15px;
+  gap: 10px;
+  border-bottom: 1px solid #edf1f5;
+  padding-bottom: 10px;
 }
 .toolbar-left, .toolbar-right {
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 8px;
 }
 .search-field {
-  width: 200px;
+  width: 210px;
 }
 .filter-group, .action-group {
   display: flex;
@@ -455,7 +543,7 @@ const tableColumns = computed(() => {
   gap: 8px;
 }
 .action-group {
-  padding-left: 12px;
+  padding-left: 8px;
   border-left: 1px solid #e2e8f0;
 }
 
@@ -471,7 +559,7 @@ const tableColumns = computed(() => {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-top: 10px;
+  margin-top: 4px;
 }
 .total-info {
   color: #94a3b8;
@@ -489,6 +577,7 @@ const tableColumns = computed(() => {
   }
   .toolbar-left, .toolbar-right {
     justify-content: space-between;
+    flex-wrap: wrap;
   }
 }
 </style>
