@@ -1,6 +1,5 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
-import Tag from 'primevue/tag'
 import { fetchAiSessionDetail, type AiSessionDetail } from '../../service/aiMm'
 
 const visible = defineModel<boolean>('visible', { required: true })

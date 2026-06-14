@@ -1,11 +1,10 @@
 <script setup lang="ts">
-import Dialog from "primevue/dialog";
 import {ref, watch} from "vue";
 import {ElMessage, FormInstance} from "element-plus";
 import axios from "../../../../../../../axios";
 
-const visible = defineModel<boolean>();
-const userId = defineModel<number>("userId");
+const visible = defineModel<boolean>({default: false});
+const userId = defineModel<number | null>("userId");
 
 const form = ref({
   id: 0,

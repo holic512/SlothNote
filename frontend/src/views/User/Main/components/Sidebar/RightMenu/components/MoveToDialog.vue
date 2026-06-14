@@ -1,5 +1,15 @@
+<!--
+@file MoveToDialog
+@project SlothNote
+@module 用户端 / 笔记树移动弹窗
+@description 提供笔记或文件夹移动到目标文件夹的选择弹窗。
+@logic 1. 根据 visible 加载用户笔记树；2. 限制文件夹不能移动到自身；3. 选择目标后向父组件提交移动目标。
+@dependencies ElementPlus: ElDialog/ElTree/ElButton, API: getUserAllTreeData
+@index_tags 笔记移动, 文件夹移动, 树选择, MoveToDialog
+@author holic512
+-->
 <script setup lang="ts">
-import { ref, onMounted, onBeforeUnmount, defineProps, defineEmits, watch, computed } from 'vue';
+import { ref, onMounted, onBeforeUnmount, watch, computed } from 'vue';
 import { ElDialog, ElTree, ElButton, ElMessage, ElScrollbar } from 'element-plus';
 import { getUserAllTreeData } from '@/views/User/Main/components/Sidebar/NoteTree/service/GetUserAllTreeData';
 import { Tree } from '@/views/User/Main/components/Sidebar/NoteTree/interface/treeInterface';
@@ -56,7 +66,6 @@ const loadTreeData = async () => {
       uniqueId: 'root'
     };
     treeData.value = [rootNode];
-    console.log('树数据加载完成:', treeData.value);
   } catch (error) {
     console.error('加载笔记树失败', error);
   } finally {

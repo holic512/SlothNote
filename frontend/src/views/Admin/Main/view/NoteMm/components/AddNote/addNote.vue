@@ -1,7 +1,6 @@
 <script setup lang="ts">
 import {reactive, ref, watch} from 'vue';
 import {ElMessage, FormInstance, FormRules} from 'element-plus';
-import Dialog from 'primevue/dialog';
 import {addNote, AddNoteForm} from './addNote';
 import {fetchFolderOptions, fetchUserOptions, type FolderOption, type UserOption} from '../../service/noteMm';
 

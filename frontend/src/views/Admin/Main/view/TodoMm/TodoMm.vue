@@ -1,12 +1,5 @@
 <script setup lang="ts">
-import Button from 'primevue/button';
-import IconField from 'primevue/iconfield';
-import InputIcon from 'primevue/inputicon';
-import InputText from 'primevue/inputtext';
-import Tag from 'primevue/tag';
 import {computed, onBeforeUnmount, onMounted, ref} from 'vue';
-import DataTable from 'primevue/datatable';
-import Column from 'primevue/column';
 import axios from '../../../../../axios'; // 请确认路径
 import {ElMessage} from 'element-plus';
 import {calculateRows} from '../FolderMm/components/TableView/calculateRows';
@@ -27,16 +20,16 @@ const showTodoFilters = ref(false);
 // Category Filters
 const catQ = ref<string | null>(null);
 const catDeleted = ref<boolean | null>(null);
-const catType = ref<number | null>(null);
-const catUserId = ref<number | null>(null);
+const catType = ref<number | undefined>(undefined);
+const catUserId = ref<number | undefined>(undefined);
 const userOptions = ref<any[]>([]);
 
 // Todo Filters
 const todoQ = ref<string | null>(null);
 const todoDeleted = ref<boolean | null>(null);
 const todoStatus = ref<number | null>(null);
-const todoUserId = ref<number | null>(null);
-const todoCategoryId = ref<number | null>(null);
+const todoUserId = ref<number | undefined>(undefined);
+const todoCategoryId = ref<number | undefined>(undefined);
 
 const minHeight = 720;
 const stepHeight = 45;
@@ -45,8 +38,8 @@ const categoryCount = ref(0);
 const todoCount = ref(0);
 const maxPage = ref(1);
 const nowPage = ref(1);
-const categoryRows = ref([]);
-const todoRows = ref([]);
+const categoryRows = ref<any[]>([]);
+const todoRows = ref<any[]>([]);
 
 onMounted(async () => {
   nowRow.value = calculateRows(minHeight, stepHeight);
@@ -211,35 +204,35 @@ const openTodoDetail = (id: number) => { currentTodoId.value = id; todoDetailVis
             <div class="toolbar-top">
               <div class="group-left">
                 <IconField>
-                  <InputIcon class="pi pi-search custom-icon"/>
+                  <InputIcon icon="Search" class="custom-icon"/>
                   <InputText v-model="catQ" placeholder="Search Name" class="custom-input"/>
                 </IconField>
                 <!-- 筛选开关 -->
                 <Button 
-                  :icon="showCategoryFilters ? 'pi pi-filter-slash' : 'pi pi-filter'" 
+                  :icon="showCategoryFilters ? 'FilterSlash' : 'Filter'" 
                   :severity="showCategoryFilters ? 'primary' : 'secondary'" 
                   outlined 
                   size="small" 
                   @click="showCategoryFilters = !showCategoryFilters"
                 />
-                <Button icon="pi pi-search" severity="secondary" outlined size="small" @click="doCategorySearch"/>
+                <Button icon="Search" severity="secondary" outlined size="small" @click="doCategorySearch"/>
               </div>
 
               <div class="group-right">
-                <Button icon="pi pi-plus" severity="secondary" outlined size="small" @click="addCategoryVisible = true"/>
-                <Button icon="pi pi-trash" severity="secondary" outlined size="small" @click="batchDeleteCategory"/>
-                <Button icon="pi pi-refresh" severity="secondary" outlined size="small" @click="batchRestoreCategory"/>
-                <Button icon="pi pi-spinner" severity="secondary" outlined size="small" @click="refresh"/>
+                <Button icon="Plus" severity="secondary" outlined size="small" @click="addCategoryVisible = true"/>
+                <Button icon="Trash" severity="secondary" outlined size="small" @click="batchDeleteCategory"/>
+                <Button icon="Refresh" severity="secondary" outlined size="small" @click="batchRestoreCategory"/>
+                <Button icon="Spinner" severity="secondary" outlined size="small" @click="refresh"/>
                 
                 <div class="pagination-controls">
                   <el-divider direction="vertical" class="hidden-xs-only"/>
                   <Tag severity="info">数量: {{ categoryCount }}</Tag>
                   <Tag class="page-tag">页: {{ nowPage }}/{{ maxPage }}</Tag>
                   <div class="page-btns">
-                    <Button icon="pi pi-angle-double-left" severity="secondary" text size="small" @click="turnPage(0)"/>
-                    <Button icon="pi pi-angle-left" severity="secondary" text size="small" @click="turnPage(1)"/>
-                    <Button icon="pi pi-angle-right" severity="secondary" text size="small" @click="turnPage(2)"/>
-                    <Button icon="pi pi-angle-double-right" severity="secondary" text size="small" @click="turnPage(3)"/>
+                    <Button icon="AngleDoubleLeft" severity="secondary" text size="small" @click="turnPage(0)"/>
+                    <Button icon="AngleLeft" severity="secondary" text size="small" @click="turnPage(1)"/>
+                    <Button icon="AngleRight" severity="secondary" text size="small" @click="turnPage(2)"/>
+                    <Button icon="AngleDoubleRight" severity="secondary" text size="small" @click="turnPage(3)"/>
                   </div>
                 </div>
               </div>
@@ -254,10 +247,10 @@ const openTodoDetail = (id: number) => { currentTodoId.value = id; todoDetailVis
                   <el-option label="已删除" :value="true" />
                 </el-select>
                 <el-input-number v-model="catType" :min="0" :step="1" placeholder="类型" controls-position="right" style="width: 120px" />
-                <el-select v-model="catUserId" placeholder="选择用户" style="width: 200px" filterable remote clearable :remote-method="async (q:string)=>{ userOptions.value = await fetchUserOptions(q, 50) }" :reserve-keyword="true">
+                <el-select v-model="catUserId" placeholder="选择用户" style="width: 200px" filterable remote clearable :remote-method="async (q:string)=>{ userOptions = await fetchUserOptions(q, 50) }" :reserve-keyword="true">
                   <el-option v-for="u in userOptions" :key="u.id" :label="`${u.username} (${u.email})`" :value="u.id" />
                 </el-select>
-                <Button label="应用筛选" icon="pi pi-check" size="small" outlined @click="doCategorySearch" />
+                <Button label="应用筛选" icon="Check" size="small" outlined @click="doCategorySearch" />
               </div>
             </transition>
           </div>
@@ -277,8 +270,8 @@ const openTodoDetail = (id: number) => { currentTodoId.value = id; todoDetailVis
               <Column header="更多" headerStyle="width: 120px">
                 <template #body="{ data }">
                   <div style="display: flex; gap: 6px; align-items: center;">
-                    <Button type="button" icon="pi pi-eye" rounded outlined style=" height: 32px;width: 32px" @click="openCategoryDetail(data.id)"/>
-                    <Button type="button" icon="pi pi-trash" rounded outlined style=" height: 32px;width: 32px" @click="(async()=>{ const r = await axios.delete('admin/todoMm/category/delete', { params: { id: data.id } }); if(r.data.status===200){ ElMessage.success('删除成功'); categoryRows.value = await fetchCategoryPageData(nowRow.value, nowPage.value) } else { ElMessage.error('无法连接服务器') } })()"/>
+                    <Button type="button" icon="Eye" rounded outlined style=" height: 32px;width: 32px" @click="openCategoryDetail(data.id)"/>
+                    <Button type="button" icon="Trash" rounded outlined style=" height: 32px;width: 32px" @click="(async()=>{ const r = await axios.delete('admin/todoMm/category/delete', { params: { id: data.id } }); if(r.data.status===200){ ElMessage.success('删除成功'); categoryRows = await fetchCategoryPageData(nowRow, nowPage) } else { ElMessage.error('无法连接服务器') } })()"/>
                   </div>
                 </template>
               </Column>
@@ -293,37 +286,37 @@ const openTodoDetail = (id: number) => { currentTodoId.value = id; todoDetailVis
             <div class="toolbar-top">
               <div class="group-left">
                 <IconField>
-                  <InputIcon class="pi pi-search custom-icon"/>
+                  <InputIcon icon="Search" class="custom-icon"/>
                   <InputText v-model="todoQ" placeholder="Search Title" class="custom-input"/>
                 </IconField>
                 <!-- 筛选开关 -->
                 <Button 
-                  :icon="showTodoFilters ? 'pi pi-filter-slash' : 'pi pi-filter'" 
+                  :icon="showTodoFilters ? 'FilterSlash' : 'Filter'" 
                   :severity="showTodoFilters ? 'primary' : 'secondary'" 
                   outlined 
                   size="small" 
                   @click="showTodoFilters = !showTodoFilters"
                 />
-                <Button icon="pi pi-search" severity="secondary" outlined size="small" @click="doTodoSearch"/>
+                <Button icon="Search" severity="secondary" outlined size="small" @click="doTodoSearch"/>
               </div>
 
               <div class="group-right">
-                <Button icon="pi pi-plus" severity="secondary" outlined size="small" @click="addTodoVisible = true"/>
-                <Button icon="pi pi-trash" severity="secondary" outlined size="small" @click="batchDeleteTodo"/>
-                <Button icon="pi pi-check" severity="secondary" outlined size="small" @click="batchEnableTodo"/>
-                <Button icon="pi pi-ban" severity="secondary" outlined size="small" @click="batchDisableTodo"/>
-                <Button icon="pi pi-refresh" severity="secondary" outlined size="small" @click="batchRestoreTodo"/>
-                <Button icon="pi pi-spinner" severity="secondary" outlined size="small" @click="refresh"/>
+                <Button icon="Plus" severity="secondary" outlined size="small" @click="addTodoVisible = true"/>
+                <Button icon="Trash" severity="secondary" outlined size="small" @click="batchDeleteTodo"/>
+                <Button icon="Check" severity="secondary" outlined size="small" @click="batchEnableTodo"/>
+                <Button icon="Ban" severity="secondary" outlined size="small" @click="batchDisableTodo"/>
+                <Button icon="Refresh" severity="secondary" outlined size="small" @click="batchRestoreTodo"/>
+                <Button icon="Spinner" severity="secondary" outlined size="small" @click="refresh"/>
                 
                 <div class="pagination-controls">
                   <el-divider direction="vertical" class="hidden-xs-only"/>
                   <Tag severity="info">数量: {{ todoCount }}</Tag>
                   <Tag class="page-tag">页: {{ nowPage }}/{{ maxPage }}</Tag>
                   <div class="page-btns">
-                    <Button icon="pi pi-angle-double-left" severity="secondary" text size="small" @click="turnPage(0)"/>
-                    <Button icon="pi pi-angle-left" severity="secondary" text size="small" @click="turnPage(1)"/>
-                    <Button icon="pi pi-angle-right" severity="secondary" text size="small" @click="turnPage(2)"/>
-                    <Button icon="pi pi-angle-double-right" severity="secondary" text size="small" @click="turnPage(3)"/>
+                    <Button icon="AngleDoubleLeft" severity="secondary" text size="small" @click="turnPage(0)"/>
+                    <Button icon="AngleLeft" severity="secondary" text size="small" @click="turnPage(1)"/>
+                    <Button icon="AngleRight" severity="secondary" text size="small" @click="turnPage(2)"/>
+                    <Button icon="AngleDoubleRight" severity="secondary" text size="small" @click="turnPage(3)"/>
                   </div>
                 </div>
               </div>
@@ -343,10 +336,10 @@ const openTodoDetail = (id: number) => { currentTodoId.value = id; todoDetailVis
                   <el-option label="已删除" :value="true" />
                 </el-select>
                 <el-input-number v-model="todoCategoryId" :min="0" :step="1" placeholder="分类ID" controls-position="right" style="width: 120px" />
-                <el-select v-model="todoUserId" placeholder="选择用户" style="width: 200px" filterable remote clearable :remote-method="async (q:string)=>{ userOptions.value = await fetchUserOptions(q, 50) }" :reserve-keyword="true">
+                <el-select v-model="todoUserId" placeholder="选择用户" style="width: 200px" filterable remote clearable :remote-method="async (q:string)=>{ userOptions = await fetchUserOptions(q, 50) }" :reserve-keyword="true">
                   <el-option v-for="u in userOptions" :key="u.id" :label="`${u.username} (${u.email})`" :value="u.id" />
                 </el-select>
-                 <Button label="应用筛选" icon="pi pi-check" size="small" outlined @click="doTodoSearch" />
+                 <Button label="应用筛选" icon="Check" size="small" outlined @click="doTodoSearch" />
               </div>
             </transition>
           </div>
@@ -371,8 +364,8 @@ const openTodoDetail = (id: number) => { currentTodoId.value = id; todoDetailVis
               <Column header="更多" headerStyle="width: 120px">
                 <template #body="{ data }">
                   <div style="display: flex; gap: 6px; align-items: center;">
-                    <Button type="button" icon="pi pi-eye" rounded outlined style=" height: 32px;width: 32px" @click="openTodoDetail(data.id)"/>
-                    <Button type="button" icon="pi pi-trash" rounded outlined style=" height: 32px;width: 32px" @click="(async()=>{ const r = await axios.delete('admin/todoMm/todo/delete', { params: { id: data.id } }); if(r.data.status===200){ ElMessage.success('删除成功'); todoRows.value = await fetchTodoPageData(nowRow.value, nowPage.value) } else { ElMessage.error('无法连接服务器') } })()"/>
+                    <Button type="button" icon="Eye" rounded outlined style=" height: 32px;width: 32px" @click="openTodoDetail(data.id)"/>
+                    <Button type="button" icon="Trash" rounded outlined style=" height: 32px;width: 32px" @click="(async()=>{ const r = await axios.delete('admin/todoMm/todo/delete', { params: { id: data.id } }); if(r.data.status===200){ ElMessage.success('删除成功'); todoRows = await fetchTodoPageData(nowRow, nowPage) } else { ElMessage.error('无法连接服务器') } })()"/>
                   </div>
                 </template>
               </Column>

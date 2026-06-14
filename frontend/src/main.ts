@@ -1,11 +1,29 @@
-// main.ts
+/**
+ * @file AppMainEntry
+ * @project SlothNote
+ * @module 前端应用 / 启动入口
+ * @description 初始化 Vue 应用、路由、状态管理、Element Plus 与全局主题。
+ * @logic 1. 注册 Element Plus 与图标；2. 注册 旧组件迁移期 Element Plus 兼容组件；3. 挂载 Pinia、Router 和右键菜单插件。
+ * @dependencies Vue: createApp, ElementPlus, Pinia, VueRouter, @imengyu/vue3-context-menu
+ * @index_tags main.ts, Vue启动, ElementPlus主题, ElementPlus迁移, 全局组件
+ * @author holic512
+ */
 import {createApp} from 'vue'
 import ElementPlus from 'element-plus'
 import 'element-plus/dist/index.css'
+import './styles/index.css'
 import App from './App.vue'
 import router from './router/index.js'
 import {createPinia} from "pinia";
 import piniaPluginPersistedstate from "pinia-plugin-persistedstate";
+import CompatButton from './components/element-compat/CompatButton.vue'
+import CompatColumn from './components/element-compat/CompatColumn.vue'
+import CompatDataTable from './components/element-compat/CompatDataTable.vue'
+import CompatDialog from './components/element-compat/CompatDialog.vue'
+import CompatIconField from './components/element-compat/CompatIconField.vue'
+import CompatInputIcon from './components/element-compat/CompatInputIcon.vue'
+import CompatInputText from './components/element-compat/CompatInputText.vue'
+import CompatTag from './components/element-compat/CompatTag.vue'
 
 // context-menu-scss
 import '@imengyu/vue3-context-menu/lib/vue3-context-menu.css'
@@ -24,75 +42,15 @@ for (const [key, component] of Object.entries(ElementPlusIconsVue)) {
 const pinia = createPinia()
 pinia.use(piniaPluginPersistedstate)
 
-// 配置primeVue
-import PrimeVue from 'primevue/config';
-import Aura from '@primevue/themes/aura';
-import {definePreset} from "@primevue/themes";
-import Tooltip from 'primevue/tooltip';
-import Tree from 'primevue/tree';
-import Card from 'primevue/card';
-import ListBox from 'primevue/listbox';
-
-app.component('Card', Card);
-app.component('ListBox', ListBox);
-app.directive('tooltip', Tooltip);
-app.component('Tree', Tree);
-import 'primeicons/primeicons.css'
-
-const Noir = definePreset(Aura, {
-    semantic: {
-        primary: {
-            50: '{zinc.50}',
-            100: '{zinc.100}',
-            200: '{zinc.200}',
-            300: '{zinc.300}',
-            400: '{zinc.400}',
-            500: '{zinc.500}',
-            600: '{zinc.600}',
-            700: '{zinc.700}',
-            800: '{zinc.800}',
-            900: '{zinc.900}',
-            950: '{zinc.950}'
-        },
-        colorScheme: {
-            light: {
-                primary: {
-                    color: '{zinc.950}',
-                    inverseColor: '#ffffff',
-                    hoverColor: '{zinc.900}',
-                    activeColor: '{zinc.800}'
-                },
-                highlight: {
-                    background: '{zinc.950}',
-                    focusBackground: '{zinc.700}',
-                    color: '#ffffff',
-                    focusColor: '#ffffff'
-                }
-            },
-            dark: {
-                primary: {
-                    color: '{zinc.50}',
-                    inverseColor: '{zinc.950}',
-                    hoverColor: '{zinc.100}',
-                    activeColor: '{zinc.200}'
-                },
-                highlight: {
-                    background: 'rgba(250, 250, 250, .16)',
-                    focusBackground: 'rgba(250, 250, 250, .24)',
-                    color: 'rgba(255,255,255,.87)',
-                    focusColor: 'rgba(255,255,255,.87)'
-                }
-            }
-        }
-    }
-});
-
-app.use(PrimeVue, {
-    // Default theme configuration
-    theme: {
-        preset: Noir,
-    }
-});
+// 旧组件迁移期兼容组件，内部全部使用 Element Plus 渲染。
+app.component('Button', CompatButton)
+app.component('Column', CompatColumn)
+app.component('DataTable', CompatDataTable)
+app.component('Dialog', CompatDialog)
+app.component('IconField', CompatIconField)
+app.component('InputIcon', CompatInputIcon)
+app.component('InputText', CompatInputText)
+app.component('Tag', CompatTag)
 
 // 配置 vue3-context-menu 右键菜单
 import '@imengyu/vue3-context-menu/lib/vue3-context-menu.css'

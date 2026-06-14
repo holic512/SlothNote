@@ -4,20 +4,12 @@
 @module 管理后台 / 仪表盘
 @description 展示系统指标、图表和近期管理数据列表。
 @logic 1. 加载仪表盘指标与近期数据；2. 初始化并维护 ECharts 图表；3. 支持按评论、待办、笔记分类筛选与批量操作。
-@dependencies API: admin/dashboard/*, Component: PrimeVue DataTable, Library: ECharts
+@dependencies API: admin/dashboard/*, Component: Element Plus table compatibility, Library: ECharts
 @index_tags 仪表盘, 后台首页, 数据统计, 近期数据, 单选筛选
 @author holic512
 -->
 <script setup lang="ts">
 import { onMounted, ref, computed, watch, onUnmounted, nextTick } from "vue";
-// PrimeVue Components
-import Button from 'primevue/button';
-import DataTable from 'primevue/datatable';
-import Column from 'primevue/column';
-import IconField from 'primevue/iconfield';
-import InputIcon from 'primevue/inputicon';
-import InputText from "primevue/inputtext";
-import Tag from 'primevue/tag';
 // Element Plus
 import { ElMessage } from "element-plus";
 // ECharts
@@ -94,14 +86,14 @@ const favoriteCoverage = computed(() => {
 });
 
 const metricCards = computed<MetricCard[]>(() => [
-  { key: 'user', label: '用户总数', value: toCount(metrics.value.userCount), icon: 'pi pi-users', tone: 'blue', helper: '平台注册账户' },
-  { key: 'note', label: '笔记总数', value: toCount(metrics.value.noteCount), icon: 'pi pi-book', tone: 'green', helper: '已创建笔记' },
-  { key: 'folder', label: '文件夹数', value: toCount(metrics.value.folderCount), icon: 'pi pi-folder', tone: 'slate', helper: '笔记归档结构' },
-  { key: 'comment', label: '评论总数', value: toCount(metrics.value.commentCount), icon: 'pi pi-comments', tone: 'amber', helper: '内容互动量' },
-  { key: 'todo', label: '待办事项', value: toCount(metrics.value.todoCount), icon: 'pi pi-check-square', tone: 'violet', helper: '用户任务记录' },
-  { key: 'favoriteNote', label: '收藏笔记', value: toCount(metrics.value.favoriteNoteCount), icon: 'pi pi-star', tone: 'cyan', helper: '被收藏内容' },
-  { key: 'favoriteFolder', label: '收藏文件夹', value: toCount(metrics.value.favoriteFolderCount), icon: 'pi pi-bookmark', tone: 'rose', helper: '被收藏目录' },
-  { key: 'content', label: '内容总量', value: contentTotal.value, icon: 'pi pi-database', tone: 'indigo', helper: '笔记/评论/文件夹/待办' },
+  { key: 'user', label: '用户总数', value: toCount(metrics.value.userCount), icon: 'Users', tone: 'blue', helper: '平台注册账户' },
+  { key: 'note', label: '笔记总数', value: toCount(metrics.value.noteCount), icon: 'Book', tone: 'green', helper: '已创建笔记' },
+  { key: 'folder', label: '文件夹数', value: toCount(metrics.value.folderCount), icon: 'Folder', tone: 'slate', helper: '笔记归档结构' },
+  { key: 'comment', label: '评论总数', value: toCount(metrics.value.commentCount), icon: 'Comments', tone: 'amber', helper: '内容互动量' },
+  { key: 'todo', label: '待办事项', value: toCount(metrics.value.todoCount), icon: 'CheckSquare', tone: 'violet', helper: '用户任务记录' },
+  { key: 'favoriteNote', label: '收藏笔记', value: toCount(metrics.value.favoriteNoteCount), icon: 'Star', tone: 'cyan', helper: '被收藏内容' },
+  { key: 'favoriteFolder', label: '收藏文件夹', value: toCount(metrics.value.favoriteFolderCount), icon: 'Bookmark', tone: 'rose', helper: '被收藏目录' },
+  { key: 'content', label: '内容总量', value: contentTotal.value, icon: 'Database', tone: 'indigo', helper: '笔记/评论/文件夹/待办' },
 ]);
 
 const dashboardFacts = computed(() => [
@@ -272,7 +264,11 @@ const tableColumns = computed(() => {
       <!-- 2. 关键指标卡片区 (Grid Layout) -->
       <div class="metrics-grid">
         <div v-for="item in metricCards" :key="item.key" class="metric-card" :class="`tone-${item.tone}`">
-          <div class="metric-icon"><i :class="item.icon"></i></div>
+          <div class="metric-icon">
+            <el-icon>
+              <component :is="item.icon" />
+            </el-icon>
+          </div>
           <div class="metric-info">
             <span class="label">{{ item.label }}</span>
             <span class="value">{{ item.value }}</span>
@@ -309,8 +305,8 @@ const tableColumns = computed(() => {
             </el-radio-group>
 
             <IconField class="search-field">
-              <InputIcon class="pi pi-search"/>
-              <InputText v-model="q" placeholder="搜索关键词..." class="p-inputtext-sm" @keydown.enter="handleDebouncedLoad"/>
+              <InputIcon icon="Search"/>
+              <InputText v-model="q" placeholder="搜索关键词..." class="compact-input" @keydown.enter="handleDebouncedLoad"/>
             </IconField>
           </div>
 
@@ -322,13 +318,13 @@ const tableColumns = computed(() => {
                 <el-option label="有效" :value="false"/>
                 <el-option label="已删除" :value="true"/>
               </el-select>
-              <Button icon="pi pi-filter" rounded outlined size="small" @click="handleDebouncedLoad"/>
+              <Button icon="Filter" rounded outlined size="small" @click="handleDebouncedLoad"/>
             </div>
 
             <div class="action-group" v-if="selected.length > 0">
-              <Button v-if="category === 'todo'" label="启用" icon="pi pi-check" severity="success" size="small" @click="enableSelected" text bg/>
-              <Button v-if="category === 'todo'" label="禁用" icon="pi pi-ban" severity="warning" size="small" @click="disableSelected" text bg/>
-              <Button label="删除" icon="pi pi-trash" severity="danger" size="small" @click="batchDelete" text bg/>
+              <Button v-if="category === 'todo'" label="启用" icon="Check" severity="success" size="small" @click="enableSelected" text bg/>
+              <Button v-if="category === 'todo'" label="禁用" icon="Ban" severity="warning" size="small" @click="disableSelected" text bg/>
+              <Button label="删除" icon="Trash" severity="danger" size="small" @click="batchDelete" text bg/>
             </div>
           </div>
         </div>
@@ -352,7 +348,7 @@ const tableColumns = computed(() => {
 
           <Column header="操作" headerStyle="width: 80px" alignFrozen="right" frozen>
             <template #body="{ data }">
-              <Button icon="pi pi-trash" text rounded severity="danger" size="small" 
+              <Button icon="Trash" text rounded severity="danger" size="small" 
                 @click="(async()=>{ 
                   let s=500; 
                   if(category==='todo'){ s=await todoDelete(data.id) } 

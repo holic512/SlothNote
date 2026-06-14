@@ -1,5 +1,15 @@
+<!--
+@file UserProfileInitDialog
+@project SlothNote
+@module 用户端 / 资料初始化引导
+@description 提供首次进入用户端时的资料初始化步骤弹窗。
+@logic 1. 通过 defineModel 接收父组件显示状态；2. 在欢迎、资料、功能介绍步骤间切换；3. 完成或跳过时关闭弹窗并记录本地完成状态。
+@dependencies ElementPlus: el-steps/el-button, Component: WelcomePage/ProfileSetup/FeatureGuide
+@index_tags 用户资料初始化, v-model, 引导弹窗, 首次进入
+@author holic512
+-->
 <script setup lang="ts">
-import {ref, onMounted} from 'vue';
+import {ref} from 'vue';
 import {ElMessage} from 'element-plus';
 import WelcomePage from './components/WelcomePage.vue';
 import ProfileSetup from './components/ProfileSetup.vue';
@@ -17,7 +27,7 @@ const steps: StepConfig[] = [
 ];
 
 // 控制整个引导流程的显示
-const UserProfileInitVis = ref(false);
+const UserProfileInitVis = defineModel<boolean>({default: false});
 
 // 当前步骤（0: 欢迎页面, 1: 个人信息, 2: 功能指导）
 const currentStep = ref(0);
@@ -66,6 +76,7 @@ const skipInitialization = () => {
     message: '已跳过引导，你可以在设置中重新查看',
     type: 'info'
   });
+  completeInitialization();
 };
 
 

@@ -1,6 +1,15 @@
+<!--
+@file UserCompactSidebar
+@project SlothNote
+@module 用户端 / 折叠侧边栏
+@description 提供用户端折叠状态下的主导航图标入口。
+@logic 1. 控制左侧面板展开；2. 跳转首页、待办并打开搜索；3. 使用 Element Plus 图标替代 PrimeIcons。
+@dependencies Store: useUserPreferencesStore/useSearchDialogStore, VueRouter: useRouter, ElementPlus: el-icon
+@index_tags 折叠侧边栏, 用户导航, ElementPlus图标
+@author holic512
+-->
 <script setup lang="ts">
 
-import Button from "primevue/button";
 import {useUserPreferencesStore} from "@/views/User/Main/Pinia/userPreferencesStore";
 import {useRouter} from "vue-router";
 import {useSearchDialogStore} from './Pinia/SearchDialogStore';
@@ -27,27 +36,27 @@ const openSearch = () => { searchStore.open(); };
 
     <!--  缩放按钮  -->
     <div class="sidebar-div" @click="LeftPanelState.toggleLeftPanel()">
-      <i class="pi pi-angle-double-right" style="font-size: 1rem;color: #708090"/>
+      <el-icon class="sidebar-svg-icon"><DArrowRight /></el-icon>
     </div>
 
     <!--  主页  -->
     <div class="sidebar-div" style="margin-bottom: 1px;" @click="router.push('/user/main/home')">
-      <i class="pi pi-home" style="font-size: 1rem;color: #708090"/>
+      <el-icon class="sidebar-svg-icon"><HomeFilled /></el-icon>
     </div>
 
     <!--  搜索  -->
     <div class="sidebar-div" style="margin-bottom: 1px;" @click="openSearch">
-      <i class="pi pi-search" style="font-size: 1rem;color: #708090"/>
+      <el-icon class="sidebar-svg-icon"><Search /></el-icon>
     </div>
 
     <!--  待做  -->
     <div class="sidebar-div" style="margin-bottom: 1px;" @click="router.push('/user/main/todolist')">
-      <i class="pi pi-calendar" style="font-size: 1rem;color: #708090"/>
+      <el-icon class="sidebar-svg-icon"><Tickets /></el-icon>
     </div>
 
     <!--  收件箱  -->
     <div class="sidebar-div" style="margin-bottom: 1px;">
-      <i class="pi pi-inbox" style="font-size: 1rem;color: #708090"/>
+      <el-icon class="sidebar-svg-icon"><MessageBox /></el-icon>
     </div>
 
   </div>
@@ -85,6 +94,11 @@ const openSearch = () => { searchStore.open(); };
 
 .sidebar-div:hover {
   background-color: #EFEFED;
+}
+
+.sidebar-svg-icon {
+  color: #708090;
+  font-size: 16px;
 }
 
 </style>

@@ -1,0 +1,61 @@
+/**
+ * @file NeutralThemeTokens
+ * @project SlothNote
+ * @module 前端样式 / 主题变量
+ * @description 定义黑白中性色主题变量，并映射 Element Plus 常用 CSS 变量。
+ * @logic 1. 建立 SlothNote 设计变量；2. 覆盖 Element Plus 颜色、边框、圆角、阴影、填充变量；3. 保持轻量 CSS 变量主题。
+ * @dependencies ElementPlus CSS Variables
+ * @index_tags 主题变量, 黑白风格, 中性色, ElementPlus变量
+ * @author holic512
+ */
+:root {
+  --sn-color-black: #0f0f10;
+  --sn-color-white: #ffffff;
+  --sn-gray-50: #fafafa;
+  --sn-gray-100: #f4f4f5;
+  --sn-gray-200: #e4e4e7;
+  --sn-gray-300: #d4d4d8;
+  --sn-gray-500: #71717a;
+  --sn-gray-700: #3f3f46;
+  --sn-gray-900: #18181b;
+
+  --sn-bg-page: #f7f7f8;
+  --sn-bg-surface: #ffffff;
+  --sn-bg-muted: #f4f4f5;
+  --sn-text-primary: #18181b;
+  --sn-text-regular: #3f3f46;
+  --sn-text-muted: #71717a;
+  --sn-border: #e4e4e7;
+  --sn-border-strong: #d4d4d8;
+  --sn-primary: #18181b;
+  --sn-primary-hover: #27272a;
+  --sn-primary-active: #3f3f46;
+  --sn-radius-base: 6px;
+  --sn-radius-lg: 8px;
+  --sn-shadow-sm: 0 1px 2px rgba(15, 15, 16, 0.04);
+  --sn-shadow-md: 0 8px 24px rgba(15, 15, 16, 0.08);
+
+  --el-color-primary: var(--sn-primary);
+  --el-color-primary-light-3: var(--sn-primary-hover);
+  --el-color-primary-light-5: #52525b;
+  --el-color-primary-light-7: #a1a1aa;
+  --el-color-primary-light-8: #d4d4d8;
+  --el-color-primary-light-9: #f4f4f5;
+  --el-color-primary-dark-2: #000000;
+  --el-bg-color: var(--sn-bg-surface);
+  --el-bg-color-page: var(--sn-bg-page);
+  --el-bg-color-overlay: var(--sn-bg-surface);
+  --el-fill-color: var(--sn-gray-100);
+  --el-fill-color-light: var(--sn-gray-50);
+  --el-fill-color-lighter: var(--sn-gray-50);
+  --el-fill-color-blank: var(--sn-color-white);
+  --el-text-color-primary: var(--sn-text-primary);
+  --el-text-color-regular: var(--sn-text-regular);
+  --el-text-color-secondary: var(--sn-text-muted);
+  --el-border-color: var(--sn-border);
+  --el-border-color-light: var(--sn-border);
+  --el-border-color-lighter: var(--sn-gray-100);
+  --el-border-radius-base: var(--sn-radius-base);
+  --el-border-radius-small: 4px;
+  --el-box-shadow-light: var(--sn-shadow-md);
+}

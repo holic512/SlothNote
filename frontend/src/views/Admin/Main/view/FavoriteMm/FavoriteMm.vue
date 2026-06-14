@@ -1,12 +1,5 @@
 <script setup lang="ts">
-import Button from 'primevue/button';
-import IconField from 'primevue/iconfield';
-import InputIcon from 'primevue/inputicon';
-import InputText from 'primevue/inputtext';
-import Tag from 'primevue/tag';
 import {computed, onBeforeUnmount, onMounted, ref} from 'vue';
-import DataTable from 'primevue/datatable';
-import Column from 'primevue/column';
 import axios from '../../../../../axios'; // 请根据实际路径调整
 import {ElMessage} from 'element-plus';
 // 请确保以下导入路径正确
@@ -28,15 +21,15 @@ const showNoteFilters = ref(false);
 // Folder Filters
 const value1 = ref<string | null>(null);
 const isDeletedFilter = ref<boolean | null>(null);
-const parentIdFilter = ref<number | null>(null);
-const userIdFilter = ref<number | null>(null);
+const parentIdFilter = ref<number | undefined>(undefined);
+const userIdFilter = ref<number | undefined>(undefined);
 const userOptions = ref<any[]>([]);
 
 // Note Filters
 const noteQ = ref<string | null>(null);
-const noteUserIdFilter = ref<number | null>(null);
-const noteFolderIdFilter = ref<number | null>(null);
-const noteIdFilter = ref<number | null>(null); // 补充原代码中遗漏的定义
+const noteUserIdFilter = ref<number | undefined>(undefined);
+const noteFolderIdFilter = ref<number | undefined>(undefined);
+const noteIdFilter = ref<number | undefined>(undefined); // 补充原代码中遗漏的定义
 const noteStatusFilter = ref<boolean | null>(null);
 const noteIsDeletedFilter = ref<boolean | null>(null);
 
@@ -49,8 +42,8 @@ const noteCount = ref(0);
 const maxPage = ref(1);
 const nowPage = ref(1);
 
-const folderRows = ref([]);
-const noteRows = ref([]);
+const folderRows = ref<any[]>([]);
+const noteRows = ref<any[]>([]);
 
 // ... (onMounted, handleResize, turnPage, refresh 等逻辑保持不变) ...
 // 为了节省篇幅，逻辑部分未变动，直接复用你原本的代码逻辑即可
@@ -219,35 +212,35 @@ const openNoteDetail = (id: number) => { currentNoteId.value = id; noteDetailVis
             <div class="toolbar-top">
               <div class="group-left">
                 <IconField>
-                  <InputIcon class="pi pi-search custom-icon"/>
+                  <InputIcon icon="Search" class="custom-icon"/>
                   <InputText v-model="value1" placeholder="Search Name" class="custom-input"/>
                 </IconField>
                 <!-- 筛选开关按钮 -->
                 <Button 
-                  :icon="showFolderFilters ? 'pi pi-filter-slash' : 'pi pi-filter'" 
+                  :icon="showFolderFilters ? 'FilterSlash' : 'Filter'" 
                   :severity="showFolderFilters ? 'primary' : 'secondary'" 
                   outlined 
                   size="small" 
                   @click="showFolderFilters = !showFolderFilters"
                   v-tooltip="'高级筛选'"
                 />
-                <Button icon="pi pi-search" severity="secondary" outlined size="small" @click="doFolderSearch"/>
+                <Button icon="Search" severity="secondary" outlined size="small" @click="doFolderSearch"/>
               </div>
 
               <div class="group-right">
-                <Button icon="pi pi-plus" severity="secondary" outlined size="small" @click="addFavoriteFolderVisible = true"/>
-                <Button icon="pi pi-trash" severity="secondary" outlined size="small" @click="batchDeleteFolder"/>
-                <Button icon="pi pi-refresh" severity="secondary" outlined size="small" @click="batchRestoreFolder"/>
-                <Button icon="pi pi-spinner" severity="secondary" outlined size="small" @click="refresh"/>
+                <Button icon="Plus" severity="secondary" outlined size="small" @click="addFavoriteFolderVisible = true"/>
+                <Button icon="Trash" severity="secondary" outlined size="small" @click="batchDeleteFolder"/>
+                <Button icon="Refresh" severity="secondary" outlined size="small" @click="batchRestoreFolder"/>
+                <Button icon="Spinner" severity="secondary" outlined size="small" @click="refresh"/>
                 <div class="pagination-controls">
                   <el-divider direction="vertical" class="hidden-xs-only"/>
                   <Tag severity="info">数量: {{ folderCount }}</Tag>
                   <Tag class="page-tag">页: {{ nowPage }}/{{ maxPage }}</Tag>
                   <div class="page-btns">
-                    <Button icon="pi pi-angle-double-left" severity="secondary" text size="small" @click="turnPage(0)"/>
-                    <Button icon="pi pi-angle-left" severity="secondary" text size="small" @click="turnPage(1)"/>
-                    <Button icon="pi pi-angle-right" severity="secondary" text size="small" @click="turnPage(2)"/>
-                    <Button icon="pi pi-angle-double-right" severity="secondary" text size="small" @click="turnPage(3)"/>
+                    <Button icon="AngleDoubleLeft" severity="secondary" text size="small" @click="turnPage(0)"/>
+                    <Button icon="AngleLeft" severity="secondary" text size="small" @click="turnPage(1)"/>
+                    <Button icon="AngleRight" severity="secondary" text size="small" @click="turnPage(2)"/>
+                    <Button icon="AngleDoubleRight" severity="secondary" text size="small" @click="turnPage(3)"/>
                   </div>
                 </div>
               </div>
@@ -262,11 +255,11 @@ const openNoteDetail = (id: number) => { currentNoteId.value = id; noteDetailVis
                   <el-option label="已删除" :value="true" />
                 </el-select>
                 <el-input-number v-model="parentIdFilter" :min="0" :step="1" placeholder="父ID" controls-position="right" style="width: 120px" />
-                <el-select v-model="userIdFilter" placeholder="选择用户" style="width: 200px" filterable remote clearable :remote-method="async (q:string)=>{ userOptions.value = await fetchUserOptions(q, 50) }" :reserve-keyword="true">
+                <el-select v-model="userIdFilter" placeholder="选择用户" style="width: 200px" filterable remote clearable :remote-method="async (q:string)=>{ userOptions = await fetchUserOptions(q, 50) }" :reserve-keyword="true">
                   <el-option v-for="u in userOptions" :key="u.id" :label="`${u.username} (${u.email})`" :value="u.id" />
                 </el-select>
                 <!-- 在筛选栏也可以放一个搜索按钮，方便操作 -->
-                <Button label="应用筛选" icon="pi pi-check" size="small" outlined @click="doFolderSearch" />
+                <Button label="应用筛选" icon="Check" size="small" outlined @click="doFolderSearch" />
               </div>
             </transition>
           </div>
@@ -287,8 +280,8 @@ const openNoteDetail = (id: number) => { currentNoteId.value = id; noteDetailVis
               <Column header="更多" headerStyle="width: 120px">
                 <template #body="{ data }">
                   <div style="display: flex; gap: 6px; align-items: center;">
-                    <Button type="button" icon="pi pi-eye" rounded outlined style=" height: 32px;width: 32px" @click="openFolderDetail(data.id)"/>
-                    <Button type="button" icon="pi pi-trash" rounded outlined style=" height: 32px;width: 32px" @click="(async()=>{ const r = await axios.delete('admin/favoriteMm/folder/delete', { params: { id: data.id } }); if(r.data.status===200){ ElMessage.success('删除成功'); folderRows.value = await fetchFolderPageData(nowRow.value, nowPage.value) } else { ElMessage.error('无法连接服务器') } })()"/>
+                    <Button type="button" icon="Eye" rounded outlined style=" height: 32px;width: 32px" @click="openFolderDetail(data.id)"/>
+                    <Button type="button" icon="Trash" rounded outlined style=" height: 32px;width: 32px" @click="(async()=>{ const r = await axios.delete('admin/favoriteMm/folder/delete', { params: { id: data.id } }); if(r.data.status===200){ ElMessage.success('删除成功'); folderRows = await fetchFolderPageData(nowRow, nowPage) } else { ElMessage.error('无法连接服务器') } })()"/>
                   </div>
                 </template>
               </Column>
@@ -302,37 +295,37 @@ const openNoteDetail = (id: number) => { currentNoteId.value = id; noteDetailVis
              <div class="toolbar-top">
               <div class="group-left">
                 <IconField>
-                  <InputIcon class="pi pi-search custom-icon"/>
+                  <InputIcon icon="Search" class="custom-icon"/>
                   <InputText v-model="noteQ" placeholder="Search Note" class="custom-input"/>
                 </IconField>
                 <!-- 筛选开关 -->
                 <Button 
-                  :icon="showNoteFilters ? 'pi pi-filter-slash' : 'pi pi-filter'" 
+                  :icon="showNoteFilters ? 'FilterSlash' : 'Filter'" 
                   :severity="showNoteFilters ? 'primary' : 'secondary'" 
                   outlined 
                   size="small" 
                   @click="showNoteFilters = !showNoteFilters"
                 />
-                <Button icon="pi pi-search" severity="secondary" outlined size="small" @click="doNoteSearch"/>
+                <Button icon="Search" severity="secondary" outlined size="small" @click="doNoteSearch"/>
               </div>
 
               <div class="group-right">
-                <Button icon="pi pi-plus" severity="secondary" outlined size="small" @click="addFavoriteNoteVisible = true"/>
-                <Button icon="pi pi-trash" severity="secondary" outlined size="small" @click="batchDeleteNote"/>
-                <Button icon="pi pi-check" severity="secondary" outlined size="small" @click="batchEnableNote"/>
-                <Button icon="pi pi-ban" severity="secondary" outlined size="small" @click="batchDisableNote"/>
-                <Button icon="pi pi-refresh" severity="secondary" outlined size="small" @click="batchRestoreNote"/>
-                <Button icon="pi pi-spinner" severity="secondary" outlined size="small" @click="refresh"/>
+                <Button icon="Plus" severity="secondary" outlined size="small" @click="addFavoriteNoteVisible = true"/>
+                <Button icon="Trash" severity="secondary" outlined size="small" @click="batchDeleteNote"/>
+                <Button icon="Check" severity="secondary" outlined size="small" @click="batchEnableNote"/>
+                <Button icon="Ban" severity="secondary" outlined size="small" @click="batchDisableNote"/>
+                <Button icon="Refresh" severity="secondary" outlined size="small" @click="batchRestoreNote"/>
+                <Button icon="Spinner" severity="secondary" outlined size="small" @click="refresh"/>
                 
                 <div class="pagination-controls">
                    <el-divider direction="vertical" class="hidden-xs-only"/>
                   <Tag severity="info">数量: {{ noteCount }}</Tag>
                   <Tag class="page-tag">页: {{ nowPage }}/{{ maxPage }}</Tag>
                   <div class="page-btns">
-                    <Button icon="pi pi-angle-double-left" severity="secondary" text size="small" @click="turnPage(0)"/>
-                    <Button icon="pi pi-angle-left" severity="secondary" text size="small" @click="turnPage(1)"/>
-                    <Button icon="pi pi-angle-right" severity="secondary" text size="small" @click="turnPage(2)"/>
-                    <Button icon="pi pi-angle-double-right" severity="secondary" text size="small" @click="turnPage(3)"/>
+                    <Button icon="AngleDoubleLeft" severity="secondary" text size="small" @click="turnPage(0)"/>
+                    <Button icon="AngleLeft" severity="secondary" text size="small" @click="turnPage(1)"/>
+                    <Button icon="AngleRight" severity="secondary" text size="small" @click="turnPage(2)"/>
+                    <Button icon="AngleDoubleRight" severity="secondary" text size="small" @click="turnPage(3)"/>
                   </div>
                 </div>
               </div>
@@ -353,10 +346,10 @@ const openNoteDetail = (id: number) => { currentNoteId.value = id; noteDetailVis
                 </el-select>
                 <el-input-number v-model="noteFolderIdFilter" :min="0" :step="1" placeholder="收藏夹ID" controls-position="right" style="width: 120px" />
                 <el-input-number v-model="noteIdFilter" :min="0" :step="1" placeholder="笔记ID" controls-position="right" style="width: 120px" />
-                <el-select v-model="noteUserIdFilter" placeholder="选择用户" style="width: 200px" filterable remote clearable :remote-method="async (q:string)=>{ userOptions.value = await fetchUserOptions(q, 50) }" :reserve-keyword="true">
+                <el-select v-model="noteUserIdFilter" placeholder="选择用户" style="width: 200px" filterable remote clearable :remote-method="async (q:string)=>{ userOptions = await fetchUserOptions(q, 50) }" :reserve-keyword="true">
                   <el-option v-for="u in userOptions" :key="u.id" :label="`${u.username} (${u.email})`" :value="u.id" />
                 </el-select>
-                <Button label="应用筛选" icon="pi pi-check" size="small" outlined @click="doNoteSearch" />
+                <Button label="应用筛选" icon="Check" size="small" outlined @click="doNoteSearch" />
               </div>
              </transition>
           </div>
@@ -382,8 +375,8 @@ const openNoteDetail = (id: number) => { currentNoteId.value = id; noteDetailVis
               <Column header="更多" headerStyle="width: 120px">
                 <template #body="{ data }">
                   <div style="display: flex; gap: 6px; align-items: center;">
-                    <Button type="button" icon="pi pi-eye" rounded outlined style=" height: 32px;width: 32px" @click="openNoteDetail(data.id)"/>
-                    <Button type="button" icon="pi pi-trash" rounded outlined style=" height: 32px;width: 32px" @click="(async()=>{ const r = await axios.delete('admin/favoriteMm/note/delete', { params: { id: data.id } }); if(r.data.status===200){ ElMessage.success('删除成功'); noteRows.value = await fetchNotePageData(nowRow.value, nowPage.value) } else { ElMessage.error('无法连接服务器') } })()"/>
+                    <Button type="button" icon="Eye" rounded outlined style=" height: 32px;width: 32px" @click="openNoteDetail(data.id)"/>
+                    <Button type="button" icon="Trash" rounded outlined style=" height: 32px;width: 32px" @click="(async()=>{ const r = await axios.delete('admin/favoriteMm/note/delete', { params: { id: data.id } }); if(r.data.status===200){ ElMessage.success('删除成功'); noteRows = await fetchNotePageData(nowRow, nowPage) } else { ElMessage.error('无法连接服务器') } })()"/>
                   </div>
                 </template>
               </Column>

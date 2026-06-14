@@ -1,8 +1,17 @@
+<!--
+@file UserAccountInfo
+@project SlothNote
+@module 用户端 / 账号设置
+@description 展示并编辑当前用户头像、昵称、性别、年龄、联系方式、简介和密码。
+@logic 1. 加载账号资料；2. 分项切换编辑状态并保存；3. 上传头像与修改密码。
+@dependencies Service: getUserInfo/putNickname/putGender/putAge/putContactInfo/putBio/putAvatar/putPassword
+@index_tags 用户资料, 账号设置, 头像上传, 修改密码
+@author holic512
+-->
 <script setup lang="ts">
 import {onMounted, ref} from 'vue';
-import Button from 'primevue/button';
 import {Edit} from '@element-plus/icons-vue';
-import {AccountInfo, fetchAccountInfo} from "@/views/User/Main/components/Setting/service/getUserInfo.ts";
+import {AccountInfo, fetchAccountInfo} from "@/views/User/Main/components/Setting/service/getUserInfo";
 import {putNickname} from "@/views/User/Main/components/Setting/service/putNickname";
 import {ElMessage} from "element-plus";
 import {putGender} from "@/views/User/Main/components/Setting/service/putGender";

@@ -1,11 +1,10 @@
 <script setup lang="ts">
-import Dialog from 'primevue/dialog';
 import {ref, watch} from 'vue';
 import axios from '../../../../../../../axios';
 import {ElMessage} from 'element-plus';
 
-const visible = defineModel();
-const folderId = defineModel<number>('folderId');
+const visible = defineModel<boolean>({default: false});
+const folderId = defineModel<number | null>('folderId');
 
 const detail = ref<any>(null);
 
@@ -50,7 +49,7 @@ const onSave = async () => {
       </el-form>
       <div style="padding: 0 16px 0 16px">
         <el-button color="#020617" @click="onSave">保存</el-button>
-        <el-button type="info" @click="()=>{ visible.value=false }" plain>取消</el-button>
+        <el-button type="info" @click="visible = false" plain>取消</el-button>
       </div>
     </div>
   </Dialog>

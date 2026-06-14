@@ -1,9 +1,5 @@
 <script setup lang="ts">
 //组件加载
-import Button from 'primevue/button';
-import Dialog from "primevue/dialog";
-import DataTable from "primevue/datatable"
-import Column from 'primevue/column';
 import {ref, watch} from "vue";
 import {fetchPageData} from "./fetchPageData";
 import {logout} from "./logout";
@@ -71,7 +67,7 @@ const kickoutR = async (uid: number) => {
 
       <Column header="更多" headerStyle="width: 8%">
         <template #body>
-          <Button type="button" icon="pi pi-ellipsis-h" rounded outlined style=" height: 32px;width: 32px"/>
+          <Button type="button" icon="Ellipsis" rounded outlined style=" height: 32px;width: 32px"/>
         </template>
       </Column>
 

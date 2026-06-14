@@ -12,7 +12,6 @@
 import { computed, ref } from 'vue';
 import { ElMessage } from 'element-plus';
 import { initAdmin, login, verCode } from "../services/login";
-import InputOtp from 'primevue/inputotp';
 import { useRouter } from 'vue-router';
 import { Lock, Message, Monitor } from '@element-plus/icons-vue';
 
@@ -186,7 +185,14 @@ const backToLogin = () => {
           </div>
 
           <div class="otp-container">
-            <InputOtp v-model="codeValue" integerOnly :length="6" />
+            <el-input
+                v-model="codeValue"
+                maxlength="6"
+                inputmode="numeric"
+                class="verification-code-input"
+                placeholder="000000"
+                @keyup.enter="verifyLogin"
+            />
           </div>
 
           <el-button
@@ -441,26 +447,12 @@ const backToLogin = () => {
   margin-bottom: 24px;
 }
 
-/* 深度修改 PrimeVue OTP 样式 */
-:deep(.p-inputotp-input) {
-  width: 42px;
+:deep(.verification-code-input .el-input__inner) {
   height: 48px;
-  font-size: 20px;
   text-align: center;
-  border: 1px solid #E0E0E0;
-  border-radius: 6px;
-  background-color: #FAFAFA;
-  color: #333;
+  font-size: 20px;
   font-weight: 600;
-  margin: 0 4px;
-  transition: all 0.2s;
-}
-
-:deep(.p-inputotp-input:focus) {
-  border-color: #333;
-  background-color: #fff;
-  outline: none;
-  box-shadow: 0 0 0 2px rgba(0,0,0,0.1);
+  letter-spacing: 8px;
 }
 
 /* 6. 动画 */

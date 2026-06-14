@@ -1,12 +1,5 @@
 <script setup lang="ts">
-import Button from 'primevue/button';
-import IconField from 'primevue/iconfield';
-import InputIcon from 'primevue/inputicon';
-import InputText from 'primevue/inputtext';
-import Tag from 'primevue/tag';
 import {computed, onBeforeUnmount, onMounted, ref} from 'vue';
-import DataTable from 'primevue/datatable';
-import Column from 'primevue/column';
 import axios from '../../../../../axios'; // 请确认路径
 import fetchInitialPageData from './components/TableView/fetchInitialPageData';
 import {fetchPageData} from './components/TableView/fetchPageData';
@@ -23,8 +16,8 @@ const showFilters = ref(false);
 
 const value1 = ref<string | null>(null);
 const isDeletedFilter = ref<number | null>(null);
-const parentIdFilter = ref<number | null>(null);
-const userIdFilter = ref<number | null>(null);
+const parentIdFilter = ref<number | undefined>(undefined);
+const userIdFilter = ref<number | undefined>(undefined);
 const userOptions = ref<any[]>([]);
 
 const minHeight = 720;
@@ -33,7 +26,7 @@ let nowRow = ref(10);
 const folderCount = ref(0);
 const maxPage = ref(1);
 const nowPage = ref(1);
-const products = ref([]);
+const products = ref<any[]>([]);
 
 onMounted(async () => {
   nowRow.value = calculateRows(minHeight, stepHeight);
@@ -176,13 +169,13 @@ const getDeletedType = (d: number) => (d === 1 ? 'danger' : 'success');
           <!-- 左侧：搜索 + 筛选开关 -->
           <div class="group-left">
             <IconField>
-              <InputIcon class="pi pi-search custom-icon"/>
+              <InputIcon icon="Search" class="custom-icon"/>
               <InputText v-model="value1" placeholder="Search Folder" class="custom-input"/>
             </IconField>
 
             <!-- 筛选开关按钮 -->
             <Button
-                :icon="showFilters ? 'pi pi-filter-slash' : 'pi pi-filter'"
+                :icon="showFilters ? 'FilterSlash' : 'Filter'"
                 :severity="showFilters ? 'primary' : 'secondary'"
                 outlined
                 size="small"
@@ -190,22 +183,22 @@ const getDeletedType = (d: number) => (d === 1 ? 'danger' : 'success');
                 v-tooltip="'高级筛选'"
             />
 
-            <Button icon="pi pi-search" severity="secondary" outlined size="small"
+            <Button icon="Search" severity="secondary" outlined size="small"
                     @click="doSearch"
                     v-tooltip.bottom="{ value: '搜索', showDelay: 1000, hideDelay: 300 }"/>
           </div>
 
           <!-- 右侧：增删改 + 分页 -->
           <div class="group-right">
-            <Button icon="pi pi-plus" severity="secondary" outlined size="small"
+            <Button icon="Plus" severity="secondary" outlined size="small"
                     v-tooltip.bottom="{ value: '添加文件夹', showDelay: 1000, hideDelay: 300 }"
                     @click="addFolderVisible = true"/>
 
-            <Button icon="pi pi-trash" severity="secondary" outlined size="small"
+            <Button icon="Trash" severity="secondary" outlined size="small"
                     @click="batchDelete"
                     v-tooltip.bottom="{ value: '删除选中文件夹', showDelay: 1000, hideDelay: 300 }"/>
 
-            <Button icon="pi pi-spinner" severity="secondary" outlined size="small"
+            <Button icon="Spinner" severity="secondary" outlined size="small"
                     @click="refresh"
                     v-tooltip.bottom="{ value: '刷新', showDelay: 1000, hideDelay: 300 }"/>
 
@@ -215,13 +208,13 @@ const getDeletedType = (d: number) => (d === 1 ? 'danger' : 'success');
               <Tag class="page-tag">页: {{ nowPage }}/{{ maxPage }}</Tag>
 
               <div class="page-btns">
-                <Button icon="pi pi-angle-double-left" severity="secondary" text size="small"
+                <Button icon="AngleDoubleLeft" severity="secondary" text size="small"
                         @click="turnPage(0)" />
-                <Button icon="pi pi-angle-left" severity="secondary" text size="small"
+                <Button icon="AngleLeft" severity="secondary" text size="small"
                         @click="turnPage(1)" />
-                <Button icon="pi pi-angle-right" severity="secondary" text size="small"
+                <Button icon="AngleRight" severity="secondary" text size="small"
                         @click="turnPage(2)" />
-                <Button icon="pi pi-angle-double-right" severity="secondary" text size="small"
+                <Button icon="AngleDoubleRight" severity="secondary" text size="small"
                         @click="turnPage(3)" />
               </div>
             </div>
@@ -239,11 +232,11 @@ const getDeletedType = (d: number) => (d === 1 ? 'danger' : 'success');
 
             <el-input-number v-model="parentIdFilter" :min="0" :step="1" placeholder="父ID" controls-position="right" style="width: 120px" />
 
-            <el-select v-model="userIdFilter" placeholder="选择用户" style="width: 200px" filterable remote clearable :remote-method="async (q:string)=>{ userOptions.value = await fetchUserOptions(q, 50) }" :reserve-keyword="true">
+            <el-select v-model="userIdFilter" placeholder="选择用户" style="width: 200px" filterable remote clearable :remote-method="async (q:string)=>{ userOptions = await fetchUserOptions(q, 50) }" :reserve-keyword="true">
               <el-option v-for="u in userOptions" :key="u.id" :label="`${u.username} (${u.email})`" :value="u.id" />
             </el-select>
 
-            <Button label="应用筛选" icon="pi pi-check" size="small" outlined @click="doSearch" />
+            <Button label="应用筛选" icon="Check" size="small" outlined @click="doSearch" />
           </div>
         </transition>
       </div>
@@ -266,8 +259,8 @@ const getDeletedType = (d: number) => (d === 1 ? 'danger' : 'success');
           <Column header="更多" headerStyle="width: 120px">
             <template #body="{ data }">
               <div style="display: flex; gap: 6px; align-items: center;">
-                <Button type="button" icon="pi pi-eye" rounded outlined style=" height: 32px;width: 32px" @click="openDetail(data.id)"/>
-                <Button type="button" icon="pi pi-trash" rounded outlined style=" height: 32px;width: 32px" @click="(async()=>{ const response = await axios.delete('admin/folderMm/delete', { params: { id: data.id } }); if(response.data.status===200){ ElMessage.success('删除成功'); products.value = await fetchPageData(nowRow.value, nowPage.value) } else { ElMessage.error('无法连接服务器') } })()"/>
+                <Button type="button" icon="Eye" rounded outlined style=" height: 32px;width: 32px" @click="openDetail(data.id)"/>
+                <Button type="button" icon="Trash" rounded outlined style=" height: 32px;width: 32px" @click="(async()=>{ const response = await axios.delete('admin/folderMm/delete', { params: { id: data.id } }); if(response.data.status===200){ ElMessage.success('删除成功'); products = await fetchPageData(nowRow, nowPage) } else { ElMessage.error('无法连接服务器') } })()"/>
               </div>
             </template>
           </Column>

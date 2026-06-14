@@ -1,10 +1,9 @@
 <script setup lang="ts">
-import Dialog from "primevue/dialog";
 import {ref, watch} from "vue";
 import axios from "../../../../../../../axios";
 
-const detailVisible = defineModel()
-const commentId = defineModel<number>('commentId')
+const detailVisible = defineModel<boolean>({default: false})
+const commentId = defineModel<number | null>('commentId')
 
 const detail = ref<any>(null);
 const editing = ref<boolean>(false);

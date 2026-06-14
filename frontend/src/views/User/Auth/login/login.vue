@@ -2,7 +2,6 @@
 import {onMounted, ref, watch} from "vue";
 import {ElMessage} from "element-plus";
 import {useRouter} from "vue-router";
-import Dialog from "primevue/dialog";
 import UserAgreement from "../components/userAgreement.vue";
 // 假设 service 路径正确
 import pwLogin from "./service/pwLogin"

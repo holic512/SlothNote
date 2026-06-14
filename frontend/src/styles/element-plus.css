@@ -1,0 +1,70 @@
+/**
+ * @file ElementPlusNeutralOverrides
+ * @project SlothNote
+ * @module 前端样式 / Element Plus 覆盖
+ * @description 统一按钮、输入框、表格、弹窗、卡片、分页等组件的中性色外观。
+ * @logic 1. 基于 Element Plus CSS 变量轻量覆盖；2. 收敛表格和工具栏视觉；3. 避免依赖 旧主题。
+ * @dependencies ElementPlus CSS
+ * @index_tags ElementPlus覆盖, 表格样式, 按钮样式, 弹窗样式
+ * @author holic512
+ */
+.el-button {
+  font-weight: 500;
+}
+
+.el-button--primary {
+  --el-button-bg-color: var(--sn-primary);
+  --el-button-border-color: var(--sn-primary);
+  --el-button-hover-bg-color: var(--sn-primary-hover);
+  --el-button-hover-border-color: var(--sn-primary-hover);
+  --el-button-active-bg-color: var(--sn-primary-active);
+  --el-button-active-border-color: var(--sn-primary-active);
+}
+
+.el-button.is-text:not(.is-disabled):hover {
+  background: var(--sn-bg-muted);
+}
+
+.el-input__wrapper,
+.el-textarea__inner,
+.el-select__wrapper {
+  border-radius: var(--sn-radius-base);
+}
+
+.el-table {
+  --el-table-border-color: var(--sn-border);
+  --el-table-header-bg-color: var(--sn-gray-50);
+  --el-table-row-hover-bg-color: var(--sn-gray-50);
+  color: var(--sn-text-regular);
+  font-size: 13px;
+}
+
+.el-table th.el-table__cell {
+  color: var(--sn-text-primary);
+  font-weight: 600;
+}
+
+.el-dialog {
+  border-radius: var(--sn-radius-lg);
+}
+
+.el-dialog__header {
+  border-bottom: 1px solid var(--sn-border);
+  margin-right: 0;
+  padding-bottom: 14px;
+}
+
+.el-card {
+  border-color: var(--sn-border);
+  border-radius: var(--sn-radius-lg);
+  box-shadow: var(--sn-shadow-sm);
+}
+
+.el-tag {
+  border-radius: 999px;
+  font-weight: 500;
+}
+
+.el-pagination.is-background .el-pager li.is-active {
+  background: var(--sn-primary);
+}

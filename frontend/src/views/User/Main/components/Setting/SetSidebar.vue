@@ -1,3 +1,13 @@
+<!--
+@file UserSettingSidebar
+@project SlothNote
+@module 用户端 / 设置侧边栏
+@description 提供账号与系统设置面板切换入口。
+@logic 1. 通过 defineModel 同步当前激活面板；2. 渲染设置分类导航；3. 使用 Element Plus 图标替代 PrimeIcons。
+@dependencies ElementPlus: el-icon, Vue: defineModel
+@index_tags 设置侧边栏, 账号设置, 系统设置, ElementPlus图标
+@author holic512
+-->
 <script setup lang="ts">
 const activePanel = defineModel<'account' | 'system'>({default: 'account'})
 </script>
@@ -8,7 +18,7 @@ const activePanel = defineModel<'account' | 'system'>({default: 'account'})
   <el-divider style="margin: 4px 0 4px 0"/>
 
   <div class="sidebar-div" :class="{ active: activePanel === 'account' }" @click="activePanel = 'account'">
-    <span class="pi pi-user" style="font-size: 0.9rem;margin-left: 2px;margin-right: 4px;margin-top: 1px;"></span>
+    <el-icon class="setting-icon"><User /></el-icon>
     <el-text style="color: #000;">我的账号</el-text>
   </div>
 
@@ -17,7 +27,7 @@ const activePanel = defineModel<'account' | 'system'>({default: 'account'})
   <el-divider style="margin: 4px 0 4px 0"/>
 
   <div class="sidebar-div" :class="{ active: activePanel === 'system' }" @click="activePanel = 'system'">
-    <span class="pi pi-cog" style="font-size: 0.9rem;margin-left: 2px;margin-right: 4px;margin-top: 1px;"></span>
+    <el-icon class="setting-icon"><Setting /></el-icon>
     <el-text style="color: #000;">系统设置</el-text>
   </div>
 
@@ -42,5 +52,10 @@ const activePanel = defineModel<'account' | 'system'>({default: 'account'})
 
 .sidebar-div.active {
   background-color: #E6F1FC;
+}
+
+.setting-icon {
+  margin: 1px 4px 0 2px;
+  font-size: 14px;
 }
 </style>

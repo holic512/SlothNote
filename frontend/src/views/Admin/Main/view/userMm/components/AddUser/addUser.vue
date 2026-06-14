@@ -2,7 +2,6 @@
 import {reactive, ref} from "vue";
 import {ElMessage, FormInstance, FormRules} from "element-plus";
 import {addUser, AddUserForm} from "./addUser";
-import Dialog from "primevue/dialog";
 
 // 控制添加用户页面
 const addUserVisible = defineModel()

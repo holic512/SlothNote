@@ -11,7 +11,6 @@
 <script setup lang="ts">
 import {onMounted, ref, watch} from "vue";
 import type Node from 'element-plus/es/components/tree/src/model/node'
-import Button from 'primevue/button';
 import {Tree} from "./interface/treeInterface";
 import {useRouter} from "vue-router";
 import TopDivRightMenu from "@/views/User/Main/components/Sidebar/RightMenu/TopDivRightMenu.vue";
@@ -194,7 +193,7 @@ const handleNodeCollapse = (data) => {
       <div style="flex: 1"></div>
 
       <div>
-        <Button class="sidebar-button" text icon="pi pi-plus" size="small" severity="secondary"
+        <Button class="sidebar-button" text icon="Plus" size="small" severity="secondary"
                 @click="onTopDivMenuRightClick"/>
       </div>
     </div>
@@ -241,7 +240,7 @@ const handleNodeCollapse = (data) => {
               </div>
 
               <div class="NoteTreeButton">
-                <Button class="sidebar-button" text icon="pi pi-ellipsis-h" size="small" severity="secondary"/>
+                <Button class="sidebar-button" text icon="Ellipsis" size="small" severity="secondary"/>
               </div>
             </div>
           </template>

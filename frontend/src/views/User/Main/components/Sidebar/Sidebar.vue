@@ -1,5 +1,14 @@
+<!--
+@file UserSidebar
+@project SlothNote
+@module 用户端 / 主侧边栏
+@description 提供用户端主导航、笔记树入口和设置弹窗入口。
+@logic 1. 控制左侧面板折叠；2. 导航到首页、搜索、待办、收藏；3. 挂载笔记树和相关右侧操作弹窗。
+@dependencies Store: useUserPreferencesStore/useSearchDialogStore, Component: NoteTree/Rename/Details/Description
+@index_tags 用户侧边栏, 笔记树入口, 用户导航, ElementPlus图标
+@author holic512
+-->
 <script setup lang="ts">
-import Button from 'primevue/button';
 import NoteTree from "./NoteTree/noteTree.vue";
 import {useRouter} from "vue-router";
 import Rename from "@/views/User/Main/components/Sidebar/components/Rename/Rename.vue";
@@ -37,18 +46,17 @@ const openSearch = () => { searchStore.open(); };
             Holic
           </el-text>
 
-          <!--          <i class="pi pi-angle-down" style="font-size: 1rem;color: #708090"/>-->
         </div>
       </div>
 
       <!--      收缩侧边栏 箭头  -->
       <div>
-        <Button class="sidebar-button" text icon="pi pi-angle-double-left" size="small"
+        <Button class="sidebar-button" text icon="AngleDoubleLeft" size="small"
                 @click="LeftPanelState.toggleLeftPanel()"/>
       </div>
 
       <div>
-        <Button class="sidebar-button" text icon="pi pi-pen-to-square" size="small"/>
+        <Button class="sidebar-button" text icon="PenToSquare" size="small"/>
       </div>
 
     </div>
@@ -60,7 +68,7 @@ const openSearch = () => { searchStore.open(); };
     <!--    工具栏   -->
     <div class="sidebar-div" style="margin-bottom: 1px;" @click="router.push('/user/main/home')">
       <div class="sidebar-icon">
-        <i class="pi pi-home" style="font-size: 1rem;color: #708090"/>
+        <el-icon class="sidebar-svg-icon"><HomeFilled /></el-icon>
       </div>
       <div style="display: flex;  align-items: center;">
         <el-text>主页</el-text>
@@ -69,7 +77,7 @@ const openSearch = () => { searchStore.open(); };
 
     <div class="sidebar-div" style="margin-bottom: 1px;" @click="openSearch">
       <div class="sidebar-icon">
-        <i class="pi pi-search" style="font-size: 1rem;color: #708090"/>
+        <el-icon class="sidebar-svg-icon"><Search /></el-icon>
       </div>
       <div style="display: flex;  align-items: center;">
         <el-text>搜索</el-text>
@@ -79,7 +87,7 @@ const openSearch = () => { searchStore.open(); };
 
     <div class="sidebar-div" style="margin-bottom: 1px;" @click="router.push('/user/main/todolist')">
       <div class="sidebar-icon">
-        <i class="pi pi-calendar" style="font-size: 1rem;color: #708090"/>
+        <el-icon class="sidebar-svg-icon"><Tickets /></el-icon>
       </div>
       <div style="display: flex;  align-items: center;">
         <el-text>待做</el-text>
@@ -88,7 +96,7 @@ const openSearch = () => { searchStore.open(); };
 
     <div class="sidebar-div" style="margin-bottom: 6px;">
       <div class="sidebar-icon">
-        <i class="pi pi-inbox" style="font-size: 1rem;color: #708090"/>
+        <el-icon class="sidebar-svg-icon"><MessageBox /></el-icon>
       </div>
 
       <div style="display: flex;  align-items: center;">
@@ -107,7 +115,7 @@ const openSearch = () => { searchStore.open(); };
     <!--  收藏  -->
     <div class="sidebar-div" style="margin-bottom: 1px;" @click="router.push('/user/main/myStar')">
       <div class="sidebar-icon">
-        <i class="pi pi-star-fill" style="font-size: 1rem;color: #708090"/>
+        <el-icon class="sidebar-svg-icon"><StarFilled /></el-icon>
       </div>
       <div style="display: flex;  align-items: center;">
         <el-text>收藏</el-text>
@@ -117,7 +125,7 @@ const openSearch = () => { searchStore.open(); };
     <!--  账号  -->
     <div class="sidebar-div" style="margin-bottom: 1px;" @click="UserSettingVisible = true ">
       <div class="sidebar-icon">
-        <i class="pi pi-user" style="font-size: 1rem;color: #708090"/>
+        <el-icon class="sidebar-svg-icon"><User /></el-icon>
       </div>
       <div style="display: flex;  align-items: center;">
         <el-text>账号</el-text>
@@ -127,7 +135,7 @@ const openSearch = () => { searchStore.open(); };
     <!--  设置  -->
     <div class="sidebar-div" style="margin-bottom: 1px;" @click="UserSettingVisible = true ">
       <div class="sidebar-icon">
-        <i class="pi pi-cog" style="font-size: 1rem;color: #708090"/>
+        <el-icon class="sidebar-svg-icon"><Setting /></el-icon>
       </div>
       <div style="display: flex;  align-items: center;">
         <el-text>设置</el-text>
@@ -189,5 +197,9 @@ const openSearch = () => { searchStore.open(); };
   background-color: #f8f9fa;
 }
 
+.sidebar-svg-icon {
+  color: #708090;
+  font-size: 16px;
+}
 
 </style>

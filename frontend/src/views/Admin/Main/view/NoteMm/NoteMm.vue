@@ -1,12 +1,5 @@
 <script setup lang="ts">
-import Button from 'primevue/button';
-import IconField from 'primevue/iconfield';
-import InputIcon from 'primevue/inputicon';
-import InputText from 'primevue/inputtext';
-import Tag from 'primevue/tag';
 import {computed, onBeforeUnmount, onMounted, ref, watch} from 'vue';
-import DataTable from 'primevue/datatable';
-import Column from 'primevue/column';
 import {ElMessage} from 'element-plus';
 import {calculateRows} from '../FolderMm/components/TableView/calculateRows';
 import AddNote from './components/AddNote/addNote.vue';
@@ -220,13 +213,13 @@ const handleSingleRestore = async (id: number) => {
           <!-- 左侧：搜索 + 筛选开关 -->
           <div class="group-left">
             <IconField>
-              <InputIcon class="pi pi-search custom-icon"/>
+              <InputIcon icon="Search" class="custom-icon"/>
               <InputText v-model="q" placeholder="Search Note" class="custom-input"/>
             </IconField>
             
             <!-- 筛选开关按钮 -->
             <Button 
-              :icon="showFilters ? 'pi pi-filter-slash' : 'pi pi-filter'" 
+              :icon="showFilters ? 'FilterSlash' : 'Filter'" 
               :severity="showFilters ? 'primary' : 'secondary'" 
               outlined 
               size="small" 
@@ -234,26 +227,26 @@ const handleSingleRestore = async (id: number) => {
               v-tooltip="'高级筛选'"
             />
             
-            <Button icon="pi pi-search" severity="secondary" outlined size="small"
+            <Button icon="Search" severity="secondary" outlined size="small"
                     @click="doSearch"
                     v-tooltip.bottom="{ value: '搜索', showDelay: 1000, hideDelay: 300 }"/>
           </div>
 
           <!-- 右侧：增删改 + 分页 -->
           <div class="group-right">
-            <Button icon="pi pi-plus" severity="secondary" outlined size="small"
+            <Button icon="Plus" severity="secondary" outlined size="small"
                     v-tooltip.bottom="{ value: '添加笔记', showDelay: 1000, hideDelay: 300 }"
                     @click="addVisible = true"/>
 
-            <Button icon="pi pi-trash" severity="secondary" outlined size="small"
+            <Button icon="Trash" severity="secondary" outlined size="small"
                     @click="batchDelete"
                     v-tooltip.bottom="{ value: '删除选中', showDelay: 1000, hideDelay: 300 }"/>
                     
-            <Button icon="pi pi-refresh" severity="secondary" outlined size="small" 
+            <Button icon="Refresh" severity="secondary" outlined size="small" 
                     @click="batchRestore"
                     v-tooltip.bottom="{ value: '恢复选中', showDelay: 1000, hideDelay: 300 }"/>
 
-            <Button icon="pi pi-spinner" severity="secondary" outlined size="small"
+            <Button icon="Spinner" severity="secondary" outlined size="small"
                     @click="refresh"
                     v-tooltip.bottom="{ value: '刷新', showDelay: 1000, hideDelay: 300 }"/>
 
@@ -263,13 +256,13 @@ const handleSingleRestore = async (id: number) => {
               <Tag class="page-tag">页: {{ nowPage }}/{{ maxPage }}</Tag>
 
               <div class="page-btns">
-                <Button icon="pi pi-angle-double-left" severity="secondary" text size="small"
+                <Button icon="AngleDoubleLeft" severity="secondary" text size="small"
                         @click="turnPage(0)" />
-                <Button icon="pi pi-angle-left" severity="secondary" text size="small"
+                <Button icon="AngleLeft" severity="secondary" text size="small"
                         @click="turnPage(1)" />
-                <Button icon="pi pi-angle-right" severity="secondary" text size="small"
+                <Button icon="AngleRight" severity="secondary" text size="small"
                         @click="turnPage(2)" />
-                <Button icon="pi pi-angle-double-right" severity="secondary" text size="small"
+                <Button icon="AngleDoubleRight" severity="secondary" text size="small"
                         @click="turnPage(3)" />
               </div>
             </div>
@@ -294,7 +287,7 @@ const handleSingleRestore = async (id: number) => {
               <el-option v-for="u in userOptions" :key="u.id" :label="`${u.username} (${u.email})`" :value="u.id" />
             </el-select>
 
-            <Button label="应用筛选" icon="pi pi-check" size="small" outlined @click="doSearch" />
+            <Button label="应用筛选" icon="Check" size="small" outlined @click="doSearch" />
           </div>
         </transition>
       </div>
@@ -326,10 +319,10 @@ const handleSingleRestore = async (id: number) => {
           <Column header="更多" headerStyle="width: 180px">
             <template #body="{ data }">
               <div style="display: flex; gap: 6px; align-items: center;">
-                <Button type="button" icon="pi pi-eye" rounded outlined style=" height: 32px;width: 32px" @click="openPreview(data)"/>
-                <Button type="button" icon="pi pi-pencil" rounded outlined style=" height: 32px;width: 32px" @click="openDetail(data.id)"/>
-                <Button v-if="data.isDeleted !== 1" type="button" icon="pi pi-trash" rounded outlined style=" height: 32px;width: 32px" @click="handleSingleDelete(data.id)"/>
-                <Button v-else type="button" icon="pi pi-refresh" rounded outlined style=" height: 32px;width: 32px" @click="handleSingleRestore(data.id)"/>
+                <Button type="button" icon="Eye" rounded outlined style=" height: 32px;width: 32px" @click="openPreview(data)"/>
+                <Button type="button" icon="Edit" rounded outlined style=" height: 32px;width: 32px" @click="openDetail(data.id)"/>
+                <Button v-if="data.isDeleted !== 1" type="button" icon="Trash" rounded outlined style=" height: 32px;width: 32px" @click="handleSingleDelete(data.id)"/>
+                <Button v-else type="button" icon="Refresh" rounded outlined style=" height: 32px;width: 32px" @click="handleSingleRestore(data.id)"/>
               </div>
             </template>
           </Column>

@@ -1,11 +1,10 @@
 <script setup lang="ts">
-import Dialog from 'primevue/dialog';
 import {computed, ref, watch} from 'vue';
 import {fetchFolderOptions, fetchNoteFullDetail, fetchUserOptions, type FolderOption, type NoteRow, type UserOption, updateNote, updateNoteContent} from '../../service/noteMm';
 import {ElMessage} from 'element-plus';
 
 const visible = defineModel<boolean>();
-const noteId = defineModel<number>('noteId');
+const noteId = defineModel<number | undefined>('noteId');
 const emit = defineEmits<{
   success: []
 }>();

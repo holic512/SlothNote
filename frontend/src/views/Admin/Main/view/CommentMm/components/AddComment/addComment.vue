@@ -1,7 +1,6 @@
 <script setup lang="ts">
 import {ref} from "vue";
 import {ElMessage, FormInstance, FormRules} from "element-plus";
-import Dialog from "primevue/dialog";
 import {AddCommentForm, addComment} from "./addComment";
 
 const addVisible = defineModel()

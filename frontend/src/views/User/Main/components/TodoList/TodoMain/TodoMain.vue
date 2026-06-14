@@ -1,3 +1,13 @@
+<!--
+@file UserTodoMain
+@project SlothNote
+@module 用户端 / 待办主列表
+@description 展示、创建、编辑、完成、恢复和删除用户待办事项。
+@logic 1. 根据 TodoState 加载不同待办视图；2. 支持快捷创建和弹窗编辑；3. 按分类、状态和日期展示任务。
+@dependencies Store: useTodoState, Service: TodoMain/Service, Service: ClassTree/GetUserTodoClasses
+@index_tags 待办列表, 用户任务, 分类筛选, 任务编辑
+@author holic512
+-->
 <script setup lang="ts">
 import {Calendar, Plus} from '@element-plus/icons-vue'
 import {onMounted, ref, watch} from "vue";
@@ -116,6 +126,11 @@ interface Todo {
   todoInfoisDeleted: boolean;
 }
 
+interface TodoCategory {
+  id: number;
+  name: string;
+}
+
 // 所有待做的 树结构
 const TodoData = ref<Todo[]>([]);
 
@@ -183,9 +198,13 @@ const newTodoForm = ref({
 });
 
 // 获取分类列表
-const todoCategories = ref([]);
+const todoCategories = ref<TodoCategory[]>([]);
 const fetchCategories = async () => {
   todoCategories.value = await GetUserTodoClasses();
+};
+
+const resolveTodoTagType = (categoryType: number | null) => {
+  return TodoTypeById(categoryType ?? 0);
 };
 
 // 打开表单并加载分类
@@ -341,7 +360,7 @@ const handleDeleteTodo = async () => {
               </div>
 
               <div class="task-class">
-                <el-tag :type=TodoTypeById(task.category_type) size="small">
+                <el-tag :type="resolveTodoTagType(task.category_type)" size="small">
                   {{ task.category_name || "未分类" }}
                 </el-tag>
               </div>
@@ -404,7 +423,7 @@ const handleDeleteTodo = async () => {
               </div>
 
               <div class="task-class">
-                <el-tag :type=TodoTypeById(task.category_type) size="small">
+                <el-tag :type="resolveTodoTagType(task.category_type)" size="small">
                   {{ task.category_name || "未分类" }}
                 </el-tag>
               </div>

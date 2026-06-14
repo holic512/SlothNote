@@ -1,11 +1,4 @@
 <script setup lang="ts">
-import Button from 'primevue/button'
-import IconField from 'primevue/iconfield'
-import InputIcon from 'primevue/inputicon'
-import InputText from 'primevue/inputtext'
-import Tag from 'primevue/tag'
-import DataTable from 'primevue/datatable'
-import Column from 'primevue/column'
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import { ElMessage } from 'element-plus'
 import { calculateRows } from '../FolderMm/components/TableView/calculateRows'
@@ -161,27 +154,27 @@ const openDetail = (id: number) => {
         <div class="toolbar-top">
           <div class="group-left">
             <IconField>
-              <InputIcon class="pi pi-search custom-icon" />
+              <InputIcon icon="Search" class="custom-icon"/>
               <InputText v-model="q" placeholder="Search Session Title" class="custom-input" />
             </IconField>
-            <Button :icon="showFilters ? 'pi pi-filter-slash' : 'pi pi-filter'" :severity="showFilters ? 'primary' : 'secondary'" outlined size="small" @click="showFilters = !showFilters" />
-            <Button icon="pi pi-search" severity="secondary" outlined size="small" @click="loadSessions" />
+            <Button :icon="showFilters ? 'FilterSlash' : 'Filter'" :severity="showFilters ? 'primary' : 'secondary'" outlined size="small" @click="showFilters = !showFilters" />
+            <Button icon="Search" severity="secondary" outlined size="small" @click="loadSessions" />
           </div>
 
           <div class="group-right">
-            <Button icon="pi pi-trash" severity="secondary" outlined size="small" @click="batchDelete" />
-            <Button icon="pi pi-refresh" severity="secondary" outlined size="small" @click="batchRestore" />
-            <Button icon="pi pi-spinner" severity="secondary" outlined size="small" @click="refresh" />
+            <Button icon="Trash" severity="secondary" outlined size="small" @click="batchDelete" />
+            <Button icon="Refresh" severity="secondary" outlined size="small" @click="batchRestore" />
+            <Button icon="Spinner" severity="secondary" outlined size="small" @click="refresh" />
 
             <div class="pagination-controls">
               <el-divider direction="vertical" />
               <Tag severity="info">数量: {{ total }}</Tag>
               <Tag class="page-tag">页: {{ nowPage }}/{{ maxPage }}</Tag>
               <div class="page-btns">
-                <Button icon="pi pi-angle-double-left" severity="secondary" text size="small" @click="turnPage(pageTurn.FirstPage)" />
-                <Button icon="pi pi-angle-left" severity="secondary" text size="small" @click="turnPage(pageTurn.PreviousPage)" />
-                <Button icon="pi pi-angle-right" severity="secondary" text size="small" @click="turnPage(pageTurn.NextPage)" />
-                <Button icon="pi pi-angle-double-right" severity="secondary" text size="small" @click="turnPage(pageTurn.LastPage)" />
+                <Button icon="AngleDoubleLeft" severity="secondary" text size="small" @click="turnPage(pageTurn.FirstPage)" />
+                <Button icon="AngleLeft" severity="secondary" text size="small" @click="turnPage(pageTurn.PreviousPage)" />
+                <Button icon="AngleRight" severity="secondary" text size="small" @click="turnPage(pageTurn.NextPage)" />
+                <Button icon="AngleDoubleRight" severity="secondary" text size="small" @click="turnPage(pageTurn.LastPage)" />
               </div>
             </div>
           </div>
@@ -195,7 +188,7 @@ const openDetail = (id: number) => {
               <el-option label="有效" :value="0" />
               <el-option label="已删除" :value="1" />
             </el-select>
-            <Button label="应用筛选" icon="pi pi-check" size="small" outlined @click="loadSessions" />
+            <Button label="应用筛选" icon="Check" size="small" outlined @click="loadSessions" />
           </div>
         </transition>
       </div>
@@ -227,9 +220,9 @@ const openDetail = (id: number) => {
           <Column header="更多" headerStyle="width: 140px">
             <template #body="{ data }">
               <div style="display: flex; gap: 6px; align-items: center;">
-                <Button type="button" icon="pi pi-eye" rounded outlined style="height: 32px; width: 32px" @click="openDetail(data.id)" />
-                <Button v-if="data.isDeleted !== 1" type="button" icon="pi pi-trash" rounded outlined style="height: 32px; width: 32px" @click="handleSingleDelete(data.id)" />
-                <Button v-else type="button" icon="pi pi-refresh" rounded outlined style="height: 32px; width: 32px" @click="handleSingleRestore(data.id)" />
+                <Button type="button" icon="Eye" rounded outlined style="height: 32px; width: 32px" @click="openDetail(data.id)" />
+                <Button v-if="data.isDeleted !== 1" type="button" icon="Trash" rounded outlined style="height: 32px; width: 32px" @click="handleSingleDelete(data.id)" />
+                <Button v-else type="button" icon="Refresh" rounded outlined style="height: 32px; width: 32px" @click="handleSingleRestore(data.id)" />
               </div>
             </template>
           </Column>

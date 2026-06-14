@@ -1,3 +1,13 @@
+<!--
+@file UserAuthLayout
+@project SlothNote
+@module 用户端 / 登录注册外壳
+@description 提供用户登录与注册页面的左右分栏认证布局。
+@logic 1. 展示品牌介绍区；2. 通过 RouterView slot 渲染登录或注册组件；3. 使用 Transition 做认证页面切换动画。
+@dependencies VueRouter: RouterView, Vue: Transition
+@index_tags 用户认证, 登录注册, RouterView, Transition
+@author holic512
+-->
 <script setup lang="ts">
 </script>
 
@@ -44,9 +54,11 @@
     <!-- 右侧：路由视图 (登录/注册) -->
     <div class="right-panel">
       <div class="auth-container">
-        <Transition name="fade-slide" mode="out-in">
-          <router-view />
-        </Transition>
+        <router-view v-slot="{ Component }">
+          <Transition name="fade-slide" mode="out-in">
+            <component :is="Component" />
+          </Transition>
+        </router-view>
       </div>
     </div>
   </div>

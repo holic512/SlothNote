@@ -1,7 +1,6 @@
 <script setup lang="ts">
 import {reactive, ref} from 'vue';
 import {ElMessage, FormInstance, FormRules} from 'element-plus';
-import Dialog from 'primevue/dialog';
 import {addFolder, AddFolderForm} from './addFolder';
 import {fetchUserOptions} from '../TableView/userOptions';
 

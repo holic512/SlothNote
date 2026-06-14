@@ -17,7 +17,6 @@ import {onBeforeUnmount, onMounted, ref, watch} from 'vue';
 // 控制设置窗 弹出与关闭
 import Setting from "./components/Setting/index.vue"
 import {useUserPreferencesStore} from "@/views/User/Main/Pinia/userPreferencesStore";
-import Button from "primevue/button";
 import SidebarM from "@/views/User/Main/components/SidebarM/SidebarM.vue";
 import {useUserInfoInitialized} from "@/views/User/Main/Pinia/UserInfoInitialized";
 import UserProfileInit from "@/views/User/Main/components/UserProfileInit/UserProfileInit.vue";
@@ -133,7 +132,12 @@ onMounted(async () => {
   // 如果查询数据库也是没有初始化 则显示初始化页面
   if (UserInfoInitialized.isInfoInitialized) return;
 
-  const result = await UserInfoInitialized.checkUserInfo();
+  let result = true;
+  try {
+    result = await UserInfoInitialized.checkUserInfo();
+  } catch {
+    result = true;
+  }
 
   if (result) {
     // 数据库查询已经初始化了

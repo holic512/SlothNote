@@ -2,7 +2,6 @@
 import {reactive, ref} from "vue";
 import {ElMessage, FormInstance, FormRules} from "element-plus";
 import {useRouter} from "vue-router";
-import Dialog from "primevue/dialog";
 import UserAgreement from "../components/userAgreement.vue";
 import {initiateReg} from "./services/register";
 

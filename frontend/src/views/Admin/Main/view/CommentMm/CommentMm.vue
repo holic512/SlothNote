@@ -1,12 +1,5 @@
 <script setup lang="ts">
-import Button from 'primevue/button';
-import IconField from 'primevue/iconfield';
-import InputIcon from 'primevue/inputicon';
-import InputText from "primevue/inputtext";
-import Tag from 'primevue/tag'
 import {computed, onBeforeUnmount, onMounted, ref} from "vue";
-import DataTable from 'primevue/datatable';
-import Column from 'primevue/column';
 import axios from "../../../../../axios";
 import fetchInitialPageData from "./components/TableView/fetchInitialPageData";
 import {fetchPageData} from "./components/TableView/fetchPageData";
@@ -33,7 +26,7 @@ let nowRow = ref(10);
 const commentCount = ref(0);
 const maxPage = ref(1);
 const nowPage = ref(1);
-const products = ref([]);
+const products = ref<any[]>([]);
 
 onMounted(async () => {
   nowRow.value = calculateRows(minHeight, stepHeight);
@@ -144,25 +137,25 @@ const openDetail = (id: number) => { currentId.value = id; detailVisible.value =
         <div class="toolbar-top">
           <div class="group-left">
             <IconField>
-              <InputIcon class="pi pi-search custom-icon"/>
+              <InputIcon icon="Search" class="custom-icon"/>
               <InputText v-model="keyword" placeholder="Search Content" class="custom-input"/>
             </IconField>
-            <Button :icon="showFilters ? 'pi pi-filter-slash' : 'pi pi-filter'" :severity="showFilters ? 'primary' : 'secondary'" outlined size="small" @click="showFilters = !showFilters" v-tooltip="'高级筛选'"/>
-            <Button icon="pi pi-search" severity="secondary" outlined size="small" @click="handleDebouncedSearch" v-tooltip.bottom="{ value: '搜索', showDelay: 1000, hideDelay: 300 }"/>
+            <Button :icon="showFilters ? 'FilterSlash' : 'Filter'" :severity="showFilters ? 'primary' : 'secondary'" outlined size="small" @click="showFilters = !showFilters" v-tooltip="'高级筛选'"/>
+            <Button icon="Search" severity="secondary" outlined size="small" @click="handleDebouncedSearch" v-tooltip.bottom="{ value: '搜索', showDelay: 1000, hideDelay: 300 }"/>
           </div>
           <div class="group-right">
-            <Button icon="pi pi-plus" severity="secondary" outlined size="small" v-tooltip.bottom="{ value: '添加评论', showDelay: 1000, hideDelay: 300 }" @click="addVisible = true"/>
-            <Button icon="pi pi-trash" severity="secondary" outlined size="small" @click="handleDebouncedBatchDelete" v-tooltip.bottom="{ value: '删除选中评论', showDelay: 1000, hideDelay: 300 }"/>
-            <Button icon="pi pi-spinner" severity="secondary" outlined size="small" @click="handleDebouncedRefresh" v-tooltip.bottom="{ value: '刷新', showDelay: 1000, hideDelay: 300 }"/>
+            <Button icon="Plus" severity="secondary" outlined size="small" v-tooltip.bottom="{ value: '添加评论', showDelay: 1000, hideDelay: 300 }" @click="addVisible = true"/>
+            <Button icon="Trash" severity="secondary" outlined size="small" @click="handleDebouncedBatchDelete" v-tooltip.bottom="{ value: '删除选中评论', showDelay: 1000, hideDelay: 300 }"/>
+            <Button icon="Spinner" severity="secondary" outlined size="small" @click="handleDebouncedRefresh" v-tooltip.bottom="{ value: '刷新', showDelay: 1000, hideDelay: 300 }"/>
             <div class="pagination-controls">
               <el-divider direction="vertical" class="hidden-xs-only"/>
               <Tag severity="info">评论数: {{ commentCount }}</Tag>
               <Tag class="page-tag">页: {{ nowPage }}/{{ maxPage }}</Tag>
               <div class="page-btns">
-                <Button icon="pi pi-angle-double-left" severity="secondary" text size="small" @click="handleDebouncedTurnPage(pageTurn.FirstPage)"/>
-                <Button icon="pi pi-angle-left" severity="secondary" text size="small" @click="handleDebouncedTurnPage(pageTurn.PreviousPage)"/>
-                <Button icon="pi pi-angle-right" severity="secondary" text size="small" @click="handleDebouncedTurnPage(pageTurn.NextPage)"/>
-                <Button icon="pi pi-angle-double-right" severity="secondary" text size="small" @click="handleDebouncedTurnPage(pageTurn.LastPage)"/>
+                <Button icon="AngleDoubleLeft" severity="secondary" text size="small" @click="handleDebouncedTurnPage(pageTurn.FirstPage)"/>
+                <Button icon="AngleLeft" severity="secondary" text size="small" @click="handleDebouncedTurnPage(pageTurn.PreviousPage)"/>
+                <Button icon="AngleRight" severity="secondary" text size="small" @click="handleDebouncedTurnPage(pageTurn.NextPage)"/>
+                <Button icon="AngleDoubleRight" severity="secondary" text size="small" @click="handleDebouncedTurnPage(pageTurn.LastPage)"/>
               </div>
             </div>
           </div>
@@ -178,7 +171,7 @@ const openDetail = (id: number) => { currentId.value = id; detailVisible.value =
               <el-option label="已删除" :value="true"/>
             </el-select>
             <el-checkbox v-model="topLevelOnly" label="仅顶层"/>
-            <Button label="应用筛选" icon="pi pi-check" size="small" outlined @click="handleDebouncedSearch"/>
+            <Button label="应用筛选" icon="Check" size="small" outlined @click="handleDebouncedSearch"/>
           </div>
         </transition>
       </div>
@@ -204,9 +197,9 @@ const openDetail = (id: number) => { currentId.value = id; detailVisible.value =
           <Column header="更多" headerStyle="width: 120px">
             <template #body="{ data }">
               <div style="display: flex; gap: 6px; align-items: center;">
-                <Button type="button" icon="pi pi-eye" rounded outlined style=" height: 32px;width: 32px" @click="openDetail(data.id)"/>
-                <Button type="button" icon="pi pi-trash" rounded outlined style=" height: 32px;width: 32px"
-                        @click="(async()=>{ const s = await deleteComment(data.id); if(s===200){ ElMessage.success('删除成功'); products.value = await fetchPageData(nowRow.value, nowPage.value) } else { ElMessage.error('无法连接服务器') } })()"/>
+                <Button type="button" icon="Eye" rounded outlined style=" height: 32px;width: 32px" @click="openDetail(data.id)"/>
+                <Button type="button" icon="Trash" rounded outlined style=" height: 32px;width: 32px"
+                        @click="(async()=>{ const s = await deleteComment(data.id); if(s===200){ ElMessage.success('删除成功'); products = await fetchPageData(nowRow, nowPage) } else { ElMessage.error('无法连接服务器') } })()"/>
               </div>
             </template>
           </Column>
