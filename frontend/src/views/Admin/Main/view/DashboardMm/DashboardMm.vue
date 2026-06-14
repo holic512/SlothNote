@@ -1,3 +1,13 @@
+<!--
+@file AdminDashboardPage
+@project SlothNote
+@module 管理后台 / 仪表盘
+@description 展示系统指标、图表和近期管理数据列表。
+@logic 1. 加载仪表盘指标与近期数据；2. 初始化并维护 ECharts 图表；3. 支持按评论、待办、笔记分类筛选与批量操作。
+@dependencies API: admin/dashboard/*, Component: PrimeVue DataTable, Library: ECharts
+@index_tags 仪表盘, 后台首页, 数据统计, 近期数据, 单选筛选
+@author holic512
+-->
 <script setup lang="ts">
 import { onMounted, ref, computed, watch, onUnmounted, nextTick } from "vue";
 // PrimeVue Components
@@ -243,9 +253,9 @@ const tableColumns = computed(() => {
         <div class="panel-toolbar">
           <div class="toolbar-left">
             <el-radio-group v-model="category" @change="changeCategory" size="small">
-              <el-radio-button label="comment">评论管理</el-radio-button>
-              <el-radio-button label="todo">待办管理</el-radio-button>
-              <el-radio-button label="note">笔记管理</el-radio-button>
+              <el-radio-button value="comment">评论管理</el-radio-button>
+              <el-radio-button value="todo">待办管理</el-radio-button>
+              <el-radio-button value="note">笔记管理</el-radio-button>
             </el-radio-group>
             
             <IconField class="search-field">

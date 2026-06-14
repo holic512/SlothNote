@@ -1,3 +1,13 @@
+<!--
+@file AdminLoginPage
+@project SlothNote
+@module 管理后台 / 登录认证
+@description 提供管理员登录、验证码校验和初始化管理员入口。
+@logic 1. 提交账号密码登录；2. 根据后端返回切换验证码或初始化流程；3. 登录成功后进入后台仪表盘子路由。
+@dependencies API: admin/auth/login, admin/auth/init, admin/auth/verLogin, VueRouter: useRouter
+@index_tags 管理员登录, 后台认证, 初始化管理员, 登录跳转
+@author holic512
+-->
 <script setup lang="ts">
 import { computed, ref } from 'vue';
 import { ElMessage } from 'element-plus';
@@ -22,7 +32,7 @@ const initEmail = ref('');
 const initEmailHint = computed(() => initEmail.value.trim() ? '已配置邮箱，后续可用于安全通知。' : '邮箱可暂时留空，后续可在设置页补录。');
 
 const enterAdmin = async () => {
-  await router.push("/admin/main");
+  await router.push("/admin/main/home");
 };
 
 const sendLogin = async () => {

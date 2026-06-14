@@ -1,4 +1,18 @@
-// AdminRouter
+/**
+ * @file AdminRouter
+ * @project SlothNote
+ * @module 管理后台 / 路由配置
+ * @description 定义管理端认证页、主框架与各管理模块的路由映射。
+ * @logic 1. /admin/main 作为无名布局路由并重定向到仪表盘；2. 管理页按模块懒加载；3. 保留历史 dashboardMm 路径重定向。
+ * @dependencies VueRouter: route records, Component: Admin/Main/index.vue
+ * @index_tags 后台路由, 管理端菜单, 懒加载, 仪表盘路由
+ * @author holic512
+ */
+
+const adminDashboardMeta = {
+    title: '仪表盘',
+    subtitle: '查看系统核心数据、近期内容和管理概览'
+};
 
 
 export default [
@@ -36,34 +50,21 @@ export default [
             // 主内容页面
             {
                 path: 'main',
-                name: 'admin-main',
                 component: () => import("./Main/index.vue"),
                 children: [
                     {
                         path: '',
-                        name: 'admin-main-home',
-                        meta: {
-                            title: '仪表盘',
-                            subtitle: '查看系统核心数据、近期内容和管理概览'
-                        },
-                        component: () => import('./Main/view/DashboardMm/DashboardMm.vue'),
+                        name: 'admin-main-redirect',
+                        redirect: {name: 'admin-main-home'},
                     },
                 {
                     path: 'dashboardMm',
-                    name: 'admin-main-dashboardMm',
-                    meta: {
-                        title: '仪表盘',
-                        subtitle: '查看系统核心数据、近期内容和管理概览'
-                    },
-                    component: () => import('./Main/view/DashboardMm/DashboardMm.vue'),
+                    redirect: {name: 'admin-main-home'},
                 },
                 {
                     path: 'home',
-                    name: 'admin-main-home1',
-                    meta: {
-                        title: '仪表盘',
-                        subtitle: '查看系统核心数据、近期内容和管理概览'
-                    },
+                    name: 'admin-main-home',
+                    meta: adminDashboardMeta,
                     component: () => import('./Main/view/DashboardMm/DashboardMm.vue'),
                 },
                     {

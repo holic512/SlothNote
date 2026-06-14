@@ -1,3 +1,13 @@
+<!--
+@file AdminMainLayout
+@project SlothNote
+@module 管理后台 / 主框架
+@description 提供管理后台侧边栏、顶部栏和子路由页面承载容器。
+@logic 1. 根据当前路由同步菜单选中态；2. 菜单点击触发路由跳转；3. 使用 Element Plus v-loading 固定显示页面加载态。
+@dependencies VueRouter: useRoute/useRouter, Pinia: tokenStore, ElementPlus: Menu/Container/Icon
+@index_tags 后台布局, 菜单切换, 路由视图, 异步页面加载
+@author holic512
+-->
 <script setup lang="ts">
 import {
   Expand,
@@ -14,7 +24,7 @@ import {
   User,
   SwitchButton
 } from '@element-plus/icons-vue'
-import { computed, ref } from 'vue'
+import { computed, nextTick, onBeforeUnmount, ref } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { useRoute, useRouter } from 'vue-router'
 import { tokenStore } from '@/pinia/token'
@@ -22,6 +32,8 @@ import { tokenStore } from '@/pinia/token'
 const router = useRouter()
 const route = useRoute()
 const isCollapsed = ref(false)
+const isRouteLoading = ref(false)
+let loadingTimer: ReturnType<typeof window.setTimeout> | undefined
 
 type MenuItem = {
   index: string
@@ -50,9 +62,34 @@ const activeMenu = computed(() => {
 const currentTitle = computed(() => (route.meta.title as string) ?? '管理后台')
 const currentSubtitle = computed(() => (route.meta.subtitle as string) ?? '')
 
-const handleSelect = (index: string) => {
-  if (index !== route.path) {
-    router.push(index)
+const showRouteLoading = () => {
+  if (loadingTimer) {
+    window.clearTimeout(loadingTimer)
+    loadingTimer = undefined
+  }
+  isRouteLoading.value = true
+}
+
+const hideRouteLoading = async () => {
+  await nextTick()
+  loadingTimer = window.setTimeout(() => {
+    isRouteLoading.value = false
+    loadingTimer = undefined
+  }, 120)
+}
+
+const handleSelect = async (index: string) => {
+  if (index === route.path) {
+    return
+  }
+
+  showRouteLoading()
+  try {
+    await router.push(index)
+    await hideRouteLoading()
+  } catch (error) {
+    isRouteLoading.value = false
+    ElMessage.error('页面切换失败，请稍后重试')
   }
 }
 
@@ -75,6 +112,12 @@ const handleLogout = async () => {
     // Cancelled
   }
 }
+
+onBeforeUnmount(() => {
+  if (loadingTimer) {
+    window.clearTimeout(loadingTimer)
+  }
+})
 </script>
 
 <template>
@@ -144,11 +187,14 @@ const handleLogout = async () => {
         <el-main class="admin-main">
           <el-scrollbar>
             <div class="admin-content-wrapper">
-              <div class="admin-content">
-                <router-view v-slot="{ Component, route: currentRoute }">
-                  <transition name="fade-transform" mode="out-in">
-                    <component :is="Component" :key="currentRoute.fullPath" />
-                  </transition>
+              <div
+                  class="admin-content"
+                  v-loading="isRouteLoading"
+                  element-loading-text="页面加载中..."
+                  element-loading-background="rgba(255, 255, 255, 0.82)"
+              >
+                <router-view v-slot="{ Component }">
+                  <component :is="Component" v-if="Component" />
                 </router-view>
               </div>
             </div>
@@ -370,20 +416,6 @@ const handleLogout = async () => {
   box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -1px rgba(0, 0, 0, 0.03);
   padding: 24px;
   min-height: calc(100vh - 64px - 48px); /* 100vh - header高度 - wrapper的上下padding */
-}
-
-/* 路由切换动画 */
-.fade-transform-leave-active,
-.fade-transform-enter-active {
-  transition: all 0.3s;
-}
-.fade-transform-enter-from {
-  opacity: 0;
-  transform: translateX(-15px);
-}
-.fade-transform-leave-to {
-  opacity: 0;
-  transform: translateX(15px);
 }
 
 /* ================= 移动端适配 ================= */
