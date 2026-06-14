@@ -14,12 +14,36 @@ import {updateNoteTitle} from "@/views/User/Main/components/Edit/Main/Service/up
 import {useNoteTreeUpdate} from "@/views/User/Main/components/Sidebar/Pinia/isNoteTreeUpdated";
 import SetCover from "@/views/User/Main/components/Edit/Main/SetCover/SetCover.vue";
 import {useNoteCoverState} from "@/views/User/Main/components/Edit/Main/SetCover/paina/NoteCoverState";
+import {useRouter} from "vue-router";
+import {navigateToNote} from "@/views/User/Main/components/Edit/service/noteNavigation";
 
 const editor: ShallowRef<Editor | undefined> = defineModel()
+const router = useRouter();
 
 // 焦点恢复到编译器
 const focusOnParagraph = () => {
   // editor.value?.commands.focus(); // 将焦点设置到编辑器
+}
+
+const handleEditorClick = async (event: MouseEvent) => {
+  const target = event.target as HTMLElement | null;
+  const reference = target?.closest<HTMLElement>("[data-note-reference-id]");
+  if (!reference) {
+    focusOnParagraph();
+    return;
+  }
+
+  const noteId = Number(reference.dataset.noteReferenceId);
+  if (!Number.isInteger(noteId) || noteId <= 0) {
+    return;
+  }
+
+  event.preventDefault();
+  event.stopPropagation();
+  await navigateToNote(router, {
+    noteId,
+    noteName: reference.dataset.noteReferenceTitle || undefined,
+  });
 }
 
 // 存储目录的pinia
@@ -159,7 +183,7 @@ watch(() => InputNoteTitle.value, async (newValue) => {
         </div>
 
 
-        <div class="editor-content" @click="focusOnParagraph" ref="scrollbarRef">
+        <div class="editor-content" @click="handleEditorClick" ref="scrollbarRef">
           <editor-content :editor="editor" class="tiptap-editor"/>
         </div>
       </el-scrollbar>
@@ -348,6 +372,28 @@ watch(() => InputNoteTitle.value, async (newValue) => {
 
   img {
     max-width: 100%;
+  }
+
+  .note-reference-chip {
+    display: inline-flex;
+    align-items: center;
+    max-width: 280px;
+    padding: 2px 7px;
+    margin: 0 2px;
+    border: 1px solid #B8C6B3;
+    border-radius: 6px;
+    background: #F3F8EF;
+    color: #2F5938;
+    font-size: 0.88em;
+    line-height: 1.5;
+    cursor: pointer;
+    user-select: none;
+    vertical-align: baseline;
+  }
+
+  .note-reference-chip:hover {
+    border-color: #6FA16A;
+    background: #E7F2DF;
   }
 
   span {

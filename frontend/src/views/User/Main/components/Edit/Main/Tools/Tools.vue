@@ -1,4 +1,13 @@
-<!--  用于 文本编辑器上方的 工具栏 -->
+<!--
+@file EditorTools
+@project SlothNote
+@module 用户端 / 笔记编辑器工具栏
+@description 提供 Tiptap 编辑器顶部工具栏，包含撤销重做、文本样式、块转换、表格与表情入口。
+@logic 1. 根据 Editor selection/transaction 刷新按钮状态；2. 将工具按钮映射为 ToolbarAction；3. 执行对应 Tiptap chain 命令。
+@dependencies Tiptap: Editor, Component: SetText/PlusMore/InsertTable/TextColor/EmojiPicker
+@index_tags Tiptap, 工具栏, 文本样式, 编辑器命令, selection状态
+@author holic512
+-->
 <script setup lang="ts">
 import {computed, onBeforeUnmount, ref, watch} from "vue";
 import type {Component} from "vue";
@@ -8,6 +17,7 @@ import SetText from "../BubbleMenu/SetText/SetText.vue";
 import HighlightText from "./components/TextColor.vue";
 import EmojiPicker from "./components/EmojiPicker.vue";
 import InsertTable from "./components/InsertTable.vue";
+import NoteReferencePicker from "./components/NoteReferencePicker.vue";
 import IconBold from "./icon/IconBold.vue";
 import IconItalic from "./icon/IconItalic.vue";
 import IconUnderline from "./icon/IconUnderline.vue";
@@ -29,6 +39,11 @@ type ToolbarAction = {
   run: (instance: Editor) => void
   isActive?: (instance: Editor) => boolean
   isDisabled?: (instance: Editor) => boolean
+};
+
+type ToolbarItem = ToolbarAction & {
+  active: boolean
+  disabled: boolean
 };
 
 const toolbarActions: ToolbarAction[] = [
@@ -115,7 +130,7 @@ const actionGroups = computed(() => {
   ];
 });
 
-function buildToolbarItem(action: ToolbarAction, instance: Editor | undefined) {
+function buildToolbarItem(action: ToolbarAction, instance: Editor | undefined): ToolbarItem {
   return {
     ...action,
     active: instance ? action.isActive?.(instance) ?? false : false,
@@ -155,7 +170,7 @@ onBeforeUnmount(() => {
   removeEditorListeners.value?.();
 });
 
-const runToolbarAction = (action: ToolbarAction) => {
+const runToolbarAction = (action: ToolbarItem) => {
   if (!editor.value || action.disabled) {
     return;
   }
@@ -191,6 +206,7 @@ const runToolbarAction = (action: ToolbarAction) => {
         <SetText v-model="editor"/>
         <PlusMore v-model="editor"/>
         <InsertTable v-model="editor"/>
+        <NoteReferencePicker v-model="editor"/>
       </div>
 
       <el-divider direction="vertical"/>

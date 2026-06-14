@@ -1,3 +1,13 @@
+<!--
+@file UserMainLayout
+@project SlothNote
+@module 用户端 / 主布局
+@description 承载用户端侧边栏、主内容路由、设置弹窗、移动弹窗和全局搜索/收藏弹窗。
+@logic 1. 控制左右分栏展开、收起与拖拽宽度；2. 检查用户资料初始化状态；3. 空闲时预加载笔记编辑页以降低首次点击卡顿。
+@dependencies Component: Sidebar/SidebarM/Setting/UserProfileInit/MoveToDialog/MyStar/SearchDialog, Store: userPreferences/UserInfoInitialized
+@index_tags 用户主布局, 侧边栏, 编辑页预加载, 首次点击优化, 分栏
+@author holic512
+-->
 <script setup lang="ts">
 import Sidebar from "./components/Sidebar/Sidebar.vue"
 
@@ -132,7 +142,25 @@ onMounted(async () => {
     // 数据库查询没有初始化
     InfoInitializedVisible.value = true;
   }
+
+  preloadEditPage();
 })
+
+const preloadEditPage = () => {
+  const run = () => {
+    void import("./components/Edit/index.vue");
+  };
+  const idleWindow = window as Window & {
+    requestIdleCallback?: (callback: IdleRequestCallback, options?: IdleRequestOptions) => number;
+  };
+
+  if (idleWindow.requestIdleCallback) {
+    idleWindow.requestIdleCallback(run, {timeout: 1800});
+    return;
+  }
+
+  globalThis.setTimeout(run, 800);
+}
 
 // 引入移动对话框组件
 import MoveToDialog from "@/views/User/Main/components/Sidebar/RightMenu/components/MoveToDialog.vue";

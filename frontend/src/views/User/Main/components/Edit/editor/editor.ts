@@ -1,4 +1,14 @@
-import {Editor, useEditor} from "@tiptap/vue-3";
+/**
+ * @file editor
+ * @project SlothNote
+ * @module 用户端 / 笔记编辑器
+ * @description 创建并配置用户笔记页的 Tiptap Editor 实例。
+ * @logic 1. 注册基础文本、图片、表格、目录、拖拽与任务列表扩展；2. 将内容更新同步到保存状态；3. 维护目录与选中文本状态。
+ * @dependencies Tiptap: useEditor/extensions, Store: SaveNoteState/IndexItems/AiChat, Service: SaveNote
+ * @index_tags Tiptap, 编辑器配置, 粘贴处理, 自动保存状态, 目录
+ * @author holic512
+ */
+import {useEditor} from "@tiptap/vue-3";
 import StarterKit from "@tiptap/starter-kit";
 import Underline from "@tiptap/extension-underline";
 import TextStyle from "@tiptap/extension-text-style";
@@ -22,6 +32,7 @@ import {useIndexItemsStore} from "@/views/User/Main/components/Edit/Pinia/IndexI
 import {onBeforeUnmount, onMounted} from "vue";
 import {SaveNote} from "@/views/User/Main/components/Edit/service/SaveNote";
 import {useAiChatStore} from "@/views/User/Main/components/Edit/PageRight/components/NoteAi/service/AiChat";
+import {NoteReference} from "@/views/User/Main/components/Edit/editor/noteReferenceExtension";
 
 
 export function createEditorInstance() {
@@ -105,6 +116,7 @@ export function createEditorInstance() {
             TableRow,
             TableHeader,
             TableCell,
+            NoteReference,
 
 
         ],
@@ -112,24 +124,10 @@ export function createEditorInstance() {
         content: "",
 
 
-        // 监听粘贴事件
-        onPaste: (e, slice) => {
-            // 取消默认粘贴行为
-            e.preventDefault();
-
-            // 获取剪贴板中的纯文本内容
-            const text = slice.content.textBetween(0, slice.content.size, '\n', '\n');
-
-            console.log(text);
-
-            // 通过正则去掉文本中的 HTML 标签
-            const cleanText = text.replace(/<\/?[^>]+(>|$)/g, ""); // 去除所有HTML标签
-
-            // 创建一个新的事务，替换选区中的内容
-            editor.value?.view.state.tr.replaceSelectionWith(
-                editor.value?.view.state.schema.text(cleanText) // 用清除样式的文本替换
-            );
-
+        editorProps: {
+            transformPastedText(text) {
+                return text.replace(/<\/?[^>]+(>|$)/g, "");
+            },
         },
 
 
@@ -165,8 +163,7 @@ export function createEditorInstance() {
             const SaveNoteState = useSaveNoteState();
             if (SaveNoteState.isSaved == true) return
             // 调用保存
-            SaveNote(<Editor>editor.value).then(r => {
-            })
+            void SaveNote(editor)
         }
     };
 

@@ -1,13 +1,35 @@
-import {Editor} from "@tiptap/vue-3";
+/**
+ * @file SaveNote
+ * @project SlothNote
+ * @module 用户端 / 笔记保存
+ * @description 封装当前笔记正文保存请求，并同步编辑器保存状态。
+ * @logic 1. 解析传入的 Editor 或 Ref<Editor>；2. 校验笔记与编辑器状态；3. 序列化 Tiptap JSON 后调用保存接口。
+ * @dependencies API: user/note/SaveNote, Store: currentNoteInfo/SaveNoteState, Helper: resolveEditor
+ * @index_tags 笔记保存, Tiptap JSON, editor实例, 保存状态
+ * @author holic512
+ */
 import {useCurrentNoteInfoStore} from "../Pinia/currentNoteInfo";
 import axios from "../../../../../../axios";
 import {ElMessage} from "element-plus";
 import {useSaveNoteState} from "../Pinia/SaveNoteState";
+import {resolveEditor, type MaybeEditorRef} from "@/views/User/Main/components/Edit/editor/editorContext";
 
-export const SaveNote = async (editor: Editor) => {
+export const SaveNote = async (editorInput: MaybeEditorRef): Promise<boolean> => {
+    const editor = resolveEditor(editorInput);
 
     // 笔记信息 pinia 实例
     const currentNoteInfo = useCurrentNoteInfoStore()
+
+    if (!editor) {
+        ElMessage.warning("编辑器尚未初始化，无法保存");
+        return false;
+    }
+
+    if (currentNoteInfo.noteId == null) {
+        ElMessage.warning("请先打开一篇笔记");
+        return false;
+    }
+
     try {
         // 获取 编辑器中的 笔记json
         const NoteDataJson = editor.getJSON()
@@ -31,10 +53,15 @@ export const SaveNote = async (editor: Editor) => {
             SaveNoteState.saveContent();
 
             ElMessage.success("笔记保存成功");
-        } else
+            return true;
+        } else {
             ElMessage.error("笔记保存失败");
+            return false;
+        }
 
     } catch (e) {
         console.error(e);
+        ElMessage.error("笔记保存失败");
+        return false;
     }
 }

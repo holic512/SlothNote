@@ -1,12 +1,20 @@
-// stores/useSaveNoteState.ts
+/**
+ * @file SaveNoteState
+ * @project SlothNote
+ * @module 用户端 / 笔记保存状态
+ * @description 维护当前编辑器内容是否已保存的全局状态。
+ * @logic 1. 编辑器内容更新时标记未保存；2. 保存成功或内容重载后标记已保存。
+ * @dependencies Pinia: defineStore
+ * @index_tags 笔记保存状态, Pinia, isSaved, 编辑器状态
+ * @author holic512
+ */
 import {defineStore} from 'pinia'
-import {ref, Ref} from 'vue'
 
 export const useSaveNoteState = defineStore('SaveNoteState', {
     // Define state variables
     state() {
         return {
-            isSaved: ref(true) as Ref<boolean>,
+            isSaved: true,
             // Whether content is saved
         }
     },

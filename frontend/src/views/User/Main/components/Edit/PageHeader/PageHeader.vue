@@ -1,10 +1,19 @@
-<!--  用于 编辑内容 的页头  -->
+<!--
+@file PageHeader
+@project SlothNote
+@module 用户端 / 笔记页头
+@description 展示当前笔记路径与页头操作入口，包括保存、分享、评论、历史版本、收藏与 AI。
+@logic 1. 读取当前笔记基础信息渲染面包屑；2. 根据笔记状态打开收藏与历史版本弹窗；3. 生成并复制分享链接。
+@dependencies Store: currentNoteInfo/RightPageState/FavoriteDialogStore, Component: SaveNote/VersionDialog/MyStar
+@index_tags 笔记页头, 分享链接, 历史版本, 收藏, Tiptap
+@author holic512
+-->
 <script setup lang="ts">
 
 import SaveNote from "@/views/User/Main/components/Edit/PageHeader/components/SaveNote/SaveNote.vue";
 import SaveNoteState from "@/views/User/Main/components/Edit/PageHeader/components/SaveNoteState/SaveNoteState.vue";
 import {useCurrentNoteInfoStore} from "@/views/User/Main/components/Edit/Pinia/currentNoteInfo";
-import {useRightPageState} from "@/views/User/Main/components/Edit/Pinia/RightPageState";
+import {RightPageModeEnum, useRightPageState} from "@/views/User/Main/components/Edit/Pinia/RightPageState";
 import Comment from "@/views/User/Main/components/Edit/PageHeader/components/Comment/comment.vue";
 import Ai from "@/views/User/Main/components/Edit/PageHeader/components/Ai/Ai.vue";
 import MyStar from "@/views/User/Main/components/MyStar/MyStar.vue";
@@ -13,11 +22,14 @@ import {ElMessage} from "element-plus";
 import {ref} from "vue";
 import VersionDialog from "@/views/User/Main/components/Edit/PageHeader/components/VersionDialog/VersionDialog.vue";
 import {useRouter} from "vue-router";
+import type {Editor} from "@tiptap/vue-3";
+import {Connection} from "@element-plus/icons-vue";
 
-const editor = defineModel()
+const editor = defineModel<Editor>()
 
 // 获取当前笔记 的 基础信息
 const currentNoteInfo = useCurrentNoteInfoStore()
+const rightPageState = useRightPageState()
 const favStore = useFavoriteDialogStore();
 const versionDialogVisible = ref(false)
 const router = useRouter();
@@ -112,6 +124,27 @@ const copyShareLink = async () => {
         <el-button text class="button" @click="copyShareLink">
           <el-icon color="#000000" size="18">
             <Share/>
+          </el-icon>
+        </el-button>
+
+      </el-tooltip>
+
+      <el-tooltip
+          class="box-item"
+          effect="dark"
+          content=" 知识星图 "
+          :show-after="500"
+          placement="bottom"
+      >
+
+        <el-button
+            text
+            class="button"
+            @click="rightPageState.SwitchKnowledgeGraph"
+            :style="{ backgroundColor: rightPageState.model === RightPageModeEnum.KnowledgeGraph ? '#F3F3F3' : 'transparent' }"
+        >
+          <el-icon color="#000000" size="18">
+            <Connection/>
           </el-icon>
         </el-button>
 

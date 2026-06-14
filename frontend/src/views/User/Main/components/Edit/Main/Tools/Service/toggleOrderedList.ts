@@ -1,8 +1,18 @@
-// 用于 文本编辑器中的 无序列表的功能
-import {Editor} from "@tiptap/vue-3";
+/**
+ * @file toggleOrderedList
+ * @project SlothNote
+ * @module 用户端 / 编辑器工具命令
+ * @description 提供 Tiptap 有序列表切换命令。
+ * @logic 兼容 Editor 与 Ref<Editor> 后执行 toggleOrderedList 并恢复焦点。
+ * @dependencies Helper: resolveEditor, Tiptap: Editor
+ * @index_tags Tiptap, 有序列表, 工具栏, editor命令
+ * @author holic512
+ */
+import {resolveEditor, type MaybeEditorRef} from "@/views/User/Main/components/Edit/editor/editorContext";
 
-export const toggleOrderedList = (editor: Editor) => {
-    editor.commands.toggleOrderedList()
+export const toggleOrderedList = (editor: MaybeEditorRef) => {
+    const instance = resolveEditor(editor);
+    instance?.commands.toggleOrderedList()
     // 回到焦点
-    editor.commands.focus();
+    instance?.commands.focus();
 }

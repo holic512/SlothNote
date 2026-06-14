@@ -1,8 +1,19 @@
+<!--
+@file PageRight
+@project SlothNote
+@module 用户端 / 笔记右侧栏
+@description 根据右侧栏状态展示评论、AI 或知识星图面板。
+@logic 1. 监听 RightPageState.model 调整栏宽；2. 按模式挂载对应功能组件；3. 关闭状态宽度归零。
+@dependencies Store: RightPageState, Component: NoteComment/NoteAI/KnowledgeGraph
+@index_tags 笔记右侧栏, AI, 评论, 知识星图
+@author holic512
+-->
 <script setup lang="ts">
 import {RightPageModeEnum, useRightPageState} from "@/views/User/Main/components/Edit/Pinia/RightPageState";
 import {ref, watch} from "vue";
 import NoteComment from "@/views/User/Main/components/Edit/PageRight/components/NoteComment/NoteComment.vue";
 import NoteAI from "@/views/User/Main/components/Edit/PageRight/components/NoteAi/NoteAi.vue"
+import KnowledgeGraph from "@/views/User/Main/components/Edit/PageRight/components/KnowledgeGraph/KnowledgeGraph.vue";
 // 控制右侧边栏状态
 const rightPageState = useRightPageState();
 
@@ -23,6 +34,9 @@ watch(() => rightPageState.model, (newValue) => {
     case RightPageModeEnum.Ai:
       RightPageWidth.value = 430;
       break;
+    case RightPageModeEnum.KnowledgeGraph:
+      RightPageWidth.value = 520;
+      break;
   }
 
 }, {immediate: true})
@@ -35,6 +49,8 @@ watch(() => rightPageState.model, (newValue) => {
       <NoteComment v-if="rightPageState.model == RightPageModeEnum.comment"/>
 
       <NoteAI v-if="rightPageState.model == RightPageModeEnum.Ai" v-model="editor"/>
+
+      <KnowledgeGraph v-if="rightPageState.model == RightPageModeEnum.KnowledgeGraph"/>
   </div>
 
 </template>

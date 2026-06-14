@@ -1,15 +1,17 @@
 /**
- * File Name: PUNoteServiceImpl.java
- * Description: Todo
- * Author: holic512
- * Created Date: 2024-11-12
- * Version: 1.0
- * Usage:
- * Todo
+ * @file PUNoteServiceImpl
+ * @project SlothNote
+ * @module 用户端 / 笔记保存服务
+ * @description 处理用户笔记正文保存、历史版本恢复与引用关系同步。
+ * @logic 1. 校验笔记存在与用户归属；2. 保存 note_content 并创建版本；3. 从 Tiptap JSON 同步 note_reference 出边。
+ * @dependencies Repository: UNoteInfoRep/UNoteRepM, Service: NoteVersionService/NoteReferenceService
+ * @index_tags 笔记保存, 历史版本, 引用同步, note_content, note_reference
+ * @author holic512
  */
 package org.example.backend.user.note.note.service.impl;
 
 import org.example.backend.common.domain.Note;
+import org.example.backend.user.note.graph.service.NoteReferenceService;
 import org.example.backend.user.note.note.repository.UNoteInfoRep;
 import org.example.backend.user.note.note.repository.UNoteRepM;
 import org.example.backend.user.note.note.service.NoteVersionService;
@@ -25,12 +27,17 @@ public class PUNoteServiceImpl implements PUNoteService {
     private final UNoteInfoRep uNoteInfoRep;
     private final UNoteRepM uNoteRepM;
     private final NoteVersionService noteVersionService;
+    private final NoteReferenceService noteReferenceService;
 
     @Autowired
-    public PUNoteServiceImpl(UNoteInfoRep uNoteInfoRep, UNoteRepM uNoteRepM, NoteVersionService noteVersionService) {
+    public PUNoteServiceImpl(UNoteInfoRep uNoteInfoRep,
+                             UNoteRepM uNoteRepM,
+                             NoteVersionService noteVersionService,
+                             NoteReferenceService noteReferenceService) {
         this.uNoteInfoRep = uNoteInfoRep;
         this.uNoteRepM = uNoteRepM;
         this.noteVersionService = noteVersionService;
+        this.noteReferenceService = noteReferenceService;
     }
 
     /**
@@ -68,6 +75,7 @@ public class PUNoteServiceImpl implements PUNoteService {
 
         uNoteRepM.save(persisted);
         noteVersionService.createVersionIfChanged(userId, noteId, persisted.getContent(), "SAVE");
+        noteReferenceService.syncReferencesFromContent(userId, noteId, persisted.getContent());
         return "success"; // 保存成功
     }
 
@@ -80,6 +88,10 @@ public class PUNoteServiceImpl implements PUNoteService {
         if (!ownerId.equals(userId)) {
             return null;
         }
-        return noteVersionService.restoreVersion(userId, noteId, versionId);
+        Note restored = noteVersionService.restoreVersion(userId, noteId, versionId);
+        if (restored != null) {
+            noteReferenceService.syncReferencesFromContent(userId, noteId, restored.getContent());
+        }
+        return restored;
     }
 }

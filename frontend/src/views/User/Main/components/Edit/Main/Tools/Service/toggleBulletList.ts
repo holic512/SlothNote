@@ -1,8 +1,18 @@
-// 用于 文本编辑器中的 无序列表的功能
-import {Editor} from "@tiptap/vue-3";
+/**
+ * @file toggleBulletList
+ * @project SlothNote
+ * @module 用户端 / 编辑器工具命令
+ * @description 提供 Tiptap 无序列表切换命令。
+ * @logic 兼容 Editor 与 Ref<Editor> 后执行 toggleBulletList 并恢复焦点。
+ * @dependencies Helper: resolveEditor, Tiptap: Editor
+ * @index_tags Tiptap, 无序列表, 工具栏, editor命令
+ * @author holic512
+ */
+import {resolveEditor, type MaybeEditorRef} from "@/views/User/Main/components/Edit/editor/editorContext";
 
-export const toggleBulletList = (editor: Editor) => {
-    editor.commands.toggleBulletList();
+export const toggleBulletList = (editor: MaybeEditorRef) => {
+    const instance = resolveEditor(editor);
+    instance?.commands.toggleBulletList();
     // 回到焦点
-    editor.commands.focus();
+    instance?.commands.focus();
 }

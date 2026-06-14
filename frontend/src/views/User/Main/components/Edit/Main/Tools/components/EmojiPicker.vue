@@ -1,3 +1,13 @@
+<!--
+@file EmojiPicker
+@project SlothNote
+@module 用户端 / 编辑器工具栏
+@description 提供表情选择弹层，并将选中的 emoji 插入到当前 Tiptap 编辑器。
+@logic 1. 异步加载 vue3-emoji-picker；2. 接收 editor model；3. 选择 emoji 后插入内容并关闭下拉层。
+@dependencies Tiptap: Editor, Component: vue3-emoji-picker, ElementPlus: DropdownInstance
+@index_tags 表情选择器, Tiptap, 工具栏, emoji插入
+@author holic512
+-->
 <script setup lang="ts">
 import {ref} from "vue";
 import type {ModelRef} from "vue";
@@ -7,7 +17,6 @@ import {defineAsyncComponent} from "vue";
 import type {EmojiExt} from "vue3-emoji-picker";
 import "../css/editTool-button.css";
 
-// @ts-expect-error package style entry has no type declarations
 import "vue3-emoji-picker/css";
 
 const EmojiPickerPanel = defineAsyncComponent(() => import("vue3-emoji-picker"));

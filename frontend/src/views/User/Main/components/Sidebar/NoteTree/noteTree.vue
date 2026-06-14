@@ -1,9 +1,18 @@
+<!--
+@file UserNoteTree
+@project SlothNote
+@module 用户端 / 笔记树
+@description 展示用户文件夹与笔记树，并处理笔记跳转、右键菜单和展开状态。
+@logic 1. 加载用户完整笔记树；2. 通过统一 noteNavigation 切换笔记；3. 维护右键菜单和展开节点。
+@dependencies Service: getUserAllTreeData/noteNavigation, Store: isNoteTreeUpdated/RightSelectNodeId/SaveNoteState
+@index_tags 笔记树, 侧边栏, 笔记跳转, noteNavigation, 卡顿优化
+@author holic512
+-->
 <script setup lang="ts">
 import {onMounted, ref, watch} from "vue";
 import type Node from 'element-plus/es/components/tree/src/model/node'
 import Button from 'primevue/button';
 import {Tree} from "./interface/treeInterface";
-import {getCurrentNoteInfo} from "@/views/User/Main/components/Sidebar/NoteTree/service/GetCurrentNoteInfo.js";
 import {useRouter} from "vue-router";
 import TopDivRightMenu from "@/views/User/Main/components/Sidebar/RightMenu/TopDivRightMenu.vue";
 import NodeRightMenu from "@/views/User/Main/components/Sidebar/RightMenu/NodeRightMenu.vue";
@@ -12,8 +21,7 @@ import {getUserAllTreeData} from "@/views/User/Main/components/Sidebar/NoteTree/
 import {useNoteTreeUpdate} from "@/views/User/Main/components/Sidebar/Pinia/isNoteTreeUpdated";
 import {useRightSelectNodeId} from "@/views/User/Main/components/Sidebar/Pinia/RightSelectNodeId";
 import {getFolderIdByNoteId} from "@/views/User/Main/components/Sidebar/NoteTree/service/GetFolderIdByNoteId";
-import {useSaveNoteState} from "@/views/User/Main/components/Edit/Pinia/SaveNoteState";
-import {ElMessageBox} from "element-plus";
+import {navigateToNote} from "@/views/User/Main/components/Edit/service/noteNavigation";
 
 
 // 获取 router 实例
@@ -44,37 +52,31 @@ watch(() => isNoteTreeUpdated.isNoteTreeUpdated, async (newState) => {
   }
 })
 
-const SaveNoteState = useSaveNoteState()
-
 // 左键点击
-const handleNodeClick = (data: Tree, node: Node) => {
+const handleNodeClick = async (data: Tree, node: Node) => {
 
   // 当目标是笔记时 - 判断当前是否保存 -> 发起需要保存的提示 -> 获取笔记信息 , 重置保存状态  ->跳转到笔记路由
   if (data.type !== 'NOTE') return
 
-  if (!SaveNoteState.isSaved) {
-    // 消息提示框
-    ElMessageBox.confirm(
-        '当前笔记没有保存,确定要切换吗',
-        '笔记未保存',
-        {
-          confirmButtonText: '确认',
-          cancelButtonText: '取消',
-          type: 'warning',
-        }
-    )
-        .then(() => {
-          // 设置当前显示笔记信息
-          getCurrentNoteInfo(node);
-          // 重置保存状态
-          SaveNoteState.saveContent();
-          router.push({path: '/user/main/edit', query: {noteId: String(data.id)}})
-        })
-  } else {
-    // 设置当前显示笔记信息
-    getCurrentNoteInfo(node);
-    router.push({path: '/user/main/edit', query: {noteId: String(data.id)}})
+  await navigateToNote(router, {
+    noteId: data.id,
+    noteName: data.label || "新建文档",
+    noteLocation: getParentLabels(node),
+    avatar: data.avatar || "",
+    cover: data.cover ?? null,
+  });
+}
+
+const getParentLabels = (node: Node): string[] => {
+  const parents: string[] = [];
+  let currentNode = node;
+
+  while (currentNode.parent?.data?.label) {
+    parents.unshift(currentNode.parent.data.label);
+    currentNode = currentNode.parent;
   }
+
+  return parents;
 }
 
 // NoteTree  右键操作
