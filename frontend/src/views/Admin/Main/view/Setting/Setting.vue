@@ -1,9 +1,20 @@
+<!--
+@file AdminSettingPage
+@project SlothNote
+@module 管理端 / 系统设置
+@description 管理管理员资料、系统初始化和 AI 服务配置。
+@logic 1. 读取并保存管理员邮箱；2. 展示用户数据统计并执行初始化；3. 维护数据库中的 AI 供应商配置。
+@dependencies API: /admin/setting/profile, /admin/setting/systemReset, /admin/setting/aiConfig
+@index_tags 管理端设置, 系统初始化, AI配置, 管理员资料
+@author holic512
+-->
 <script setup lang="ts">
 import Button from 'primevue/button'
 import InputText from 'primevue/inputtext'
 import axios from '@/axios'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { computed, onMounted, ref } from 'vue'
+import { fetchAiConfig, updateAiConfig, type AiConfigUpdatePayload, type AiConfigView } from './service/setting'
 
 type TableSummary = {
   tableName: string
@@ -21,14 +32,34 @@ const loading = ref(false)
 const resetting = ref(false)
 const profileLoading = ref(false)
 const profileSaving = ref(false)
+const aiConfigLoading = ref(false)
+const aiConfigSaving = ref(false)
 const confirmText = ref('')
 const requiredConfirmText = ref('INITIALIZE')
 const tables = ref<TableSummary[]>([])
 const profile = ref<AdminProfile>({})
 const profileEmail = ref('')
+const aiConfig = ref<AiConfigView | null>(null)
+const aiForm = ref<AiConfigUpdatePayload>({
+  providerName: 'openai-compatible',
+  baseUrl: '',
+  apiKey: '',
+  model: '',
+  temperature: 0.7,
+  maxTokens: 4096,
+  plannerTemperature: 0.1,
+  plannerMaxTokens: 256,
+  enabled: false,
+})
 
 const totalRecords = computed(() => tables.value.reduce((sum, item) => sum + (item.count || 0), 0))
 const canReset = computed(() => confirmText.value.trim() === requiredConfirmText.value && !resetting.value)
+const apiKeyStatusText = computed(() => {
+  if (!aiConfig.value?.hasApiKey) {
+    return '未配置'
+  }
+  return aiConfig.value.maskedApiKey || '已配置'
+})
 
 const loadProfile = async () => {
   profileLoading.value = true
@@ -64,6 +95,56 @@ const saveProfile = async () => {
     ElMessage.error('管理员资料更新失败')
   } finally {
     profileSaving.value = false
+  }
+}
+
+const applyAiConfigToForm = (data: AiConfigView) => {
+  aiConfig.value = data
+  aiForm.value = {
+    providerName: data.providerName || 'openai-compatible',
+    baseUrl: data.baseUrl || '',
+    apiKey: '',
+    model: data.model || '',
+    temperature: data.temperature ?? 0.7,
+    maxTokens: data.maxTokens ?? 4096,
+    plannerTemperature: data.plannerTemperature ?? 0.1,
+    plannerMaxTokens: data.plannerMaxTokens ?? 256,
+    enabled: Boolean(data.enabled),
+  }
+}
+
+const loadAiConfig = async () => {
+  aiConfigLoading.value = true
+  try {
+    const data = await fetchAiConfig()
+    applyAiConfigToForm(data)
+  } catch {
+    ElMessage.error('无法获取 AI 配置')
+  } finally {
+    aiConfigLoading.value = false
+  }
+}
+
+const saveAiConfig = async () => {
+  aiConfigSaving.value = true
+  try {
+    const result = await updateAiConfig({
+      ...aiForm.value,
+      providerName: aiForm.value.providerName.trim() || 'openai-compatible',
+      baseUrl: aiForm.value.baseUrl.trim(),
+      apiKey: aiForm.value.apiKey?.trim() || '',
+      model: aiForm.value.model.trim(),
+    })
+    if (result.status === 200 && result.data) {
+      applyAiConfigToForm(result.data)
+      ElMessage.success('AI 配置已保存')
+      return
+    }
+    ElMessage.error(result.message || 'AI 配置保存失败')
+  } catch {
+    ElMessage.error('AI 配置保存失败')
+  } finally {
+    aiConfigSaving.value = false
   }
 }
 
@@ -124,7 +205,7 @@ const executeReset = async () => {
 }
 
 onMounted(async () => {
-  await Promise.all([loadProfile(), loadSummary()])
+  await Promise.all([loadProfile(), loadSummary(), loadAiConfig()])
 })
 </script>
 
@@ -163,6 +244,59 @@ onMounted(async () => {
         <div class="profile-actions">
           <span class="profile-tip">{{ profile.hasEmail ? '当前已配置邮箱，可继续修改。' : '当前未配置邮箱，管理员将保持单步密码登录。' }}</span>
           <Button label="保存邮箱" :loading="profileSaving" @click="saveProfile" />
+        </div>
+      </section>
+
+      <section class="stats-card">
+        <div class="stats-header">
+          <div>
+            <h2>AI 服务配置</h2>
+            <p>配置 OpenAI 兼容接口后，用户端 AI 对话、工具规划和笔记助手将使用这里的参数。</p>
+          </div>
+          <Button icon="pi pi-cloud" text rounded :loading="aiConfigLoading" @click="loadAiConfig" />
+        </div>
+
+        <div class="ai-config-grid">
+          <div class="profile-item">
+            <label>供应商标识</label>
+            <InputText v-model="aiForm.providerName" placeholder="openai-compatible" />
+          </div>
+          <div class="profile-item ai-wide">
+            <label>Base URL</label>
+            <InputText v-model="aiForm.baseUrl" placeholder="https://example.com/v1" />
+          </div>
+          <div class="profile-item">
+            <label>模型名称</label>
+            <InputText v-model="aiForm.model" placeholder="gpt-4o-mini" />
+          </div>
+          <div class="profile-item">
+            <label>API Key</label>
+            <InputText v-model="aiForm.apiKey" type="password" autocomplete="new-password" placeholder="留空表示保留原 Key" />
+          </div>
+          <div class="profile-item">
+            <label>回答温度</label>
+            <el-input-number v-model="aiForm.temperature" :min="0" :max="2" :step="0.1" :precision="2" controls-position="right" />
+          </div>
+          <div class="profile-item">
+            <label>回答最大 Token</label>
+            <el-input-number v-model="aiForm.maxTokens" :min="1" :step="256" controls-position="right" />
+          </div>
+          <div class="profile-item">
+            <label>规划温度</label>
+            <el-input-number v-model="aiForm.plannerTemperature" :min="0" :max="2" :step="0.1" :precision="2" controls-position="right" />
+          </div>
+          <div class="profile-item">
+            <label>规划最大 Token</label>
+            <el-input-number v-model="aiForm.plannerMaxTokens" :min="1" :step="64" controls-position="right" />
+          </div>
+        </div>
+
+        <div class="ai-config-actions">
+          <div class="ai-status">
+            <el-switch v-model="aiForm.enabled" active-text="启用" inactive-text="停用" />
+            <el-tag :type="aiConfig?.hasApiKey ? 'success' : 'info'" effect="plain">Key: {{ apiKeyStatusText }}</el-tag>
+          </div>
+          <Button label="保存 AI 配置" icon="pi pi-save" :loading="aiConfigSaving" @click="saveAiConfig" />
         </div>
       </section>
 
@@ -315,6 +449,16 @@ onMounted(async () => {
   gap: 14px;
 }
 
+.ai-config-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 14px;
+}
+
+.ai-wide {
+  grid-column: span 2;
+}
+
 .profile-item {
   display: flex;
   flex-direction: column;
@@ -330,6 +474,21 @@ onMounted(async () => {
   margin-top: 16px;
   display: flex;
   justify-content: space-between;
+  gap: 12px;
+  align-items: center;
+}
+
+.ai-config-actions {
+  margin-top: 18px;
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  align-items: center;
+}
+
+.ai-status {
+  display: flex;
+  flex-wrap: wrap;
   gap: 12px;
   align-items: center;
 }
@@ -441,6 +600,7 @@ onMounted(async () => {
 
   .hero-card,
   .stats-header,
+  .ai-config-actions,
   .danger-body,
   .confirm-row {
     flex-direction: column;
@@ -448,8 +608,13 @@ onMounted(async () => {
   }
 
   .total-pill,
+  .ai-wide,
   .actions :deep(.p-button) {
     width: 100%;
+  }
+
+  .ai-wide {
+    grid-column: auto;
   }
 }
 </style>

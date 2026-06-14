@@ -1,3 +1,13 @@
+/**
+ * @file UserAiToolController
+ * @project SlothNote
+ * @module 用户端 / AI 工具
+ * @description 提供 AI 工具清单、工具规划预览和笔记检索读取接口。
+ * @logic 1. 返回可用工具；2. 调用 AI 规划器预览工具执行方案；3. 提供笔记搜索与读取辅助接口。
+ * @dependencies Service: UserAiService/UserAiToolService, Response: ApiResponse
+ * @index_tags 用户AI, 工具调用, 规划预览, 笔记检索
+ * @author holic512
+ */
 package org.example.backend.user.ai;
 
 import org.example.backend.common.response.ApiResponse;
@@ -32,7 +42,11 @@ public class UserAiToolController {
     @PostMapping("/plan")
     public ResponseEntity<Object> previewPlan(@RequestBody ChatRequest request) {
         Long userId = userAiService.currentUserId();
-        return ResponseEntity.ok(new ApiResponse<>(200, "SUCCESS", userAiService.previewToolPlan(userId, request)));
+        try {
+            return ResponseEntity.ok(new ApiResponse<>(200, "SUCCESS", userAiService.previewToolPlan(userId, request)));
+        } catch (RuntimeException ex) {
+            return ResponseEntity.ok(new ApiResponse<>(400, ex.getMessage()));
+        }
     }
 
     @PostMapping("/search-notes")

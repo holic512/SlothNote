@@ -1,7 +1,18 @@
+/**
+ * @file UserAiService
+ * @project SlothNote
+ * @module 用户端 / AI 助手
+ * @description 处理用户 AI 会话、上下文笔记、工具规划和流式回答。
+ * @logic 1. 管理 AI 会话与消息；2. 组合笔记上下文和工具调用；3. 从数据库读取系统 AI 配置后请求 OpenAI 兼容接口。
+ * @dependencies Service: AiConfigService/UserAiToolService, Repository: AiChatSessionRepository/AiChatMessageRepository
+ * @index_tags 用户AI, SSE, OpenAI兼容, 数据库配置, 工具调用
+ * @author holic512
+ */
 package org.example.backend.user.ai.service;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import org.example.backend.common.config.ai.AiConfigService;
 import org.example.backend.common.domain.Note;
 import org.example.backend.common.entity.*;
 import org.example.backend.common.util.StpKit;
@@ -12,7 +23,6 @@ import org.example.backend.user.note.note.repository.UNoteRepM;
 import org.example.backend.user.repository.UserUserRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.MediaType;
@@ -47,16 +57,8 @@ public class UserAiService {
     private static final int MAX_TOOL_STEPS = 2;
     private static final int DEBUG_PREVIEW_CHARS = 240;
 
-    @Value("${ai.openai.api-key}")
-    private String apiKey;
-
-    @Value("${ai.openai.base-url}")
-    private String apiBaseUrl;
-
-    @Value("${ai.openai.model}")
-    private String model;
-
     private final ObjectMapper objectMapper = new ObjectMapper();
+    private final AiConfigService aiConfigService;
     private final AiChatSessionRepository sessionRepository;
     private final AiChatMessageRepository messageRepository;
     private final AiChatSessionNoteRefRepository noteRefRepository;
@@ -66,13 +68,15 @@ public class UserAiService {
     private final UserAiToolService userAiToolService;
     private final ConcurrentHashMap<Long, AtomicBoolean> stopFlags = new ConcurrentHashMap<>();
 
-    public UserAiService(AiChatSessionRepository sessionRepository,
+    public UserAiService(AiConfigService aiConfigService,
+                         AiChatSessionRepository sessionRepository,
                          AiChatMessageRepository messageRepository,
                          AiChatSessionNoteRefRepository noteRefRepository,
                          AiNoteContextRepository aiNoteContextRepository,
                          UNoteRepM noteRepM,
                          UserUserRepository userUserRepository,
                          UserAiToolService userAiToolService) {
+        this.aiConfigService = aiConfigService;
         this.sessionRepository = sessionRepository;
         this.messageRepository = messageRepository;
         this.noteRefRepository = noteRefRepository;
@@ -147,7 +151,8 @@ public class UserAiService {
         if (request == null || request.getText() == null || request.getText().trim().isEmpty()) {
             return new AiToolPlanPreviewDto("none", "{}", false, false, "本次无需调用工具。");
         }
-        ToolPlan plan = planToolUse(buildPreviewMessages(userId, request), request.getText().trim());
+        AiConfigService.RuntimeConfig aiConfig = aiConfigService.requireEnabledConfig();
+        ToolPlan plan = planToolUse(aiConfig, buildPreviewMessages(userId, request), request.getText().trim());
         if (plan == null || "none".equals(plan.tool())) {
             return new AiToolPlanPreviewDto("none", "{}", false, false, "本次无需调用工具。");
         }
@@ -245,7 +250,9 @@ public class UserAiService {
             log.debug("AI session event sent: sessionId={}, userMessageId={}, assistantMessageId={}",
                     session.getId(), userMessage.getId(), assistantMessage.getId());
 
+            AiConfigService.RuntimeConfig aiConfig = aiConfigService.requireEnabledConfig();
             Map<String, Object> payload = buildAiRequestPayload(
+                    aiConfig,
                     userId,
                     session.getId(),
                     request,
@@ -267,10 +274,10 @@ public class UserAiService {
 
             HttpHeaders headers = new HttpHeaders();
             headers.setContentType(MediaType.APPLICATION_JSON);
-            headers.set("Authorization", "Bearer " + apiKey);
+            headers.set("Authorization", "Bearer " + aiConfig.apiKey());
 
             RestTemplate restTemplate = new RestTemplate();
-            restTemplate.execute(resolveChatCompletionsUrl(), HttpMethod.POST, httpRequest -> {
+            restTemplate.execute(resolveChatCompletionsUrl(aiConfig.baseUrl()), HttpMethod.POST, httpRequest -> {
                 httpRequest.getHeaders().addAll(headers);
                 httpRequest.getBody().write(jsonBody.getBytes(StandardCharsets.UTF_8));
             }, response -> {
@@ -374,22 +381,24 @@ public class UserAiService {
         });
     }
 
-    private Map<String, Object> buildAiRequestPayload(Long userId,
+    private Map<String, Object> buildAiRequestPayload(AiConfigService.RuntimeConfig aiConfig,
+                                                      Long userId,
                                                       Long sessionId,
                                                       ChatRequest request,
                                                       Long currentUserMessageId,
                                                       Long currentAssistantMessageId,
                                                       Consumer<Map<String, Object>> progressEmitter) {
         Map<String, Object> requestBody = new HashMap<>();
-        requestBody.put("model", model);
+        requestBody.put("model", aiConfig.model());
         requestBody.put("stream", true);
-        requestBody.put("temperature", 0.7);
-        requestBody.put("max_tokens", 4096);
-        requestBody.put("messages", buildMessagesWithTools(userId, sessionId, request, currentUserMessageId, currentAssistantMessageId, progressEmitter));
+        requestBody.put("temperature", aiConfig.temperature());
+        requestBody.put("max_tokens", aiConfig.maxTokens());
+        requestBody.put("messages", buildMessagesWithTools(aiConfig, userId, sessionId, request, currentUserMessageId, currentAssistantMessageId, progressEmitter));
         return requestBody;
     }
 
-    private List<Map<String, String>> buildMessagesWithTools(Long userId,
+    private List<Map<String, String>> buildMessagesWithTools(AiConfigService.RuntimeConfig aiConfig,
+                                                             Long userId,
                                                              Long sessionId,
                                                              ChatRequest request,
                                                              Long currentUserMessageId,
@@ -406,7 +415,7 @@ public class UserAiService {
         for (int i = 0; i < MAX_TOOL_STEPS; i++) {
             ToolPlan plan = i == 0 ? resolveRequestedWritePlan(request, messages) : null;
             if (plan == null) {
-                plan = planToolUse(messages, request.getText().trim());
+                plan = planToolUse(aiConfig, messages, request.getText().trim());
             }
             if (plan == null || "none".equals(plan.tool())) {
                 log.debug("AI tool planning skipped: sessionId={}, step={}, plan={}", sessionId, i + 1, plan);
@@ -739,13 +748,13 @@ public class UserAiService {
         return messages;
     }
 
-    private ToolPlan planToolUse(List<Map<String, String>> messages, String userQuestion) {
+    private ToolPlan planToolUse(AiConfigService.RuntimeConfig aiConfig, List<Map<String, String>> messages, String userQuestion) {
         try {
             Map<String, Object> requestBody = new HashMap<>();
-            requestBody.put("model", model);
+            requestBody.put("model", aiConfig.model());
             requestBody.put("stream", false);
-            requestBody.put("temperature", 0.1);
-            requestBody.put("max_tokens", 256);
+            requestBody.put("temperature", aiConfig.plannerTemperature());
+            requestBody.put("max_tokens", aiConfig.plannerMaxTokens());
             requestBody.put("messages", List.of(
                     Map.of("role", "system", "content", """
                             你是一个工具规划器。你只输出 JSON，不输出解释。
@@ -776,7 +785,7 @@ public class UserAiService {
                     Map.of("role", "user", "content", "已有消息上下文摘要：" + summarizeMessagesForPlanner(messages))
             ));
 
-            String content = callAiForSingleMessage(requestBody);
+            String content = callAiForSingleMessage(aiConfig, requestBody);
             if (content == null || content.isBlank()) {
                 log.warn("AI tool planner returned empty content");
                 return null;
@@ -1062,14 +1071,14 @@ public class UserAiService {
         return builder.toString();
     }
 
-    private String callAiForSingleMessage(Map<String, Object> requestBody) throws IOException {
+    private String callAiForSingleMessage(AiConfigService.RuntimeConfig aiConfig, Map<String, Object> requestBody) throws IOException {
         HttpHeaders headers = new HttpHeaders();
         headers.setContentType(MediaType.APPLICATION_JSON);
-        headers.set("Authorization", "Bearer " + apiKey);
+        headers.set("Authorization", "Bearer " + aiConfig.apiKey());
         String jsonBody = objectMapper.writeValueAsString(requestBody);
         log.debug("AI single-call request: payloadChars={}, payloadPreview={}", jsonBody.length(), previewText(jsonBody));
         RestTemplate restTemplate = new RestTemplate();
-        return restTemplate.execute(resolveChatCompletionsUrl(), HttpMethod.POST, httpRequest -> {
+        return restTemplate.execute(resolveChatCompletionsUrl(aiConfig.baseUrl()), HttpMethod.POST, httpRequest -> {
             httpRequest.getHeaders().addAll(headers);
             httpRequest.getBody().write(jsonBody.getBytes(StandardCharsets.UTF_8));
         }, response -> {
@@ -1085,10 +1094,10 @@ public class UserAiService {
         });
     }
 
-    private String resolveChatCompletionsUrl() {
+    private String resolveChatCompletionsUrl(String apiBaseUrl) {
         String normalized = apiBaseUrl == null ? "" : apiBaseUrl.trim();
         if (normalized.isEmpty()) {
-            throw new IllegalStateException("ai.openai.base-url is blank");
+            throw new IllegalStateException("AI Base URL 未配置");
         }
         while (normalized.endsWith("/")) {
             normalized = normalized.substring(0, normalized.length() - 1);

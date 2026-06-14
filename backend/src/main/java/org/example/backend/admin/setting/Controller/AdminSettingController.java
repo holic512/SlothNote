@@ -1,6 +1,18 @@
+/**
+ * @file AdminSettingController
+ * @project SlothNote
+ * @module 管理端 / 系统设置
+ * @description 提供管理员资料、系统初始化与 AI 配置维护接口。
+ * @logic 1. 读取和更新管理员资料；2. 执行用户数据初始化；3. 读取和保存数据库 AI 配置。
+ * @dependencies Service: AdminSettingService/AiConfigService, DTO: AiConfigUpdateRequest
+ * @index_tags 管理端设置, 系统初始化, 管理员资料, AI配置
+ * @author holic512
+ */
 package org.example.backend.admin.setting.Controller;
 
 import org.example.backend.admin.setting.service.AdminSettingService;
+import org.example.backend.common.config.ai.AiConfigService;
+import org.example.backend.common.dto.ai.AiConfigUpdateRequest;
 import org.example.backend.common.response.ApiResponse;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -17,9 +29,11 @@ import java.util.Map;
 public class AdminSettingController {
 
     private final AdminSettingService adminSettingService;
+    private final AiConfigService aiConfigService;
 
-    public AdminSettingController(AdminSettingService adminSettingService) {
+    public AdminSettingController(AdminSettingService adminSettingService, AiConfigService aiConfigService) {
         this.adminSettingService = adminSettingService;
+        this.aiConfigService = aiConfigService;
     }
 
     @GetMapping("/systemReset/summary")
@@ -65,6 +79,31 @@ public class AdminSettingController {
             return ResponseEntity.ok(new ApiResponse.Builder<>()
                     .status(500)
                     .message("管理员资料更新失败")
+                    .build());
+        }
+    }
+
+    @GetMapping("/aiConfig")
+    public ResponseEntity<Object> aiConfig() {
+        return ResponseEntity.ok(new ApiResponse.Builder<>()
+                .status(200)
+                .message("成功获取 AI 配置")
+                .data(aiConfigService.getPublicConfig())
+                .build());
+    }
+
+    @PutMapping("/aiConfig")
+    public ResponseEntity<Object> updateAiConfig(@RequestBody AiConfigUpdateRequest request) {
+        try {
+            return ResponseEntity.ok(new ApiResponse.Builder<>()
+                    .status(200)
+                    .message("AI 配置保存成功")
+                    .data(aiConfigService.updateConfig(request))
+                    .build());
+        } catch (RuntimeException ex) {
+            return ResponseEntity.ok(new ApiResponse.Builder<>()
+                    .status(400)
+                    .message(ex.getMessage())
                     .build());
         }
     }

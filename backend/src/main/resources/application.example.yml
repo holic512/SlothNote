@@ -39,11 +39,8 @@ spring:
     hibernate:
       ddl-auto: none
 
-ai:
-  openai:
-    base-url: "${OPENAI_BASE_URL:TODO_OPENAI_COMPATIBLE_BASE_URL}"
-    api-key: "${OPENAI_API_KEY:TODO_OPENAI_API_KEY}"
-    model: "${OPENAI_MODEL:TODO_MODEL_NAME}"
+# AI provider config is stored in the database table `system_ai_config`.
+# Edit it from Admin / System Settings after applying the SQL migration.
 
 server:
   port: ${SERVER_PORT:8080}
