@@ -2,19 +2,29 @@
 @file AdminSettingPage
 @project SlothNote
 @module 管理端 / 系统设置
-@description 管理管理员资料、系统初始化和 AI 服务配置。
-@logic 1. 读取并保存管理员邮箱；2. 展示用户数据统计并执行初始化；3. 维护数据库中的 AI 供应商配置。
-@dependencies API: /admin/setting/profile, /admin/setting/systemReset, /admin/setting/aiConfig
-@index_tags 管理端设置, 系统初始化, AI配置, 管理员资料
+@description 管理管理员资料、系统初始化、AI 服务配置和邮箱 SMTP 配置。
+@logic 1. 使用 Element Plus Tabs 分组设置项；2. 维护数据库 AI/邮箱配置；3. 支持不落库的 AI 与邮箱测试。
+@dependencies API: /admin/setting/profile, /admin/setting/systemReset, /admin/setting/aiConfig, /admin/setting/mailConfig
+@index_tags 管理端设置, 系统初始化, AI配置, 邮箱配置, ElementPlus
 @author holic512
 -->
 <script setup lang="ts">
-import Button from 'primevue/button'
-import InputText from 'primevue/inputtext'
 import axios from '@/axios'
+import { Check, Connection, Delete, Message, Refresh, User, Warning } from '@element-plus/icons-vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { computed, onMounted, ref } from 'vue'
-import { fetchAiConfig, updateAiConfig, type AiConfigUpdatePayload, type AiConfigView } from './service/setting'
+import {
+  fetchAiConfig,
+  fetchMailConfig,
+  testAiConfig,
+  testMailConfig,
+  updateAiConfig,
+  updateMailConfig,
+  type AiConfigUpdatePayload,
+  type AiConfigView,
+  type MailConfigUpdatePayload,
+  type MailConfigView,
+} from './service/setting'
 
 type TableSummary = {
   tableName: string
@@ -28,18 +38,29 @@ type AdminProfile = {
   hasEmail?: boolean
 }
 
+const activeTab = ref('profile')
 const loading = ref(false)
 const resetting = ref(false)
 const profileLoading = ref(false)
 const profileSaving = ref(false)
 const aiConfigLoading = ref(false)
 const aiConfigSaving = ref(false)
+const aiTesting = ref(false)
+const mailConfigLoading = ref(false)
+const mailConfigSaving = ref(false)
+const mailTesting = ref(false)
+
 const confirmText = ref('')
 const requiredConfirmText = ref('INITIALIZE')
 const tables = ref<TableSummary[]>([])
 const profile = ref<AdminProfile>({})
 const profileEmail = ref('')
 const aiConfig = ref<AiConfigView | null>(null)
+const mailConfig = ref<MailConfigView | null>(null)
+const aiTestPrompt = ref('请用一句中文回复：AI 配置测试成功')
+const aiTestReply = ref('')
+const mailTestRecipient = ref('')
+
 const aiForm = ref<AiConfigUpdatePayload>({
   providerName: 'openai-compatible',
   baseUrl: '',
@@ -52,13 +73,31 @@ const aiForm = ref<AiConfigUpdatePayload>({
   enabled: false,
 })
 
+const mailForm = ref<MailConfigUpdatePayload>({
+  host: '',
+  port: 465,
+  username: '',
+  password: '',
+  protocol: 'smtps',
+  defaultEncoding: 'UTF-8',
+  fromAddress: '',
+  fromName: 'SlothNote',
+  smtpAuth: true,
+  sslEnable: true,
+  starttlsEnable: true,
+  starttlsRequired: true,
+  enabled: false,
+})
+
 const totalRecords = computed(() => tables.value.reduce((sum, item) => sum + (item.count || 0), 0))
 const canReset = computed(() => confirmText.value.trim() === requiredConfirmText.value && !resetting.value)
 const apiKeyStatusText = computed(() => {
-  if (!aiConfig.value?.hasApiKey) {
-    return '未配置'
-  }
+  if (!aiConfig.value?.hasApiKey) return '未配置'
   return aiConfig.value.maskedApiKey || '已配置'
+})
+const mailPasswordStatusText = computed(() => {
+  if (!mailConfig.value?.hasPassword) return '未配置'
+  return mailConfig.value.maskedPassword || '已配置'
 })
 
 const loadProfile = async () => {
@@ -113,11 +152,29 @@ const applyAiConfigToForm = (data: AiConfigView) => {
   }
 }
 
+const applyMailConfigToForm = (data: MailConfigView) => {
+  mailConfig.value = data
+  mailForm.value = {
+    host: data.host || '',
+    port: data.port || 465,
+    username: data.username || '',
+    password: '',
+    protocol: data.protocol || 'smtps',
+    defaultEncoding: data.defaultEncoding || 'UTF-8',
+    fromAddress: data.fromAddress || '',
+    fromName: data.fromName || 'SlothNote',
+    smtpAuth: data.smtpAuth ?? true,
+    sslEnable: data.sslEnable ?? true,
+    starttlsEnable: data.starttlsEnable ?? true,
+    starttlsRequired: data.starttlsRequired ?? true,
+    enabled: Boolean(data.enabled),
+  }
+}
+
 const loadAiConfig = async () => {
   aiConfigLoading.value = true
   try {
-    const data = await fetchAiConfig()
-    applyAiConfigToForm(data)
+    applyAiConfigToForm(await fetchAiConfig())
   } catch {
     ElMessage.error('无法获取 AI 配置')
   } finally {
@@ -125,16 +182,40 @@ const loadAiConfig = async () => {
   }
 }
 
+const loadMailConfig = async () => {
+  mailConfigLoading.value = true
+  try {
+    applyMailConfigToForm(await fetchMailConfig())
+  } catch {
+    ElMessage.error('无法获取邮箱配置')
+  } finally {
+    mailConfigLoading.value = false
+  }
+}
+
+const buildAiPayload = (): AiConfigUpdatePayload => ({
+  ...aiForm.value,
+  providerName: aiForm.value.providerName.trim() || 'openai-compatible',
+  baseUrl: aiForm.value.baseUrl.trim(),
+  apiKey: aiForm.value.apiKey?.trim() || '',
+  model: aiForm.value.model.trim(),
+})
+
+const buildMailPayload = (): MailConfigUpdatePayload => ({
+  ...mailForm.value,
+  host: mailForm.value.host.trim(),
+  username: mailForm.value.username.trim(),
+  password: mailForm.value.password?.trim() || '',
+  protocol: mailForm.value.protocol.trim() || 'smtps',
+  defaultEncoding: mailForm.value.defaultEncoding.trim() || 'UTF-8',
+  fromAddress: mailForm.value.fromAddress.trim(),
+  fromName: mailForm.value.fromName.trim(),
+})
+
 const saveAiConfig = async () => {
   aiConfigSaving.value = true
   try {
-    const result = await updateAiConfig({
-      ...aiForm.value,
-      providerName: aiForm.value.providerName.trim() || 'openai-compatible',
-      baseUrl: aiForm.value.baseUrl.trim(),
-      apiKey: aiForm.value.apiKey?.trim() || '',
-      model: aiForm.value.model.trim(),
-    })
+    const result = await updateAiConfig(buildAiPayload())
     if (result.status === 200 && result.data) {
       applyAiConfigToForm(result.data)
       ElMessage.success('AI 配置已保存')
@@ -145,6 +226,69 @@ const saveAiConfig = async () => {
     ElMessage.error('AI 配置保存失败')
   } finally {
     aiConfigSaving.value = false
+  }
+}
+
+const runAiTest = async () => {
+  aiTesting.value = true
+  aiTestReply.value = ''
+  try {
+    const result = await testAiConfig({
+      ...buildAiPayload(),
+      prompt: aiTestPrompt.value.trim(),
+    })
+    if (result.status === 200) {
+      aiTestReply.value = result.data?.reply || ''
+      ElMessage.success('AI 配置测试成功')
+      return
+    }
+    ElMessage.error(result.message || 'AI 配置测试失败')
+  } catch {
+    ElMessage.error('AI 配置测试失败')
+  } finally {
+    aiTesting.value = false
+  }
+}
+
+const saveMailConfig = async () => {
+  mailConfigSaving.value = true
+  try {
+    const result = await updateMailConfig(buildMailPayload())
+    if (result.status === 200 && result.data) {
+      applyMailConfigToForm(result.data)
+      ElMessage.success('邮箱配置已保存')
+      return
+    }
+    ElMessage.error(result.message || '邮箱配置保存失败')
+  } catch {
+    ElMessage.error('邮箱配置保存失败')
+  } finally {
+    mailConfigSaving.value = false
+  }
+}
+
+const runMailTest = async () => {
+  const recipient = mailTestRecipient.value.trim()
+  if (!recipient) {
+    ElMessage.warning('请输入测试收件人')
+    return
+  }
+
+  mailTesting.value = true
+  try {
+    const result = await testMailConfig({
+      ...buildMailPayload(),
+      testRecipient: recipient,
+    })
+    if (result.status === 200) {
+      ElMessage.success('测试邮件已发送')
+      return
+    }
+    ElMessage.error(result.message || '测试邮件发送失败')
+  } catch {
+    ElMessage.error('测试邮件发送失败')
+  } finally {
+    mailTesting.value = false
   }
 }
 
@@ -163,6 +307,13 @@ const loadSummary = async () => {
   } finally {
     loading.value = false
   }
+}
+
+const reloadCurrentTab = async () => {
+  if (activeTab.value === 'profile') await loadProfile()
+  if (activeTab.value === 'ai') await loadAiConfig()
+  if (activeTab.value === 'mail') await loadMailConfig()
+  if (activeTab.value === 'reset') await loadSummary()
 }
 
 const executeReset = async () => {
@@ -205,416 +356,433 @@ const executeReset = async () => {
 }
 
 onMounted(async () => {
-  await Promise.all([loadProfile(), loadSummary(), loadAiConfig()])
+  await Promise.all([loadProfile(), loadSummary(), loadAiConfig(), loadMailConfig()])
 })
 </script>
 
 <template>
   <el-scrollbar height="100%" class="setting-scrollbar">
     <div class="setting-page">
-      <section class="hero-card">
+      <header class="setting-header">
         <div>
-          <p class="hero-text">
-            用于处理迁移后的历史脏数据。该功能会重置所有用户相关表数据，保留管理员账号与管理员表。
-          </p>
+          <h1>系统设置</h1>
+          <p>集中维护管理员资料、AI 服务、邮箱 SMTP 和初始化操作。</p>
         </div>
-        <Button icon="pi pi-refresh" text rounded :loading="loading" @click="loadSummary" />
-      </section>
+        <el-button :icon="Refresh" :loading="loading || profileLoading || aiConfigLoading || mailConfigLoading" @click="reloadCurrentTab">
+          刷新当前页
+        </el-button>
+      </header>
 
-      <section class="stats-card">
-        <div class="stats-header">
-          <div>
-            <h2>管理员资料</h2>
-            <p>邮箱为可选项。留空时不启用管理员邮箱验证码，后续可随时补录。</p>
-          </div>
-          <Button icon="pi pi-user-edit" text rounded :loading="profileLoading" @click="loadProfile" />
-        </div>
+      <el-tabs v-model="activeTab" class="setting-tabs">
+        <el-tab-pane name="profile">
+          <template #label>
+            <span class="tab-label"><el-icon><User /></el-icon>管理员资料</span>
+          </template>
 
-        <div class="profile-grid">
-          <div class="profile-item">
-            <label>管理员账号</label>
-            <InputText :model-value="profile.username || '-'" disabled />
-          </div>
-          <div class="profile-item">
-            <label>邮箱（可选）</label>
-            <InputText v-model="profileEmail" placeholder="admin@example.com" />
-          </div>
-        </div>
-
-        <div class="profile-actions">
-          <span class="profile-tip">{{ profile.hasEmail ? '当前已配置邮箱，可继续修改。' : '当前未配置邮箱，管理员将保持单步密码登录。' }}</span>
-          <Button label="保存邮箱" :loading="profileSaving" @click="saveProfile" />
-        </div>
-      </section>
-
-      <section class="stats-card">
-        <div class="stats-header">
-          <div>
-            <h2>AI 服务配置</h2>
-            <p>配置 OpenAI 兼容接口后，用户端 AI 对话、工具规划和笔记助手将使用这里的参数。</p>
-          </div>
-          <Button icon="pi pi-cloud" text rounded :loading="aiConfigLoading" @click="loadAiConfig" />
-        </div>
-
-        <div class="ai-config-grid">
-          <div class="profile-item">
-            <label>供应商标识</label>
-            <InputText v-model="aiForm.providerName" placeholder="openai-compatible" />
-          </div>
-          <div class="profile-item ai-wide">
-            <label>Base URL</label>
-            <InputText v-model="aiForm.baseUrl" placeholder="https://example.com/v1" />
-          </div>
-          <div class="profile-item">
-            <label>模型名称</label>
-            <InputText v-model="aiForm.model" placeholder="gpt-4o-mini" />
-          </div>
-          <div class="profile-item">
-            <label>API Key</label>
-            <InputText v-model="aiForm.apiKey" type="password" autocomplete="new-password" placeholder="留空表示保留原 Key" />
-          </div>
-          <div class="profile-item">
-            <label>回答温度</label>
-            <el-input-number v-model="aiForm.temperature" :min="0" :max="2" :step="0.1" :precision="2" controls-position="right" />
-          </div>
-          <div class="profile-item">
-            <label>回答最大 Token</label>
-            <el-input-number v-model="aiForm.maxTokens" :min="1" :step="256" controls-position="right" />
-          </div>
-          <div class="profile-item">
-            <label>规划温度</label>
-            <el-input-number v-model="aiForm.plannerTemperature" :min="0" :max="2" :step="0.1" :precision="2" controls-position="right" />
-          </div>
-          <div class="profile-item">
-            <label>规划最大 Token</label>
-            <el-input-number v-model="aiForm.plannerMaxTokens" :min="1" :step="64" controls-position="right" />
-          </div>
-        </div>
-
-        <div class="ai-config-actions">
-          <div class="ai-status">
-            <el-switch v-model="aiForm.enabled" active-text="启用" inactive-text="停用" />
-            <el-tag :type="aiConfig?.hasApiKey ? 'success' : 'info'" effect="plain">Key: {{ apiKeyStatusText }}</el-tag>
-          </div>
-          <Button label="保存 AI 配置" icon="pi pi-save" :loading="aiConfigSaving" @click="saveAiConfig" />
-        </div>
-      </section>
-
-      <section class="stats-card">
-        <div class="stats-header">
-          <div>
-            <h2>当前用户数据概览</h2>
-            <p>执行初始化前，先确认即将清空的数据体量。</p>
-          </div>
-          <div class="total-pill">
-            <span class="label">总记录数</span>
-            <span class="value">{{ totalRecords }}</span>
-          </div>
-        </div>
-
-        <div class="stats-grid">
-          <div class="stat-item" v-for="item in tables" :key="item.tableName">
-            <span class="table-name">{{ item.tableName }}</span>
-            <span class="count">{{ item.count }}</span>
-          </div>
-        </div>
-      </section>
-
-      <section class="danger-card">
-        <div class="danger-head">
-          <div class="danger-mark">!</div>
-          <div>
-            <h2>危险操作区</h2>
-            <p>
-              初始化后将清空 `users` 以及关联的资料、笔记、正文、评论、收藏、待办、AI 会话和票据数据。
-            </p>
-          </div>
-        </div>
-
-        <div class="danger-body">
-          <div class="confirm-box">
-            <label>请输入确认词</label>
-            <div class="confirm-row">
-              <InputText v-model="confirmText" :placeholder="`输入 ${requiredConfirmText}`" />
-              <span class="confirm-tag">{{ requiredConfirmText }}</span>
+          <section class="setting-panel" v-loading="profileLoading">
+            <div class="panel-head">
+              <div>
+                <h2>管理员资料</h2>
+                <p>{{ profile.hasEmail ? '当前管理员已配置邮箱。' : '当前管理员未配置邮箱。' }}</p>
+              </div>
+              <el-tag :type="profile.hasEmail ? 'success' : 'info'" effect="plain">
+                {{ profile.hasEmail ? '邮箱已配置' : '邮箱未配置' }}
+              </el-tag>
             </div>
-          </div>
 
-          <div class="actions">
-            <Button
-              label="初始化系统"
-              severity="danger"
-              icon="pi pi-exclamation-triangle"
-              :loading="resetting"
-              :disabled="!canReset"
-              @click="executeReset"
-            />
-          </div>
-        </div>
-      </section>
+            <el-form label-position="top" class="settings-form">
+              <div class="form-grid two">
+                <el-form-item label="管理员账号">
+                  <el-input :model-value="profile.username || '-'" disabled />
+                </el-form-item>
+                <el-form-item label="邮箱">
+                  <el-input v-model="profileEmail" placeholder="admin@example.com" clearable />
+                </el-form-item>
+              </div>
+              <div class="form-actions">
+                <el-button :icon="Refresh" @click="loadProfile">重新加载</el-button>
+                <el-button type="primary" :icon="Check" :loading="profileSaving" @click="saveProfile">保存资料</el-button>
+              </div>
+            </el-form>
+          </section>
+        </el-tab-pane>
+
+        <el-tab-pane name="ai">
+          <template #label>
+            <span class="tab-label"><el-icon><Connection /></el-icon>AI 配置</span>
+          </template>
+
+          <section class="setting-panel" v-loading="aiConfigLoading">
+            <div class="panel-head">
+              <div>
+                <h2>AI 服务配置</h2>
+                <p>用户端 AI 对话、工具规划和笔记助手使用这组参数。</p>
+              </div>
+              <div class="status-row">
+                <el-switch v-model="aiForm.enabled" active-text="启用" inactive-text="停用" />
+                <el-tag :type="aiConfig?.hasApiKey ? 'success' : 'info'" effect="plain">Key: {{ apiKeyStatusText }}</el-tag>
+              </div>
+            </div>
+
+            <el-form label-position="top" class="settings-form">
+              <div class="form-grid">
+                <el-form-item label="供应商标识">
+                  <el-input v-model="aiForm.providerName" placeholder="openai-compatible" />
+                </el-form-item>
+                <el-form-item label="Base URL" class="wide">
+                  <el-input v-model="aiForm.baseUrl" placeholder="https://example.com/v1" />
+                </el-form-item>
+                <el-form-item label="模型名称">
+                  <el-input v-model="aiForm.model" placeholder="gpt-4o-mini" />
+                </el-form-item>
+                <el-form-item label="API Key">
+                  <el-input v-model="aiForm.apiKey" type="password" show-password autocomplete="new-password" placeholder="留空保留原 Key" />
+                </el-form-item>
+                <el-form-item label="回答温度">
+                  <el-input-number v-model="aiForm.temperature" :min="0" :max="2" :step="0.1" :precision="2" controls-position="right" />
+                </el-form-item>
+                <el-form-item label="回答最大 Token">
+                  <el-input-number v-model="aiForm.maxTokens" :min="1" :step="256" controls-position="right" />
+                </el-form-item>
+                <el-form-item label="规划温度">
+                  <el-input-number v-model="aiForm.plannerTemperature" :min="0" :max="2" :step="0.1" :precision="2" controls-position="right" />
+                </el-form-item>
+                <el-form-item label="规划最大 Token">
+                  <el-input-number v-model="aiForm.plannerMaxTokens" :min="1" :step="64" controls-position="right" />
+                </el-form-item>
+              </div>
+
+              <div class="test-box">
+                <el-form-item label="测试提示词">
+                  <el-input v-model="aiTestPrompt" type="textarea" :rows="3" maxlength="500" show-word-limit />
+                </el-form-item>
+                <el-alert v-if="aiTestReply" type="success" :closable="false" show-icon>
+                  <template #title>{{ aiTestReply }}</template>
+                </el-alert>
+              </div>
+
+              <div class="form-actions">
+                <el-button :icon="Refresh" @click="loadAiConfig">重新加载</el-button>
+                <el-button :icon="Connection" :loading="aiTesting" @click="runAiTest">测试 AI</el-button>
+                <el-button type="primary" :icon="Check" :loading="aiConfigSaving" @click="saveAiConfig">保存 AI 配置</el-button>
+              </div>
+            </el-form>
+          </section>
+        </el-tab-pane>
+
+        <el-tab-pane name="mail">
+          <template #label>
+            <span class="tab-label"><el-icon><Message /></el-icon>邮箱配置</span>
+          </template>
+
+          <section class="setting-panel" v-loading="mailConfigLoading">
+            <div class="panel-head">
+              <div>
+                <h2>邮箱 SMTP 配置</h2>
+                <p>用户验证码与管理员二次验证邮件使用这组参数。</p>
+              </div>
+              <div class="status-row">
+                <el-switch v-model="mailForm.enabled" active-text="启用" inactive-text="停用" />
+                <el-tag :type="mailConfig?.hasPassword ? 'success' : 'info'" effect="plain">密码: {{ mailPasswordStatusText }}</el-tag>
+              </div>
+            </div>
+
+            <el-form label-position="top" class="settings-form">
+              <div class="form-grid">
+                <el-form-item label="SMTP Host">
+                  <el-input v-model="mailForm.host" placeholder="smtp.example.com" />
+                </el-form-item>
+                <el-form-item label="SMTP Port">
+                  <el-input-number v-model="mailForm.port" :min="1" :max="65535" controls-position="right" />
+                </el-form-item>
+                <el-form-item label="用户名">
+                  <el-input v-model="mailForm.username" placeholder="notice@example.com" />
+                </el-form-item>
+                <el-form-item label="密码 / 授权码">
+                  <el-input v-model="mailForm.password" type="password" show-password autocomplete="new-password" placeholder="留空保留原密码" />
+                </el-form-item>
+                <el-form-item label="协议">
+                  <el-select v-model="mailForm.protocol">
+                    <el-option label="smtps" value="smtps" />
+                    <el-option label="smtp" value="smtp" />
+                  </el-select>
+                </el-form-item>
+                <el-form-item label="默认编码">
+                  <el-input v-model="mailForm.defaultEncoding" placeholder="UTF-8" />
+                </el-form-item>
+                <el-form-item label="发件人邮箱">
+                  <el-input v-model="mailForm.fromAddress" placeholder="notice@example.com" />
+                </el-form-item>
+                <el-form-item label="发件人名称">
+                  <el-input v-model="mailForm.fromName" placeholder="SlothNote" />
+                </el-form-item>
+              </div>
+
+              <div class="switch-grid">
+                <el-checkbox v-model="mailForm.smtpAuth">SMTP 认证</el-checkbox>
+                <el-checkbox v-model="mailForm.sslEnable">SSL</el-checkbox>
+                <el-checkbox v-model="mailForm.starttlsEnable">STARTTLS</el-checkbox>
+                <el-checkbox v-model="mailForm.starttlsRequired">要求 STARTTLS</el-checkbox>
+              </div>
+
+              <div class="test-row">
+                <el-input v-model="mailTestRecipient" placeholder="测试收件人邮箱" clearable />
+                <el-button :icon="Message" :loading="mailTesting" @click="runMailTest">发送测试邮件</el-button>
+              </div>
+
+              <div class="form-actions">
+                <el-button :icon="Refresh" @click="loadMailConfig">重新加载</el-button>
+                <el-button type="primary" :icon="Check" :loading="mailConfigSaving" @click="saveMailConfig">保存邮箱配置</el-button>
+              </div>
+            </el-form>
+          </section>
+        </el-tab-pane>
+
+        <el-tab-pane name="reset">
+          <template #label>
+            <span class="tab-label"><el-icon><Warning /></el-icon>系统初始化</span>
+          </template>
+
+          <section class="setting-panel danger" v-loading="loading">
+            <div class="panel-head">
+              <div>
+                <h2>用户数据概览</h2>
+                <p>初始化会清空用户业务数据，管理员账号会保留。</p>
+              </div>
+              <div class="total-pill">
+                <span>总记录数</span>
+                <strong>{{ totalRecords }}</strong>
+              </div>
+            </div>
+
+            <el-table :data="tables" border size="small" class="summary-table">
+              <el-table-column prop="tableName" label="数据表" min-width="180" />
+              <el-table-column prop="count" label="记录数" width="140" align="right" />
+            </el-table>
+
+            <div class="danger-zone">
+              <div>
+                <h3>危险操作</h3>
+                <p>该操作会清空用户、资料、文件夹、笔记、正文、评论、收藏、待办、AI 会话和票据记录。</p>
+              </div>
+              <div class="confirm-row">
+                <el-input v-model="confirmText" :placeholder="`输入 ${requiredConfirmText}`" />
+                <el-tag effect="plain">{{ requiredConfirmText }}</el-tag>
+                <el-button type="danger" :icon="Delete" :loading="resetting" :disabled="!canReset" @click="executeReset">
+                  初始化系统
+                </el-button>
+              </div>
+            </div>
+          </section>
+        </el-tab-pane>
+      </el-tabs>
     </div>
   </el-scrollbar>
 </template>
 
 <style scoped>
 .setting-scrollbar {
-  background:
-    radial-gradient(circle at top right, rgba(196, 48, 43, 0.12), transparent 28%),
-    linear-gradient(180deg, #f7f3ec 0%, #efe8db 100%);
+  background: #f5f7fb;
 }
 
 .setting-page {
   min-height: 100%;
-  padding: 28px;
-  display: flex;
-  flex-direction: column;
-  gap: 20px;
-}
-
-.hero-card,
-.stats-card,
-.danger-card {
-  border-radius: 24px;
   padding: 24px;
-  background: rgba(255, 255, 255, 0.88);
-  border: 1px solid rgba(74, 58, 48, 0.08);
-  box-shadow: 0 16px 40px rgba(82, 62, 40, 0.08);
+  color: #1f2937;
 }
 
-.hero-card {
+.setting-header {
   display: flex;
+  align-items: center;
   justify-content: space-between;
   gap: 16px;
-  align-items: flex-start;
+  margin-bottom: 16px;
 }
 
-.hero-card h1,
-.stats-header h2,
-.danger-head h2 {
+.setting-header h1,
+.panel-head h2,
+.danger-zone h3 {
   margin: 0;
-  color: #2a211b;
+  color: #111827;
 }
 
-.hero-text {
-  margin: 0;
-  color: #67584d;
-  line-height: 1.7;
-}
-
-.stats-header p,
-.danger-head p {
-  margin: 10px 0 0;
-  color: #67584d;
-  line-height: 1.7;
-}
-
-.stats-header {
-  display: flex;
-  justify-content: space-between;
-  gap: 16px;
-  align-items: center;
-  margin-bottom: 18px;
-}
-
-.total-pill {
-  min-width: 132px;
-  padding: 14px 18px;
-  border-radius: 18px;
-  background: #231913;
-  color: #fff8f2;
-  display: flex;
-  flex-direction: column;
-  align-items: flex-end;
-}
-
-.total-pill .label {
-  font-size: 12px;
-  opacity: 0.72;
-}
-
-.total-pill .value {
-  font-size: 28px;
-  font-weight: 700;
-}
-
-.stats-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
-  gap: 12px;
-}
-
-.profile-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-  gap: 14px;
-}
-
-.ai-config-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-  gap: 14px;
-}
-
-.ai-wide {
-  grid-column: span 2;
-}
-
-.profile-item {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-
-.profile-item label {
-  font-size: 13px;
-  color: #756456;
-}
-
-.profile-actions {
-  margin-top: 16px;
-  display: flex;
-  justify-content: space-between;
-  gap: 12px;
-  align-items: center;
-}
-
-.ai-config-actions {
-  margin-top: 18px;
-  display: flex;
-  justify-content: space-between;
-  gap: 16px;
-  align-items: center;
-}
-
-.ai-status {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 12px;
-  align-items: center;
-}
-
-.profile-tip {
-  color: #67584d;
-  font-size: 13px;
+.setting-header p,
+.panel-head p,
+.danger-zone p {
+  margin: 6px 0 0;
+  color: #667085;
   line-height: 1.6;
 }
 
-.stat-item {
-  border-radius: 18px;
-  padding: 16px;
-  background: linear-gradient(180deg, #fff, #f5efe6);
-  border: 1px solid rgba(113, 86, 60, 0.08);
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
+.setting-tabs {
+  border-radius: 8px;
+  background: #ffffff;
+  border: 1px solid #e5e7eb;
+  padding: 14px 18px 18px;
 }
 
-.table-name {
-  font-size: 13px;
-  color: #756456;
-  word-break: break-all;
-}
-
-.count {
-  font-size: 28px;
-  font-weight: 700;
-  color: #2a211b;
-}
-
-.danger-card {
-  background: linear-gradient(180deg, rgba(87, 18, 18, 0.95), rgba(47, 10, 10, 0.98));
-  color: #fff5f2;
-}
-
-.danger-head {
-  display: flex;
-  gap: 16px;
-  align-items: flex-start;
-}
-
-.danger-mark {
-  width: 44px;
-  height: 44px;
-  border-radius: 14px;
-  display: flex;
+.tab-label {
+  display: inline-flex;
   align-items: center;
-  justify-content: center;
-  background: rgba(255, 255, 255, 0.16);
-  font-size: 24px;
-  font-weight: 700;
+  gap: 6px;
 }
 
-.danger-body {
-  margin-top: 22px;
+.setting-panel {
+  padding: 10px 0 0;
+}
+
+.panel-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 16px;
+  padding-bottom: 16px;
+  border-bottom: 1px solid #eef0f4;
+  margin-bottom: 18px;
+}
+
+.status-row {
   display: flex;
   flex-wrap: wrap;
-  gap: 16px;
-  align-items: flex-end;
-  justify-content: space-between;
-}
-
-.confirm-box {
-  flex: 1;
-  min-width: 260px;
-}
-
-.confirm-box label {
-  display: block;
-  margin-bottom: 10px;
-  font-size: 13px;
-  color: rgba(255, 245, 242, 0.86);
-}
-
-.confirm-row {
-  display: flex;
+  justify-content: flex-end;
   gap: 10px;
   align-items: center;
 }
 
-.confirm-row :deep(.p-inputtext) {
-  flex: 1;
-  min-height: 42px;
-  border-radius: 14px;
-  border: none;
+.settings-form {
+  max-width: 1080px;
 }
 
-.confirm-tag {
-  min-width: 106px;
-  text-align: center;
-  padding: 10px 12px;
-  border-radius: 12px;
-  background: rgba(255, 255, 255, 0.12);
-  font-size: 12px;
-  letter-spacing: 0.08em;
+.form-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 2px 18px;
 }
 
-.actions {
+.form-grid.two {
+  max-width: 760px;
+}
+
+.wide {
+  grid-column: span 2;
+}
+
+.settings-form :deep(.el-input-number),
+.settings-form :deep(.el-select) {
+  width: 100%;
+}
+
+.switch-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(120px, 1fr));
+  gap: 10px;
+  padding: 12px 14px;
+  margin: 4px 0 18px;
+  border: 1px solid #eef0f4;
+  border-radius: 8px;
+  background: #fafbfc;
+}
+
+.test-box {
+  margin-top: 4px;
+}
+
+.test-row {
+  display: grid;
+  grid-template-columns: minmax(220px, 420px) auto;
+  gap: 12px;
+  align-items: center;
+  margin: 4px 0 18px;
+}
+
+.form-actions {
   display: flex;
+  flex-wrap: wrap;
   justify-content: flex-end;
+  gap: 10px;
+  padding-top: 4px;
 }
 
-@media (max-width: 768px) {
+.total-pill {
+  min-width: 132px;
+  padding: 10px 14px;
+  border-radius: 8px;
+  background: #111827;
+  color: #ffffff;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+}
+
+.total-pill span {
+  font-size: 12px;
+  opacity: 0.76;
+}
+
+.total-pill strong {
+  font-size: 24px;
+  line-height: 1.2;
+}
+
+.summary-table {
+  width: 100%;
+  margin-bottom: 18px;
+}
+
+.danger-zone {
+  display: grid;
+  grid-template-columns: minmax(240px, 1fr) minmax(320px, 520px);
+  gap: 18px;
+  align-items: end;
+  padding: 16px;
+  border-radius: 8px;
+  border: 1px solid #fecaca;
+  background: #fff7f7;
+}
+
+.danger-zone h3 {
+  color: #991b1b;
+}
+
+.confirm-row {
+  display: grid;
+  grid-template-columns: minmax(160px, 1fr) auto auto;
+  gap: 10px;
+  align-items: center;
+}
+
+@media (max-width: 900px) {
   .setting-page {
     padding: 16px;
   }
 
-  .hero-card,
-  .stats-header,
-  .ai-config-actions,
-  .danger-body,
-  .confirm-row {
+  .setting-header,
+  .panel-head,
+  .danger-zone {
+    grid-template-columns: 1fr;
     flex-direction: column;
     align-items: stretch;
   }
 
-  .total-pill,
-  .ai-wide,
-  .actions :deep(.p-button) {
-    width: 100%;
+  .form-grid,
+  .switch-grid,
+  .test-row,
+  .confirm-row {
+    grid-template-columns: 1fr;
   }
 
-  .ai-wide {
+  .wide {
     grid-column: auto;
+  }
+
+  .form-actions {
+    justify-content: stretch;
+  }
+
+  .form-actions .el-button,
+  .test-row .el-button,
+  .confirm-row .el-button {
+    width: 100%;
   }
 }
 </style>

@@ -11,18 +11,31 @@
 package org.example.backend.common.config.ai;
 
 import org.example.backend.common.dto.ai.AiConfigDto;
+import org.example.backend.common.dto.ai.AiConfigTestRequest;
 import org.example.backend.common.dto.ai.AiConfigUpdateRequest;
 import org.example.backend.common.entity.SystemAiConfig;
 import org.example.backend.common.repository.SystemAiConfigRepository;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.HttpMethod;
+import org.springframework.http.MediaType;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.client.RestTemplate;
+
+import java.nio.charset.StandardCharsets;
+import java.util.List;
+import java.util.Map;
 
 @Service
 public class AiConfigService {
 
     private static final Long SINGLETON_ID = 1L;
     private static final String DEFAULT_PROVIDER = "openai-compatible";
+    private static final String DEFAULT_TEST_PROMPT = "请用一句中文回复：AI 配置测试成功";
 
+    private final ObjectMapper objectMapper = new ObjectMapper();
     private final SystemAiConfigRepository systemAiConfigRepository;
 
     public AiConfigService(SystemAiConfigRepository systemAiConfigRepository) {
@@ -80,6 +93,26 @@ public class AiConfigService {
         );
     }
 
+    @Transactional(readOnly = true)
+    public String testConfig(AiConfigTestRequest request) {
+        if (request == null) {
+            throw new IllegalArgumentException("AI 测试配置不能为空");
+        }
+        RuntimeConfig runtimeConfig = buildTestRuntimeConfig(request);
+        String prompt = defaultIfBlank(request.getPrompt(), DEFAULT_TEST_PROMPT);
+        try {
+            Map<String, Object> requestBody = Map.of(
+                    "model", runtimeConfig.model(),
+                    "temperature", runtimeConfig.temperature(),
+                    "max_tokens", Math.min(runtimeConfig.maxTokens(), 512),
+                    "messages", List.of(Map.of("role", "user", "content", prompt))
+            );
+            return callAiForSingleMessage(runtimeConfig, requestBody);
+        } catch (Exception ex) {
+            throw new IllegalStateException("AI 配置测试失败：" + ex.getMessage(), ex);
+        }
+    }
+
     private SystemAiConfig getOrCreateConfig() {
         return systemAiConfigRepository.findById(SINGLETON_ID).orElseGet(() -> {
             SystemAiConfig config = new SystemAiConfig();
@@ -94,6 +127,10 @@ public class AiConfigService {
         if (config.getEnabled() == null || config.getEnabled() != 1) {
             throw new IllegalStateException("AI 配置未启用，请先在管理端系统设置中启用 AI 服务");
         }
+        validateConnectivity(config);
+    }
+
+    private void validateConnectivity(SystemAiConfig config) {
         if (isBlank(config.getBaseUrl())) {
             throw new IllegalStateException("AI Base URL 未配置");
         }
@@ -103,6 +140,96 @@ public class AiConfigService {
         if (isBlank(config.getModel())) {
             throw new IllegalStateException("AI 模型名称未配置");
         }
+    }
+
+    private RuntimeConfig buildTestRuntimeConfig(AiConfigUpdateRequest request) {
+        SystemAiConfig config = systemAiConfigRepository.findById(SINGLETON_ID)
+                .map(this::copyConfig)
+                .orElseGet(this::newDefaultConfig);
+        config.setProviderName(defaultIfBlank(request.getProviderName(), defaultIfBlank(config.getProviderName(), DEFAULT_PROVIDER)));
+        config.setBaseUrl(defaultIfBlank(request.getBaseUrl(), config.getBaseUrl()));
+        config.setModel(defaultIfBlank(request.getModel(), config.getModel()));
+
+        String apiKey = trimToNull(request.getApiKey());
+        if (apiKey != null) {
+            config.setApiKey(apiKey);
+        }
+
+        config.setTemperature(request.getTemperature() == null ? defaultDouble(config.getTemperature(), 0.7) : validateTemperature(request.getTemperature(), "temperature"));
+        config.setMaxTokens(request.getMaxTokens() == null ? defaultInteger(config.getMaxTokens(), 4096) : validatePositiveInt(request.getMaxTokens(), "maxTokens"));
+        config.setPlannerTemperature(request.getPlannerTemperature() == null ? defaultDouble(config.getPlannerTemperature(), 0.1) : validateTemperature(request.getPlannerTemperature(), "plannerTemperature"));
+        config.setPlannerMaxTokens(request.getPlannerMaxTokens() == null ? defaultInteger(config.getPlannerMaxTokens(), 256) : validatePositiveInt(request.getPlannerMaxTokens(), "plannerMaxTokens"));
+
+        validateConnectivity(config);
+        return new RuntimeConfig(
+                defaultIfBlank(config.getProviderName(), DEFAULT_PROVIDER),
+                config.getBaseUrl().trim(),
+                config.getApiKey().trim(),
+                config.getModel().trim(),
+                config.getTemperature(),
+                config.getMaxTokens(),
+                config.getPlannerTemperature(),
+                config.getPlannerMaxTokens()
+        );
+    }
+
+    private SystemAiConfig newDefaultConfig() {
+        SystemAiConfig config = new SystemAiConfig();
+        config.setId(SINGLETON_ID);
+        config.setProviderName(DEFAULT_PROVIDER);
+        config.setEnabled(0);
+        return config;
+    }
+
+    private SystemAiConfig copyConfig(SystemAiConfig source) {
+        SystemAiConfig config = new SystemAiConfig();
+        config.setId(source.getId());
+        config.setProviderName(source.getProviderName());
+        config.setBaseUrl(source.getBaseUrl());
+        config.setApiKey(source.getApiKey());
+        config.setModel(source.getModel());
+        config.setTemperature(source.getTemperature());
+        config.setMaxTokens(source.getMaxTokens());
+        config.setPlannerTemperature(source.getPlannerTemperature());
+        config.setPlannerMaxTokens(source.getPlannerMaxTokens());
+        config.setEnabled(source.getEnabled());
+        return config;
+    }
+
+    private String callAiForSingleMessage(RuntimeConfig aiConfig, Map<String, Object> requestBody) throws Exception {
+        HttpHeaders headers = new HttpHeaders();
+        headers.setContentType(MediaType.APPLICATION_JSON);
+        headers.set("Authorization", "Bearer " + aiConfig.apiKey());
+        String jsonBody = objectMapper.writeValueAsString(requestBody);
+        RestTemplate restTemplate = new RestTemplate();
+        return restTemplate.execute(resolveChatCompletionsUrl(aiConfig.baseUrl()), HttpMethod.POST, httpRequest -> {
+            httpRequest.getHeaders().addAll(headers);
+            httpRequest.getBody().write(jsonBody.getBytes(StandardCharsets.UTF_8));
+        }, response -> {
+            JsonNode root = objectMapper.readTree(response.getBody());
+            JsonNode choices = root.path("choices");
+            if (!choices.isArray() || choices.isEmpty()) {
+                return "";
+            }
+            return choices.get(0).path("message").path("content").asText("");
+        });
+    }
+
+    private String resolveChatCompletionsUrl(String apiBaseUrl) {
+        String normalized = apiBaseUrl == null ? "" : apiBaseUrl.trim();
+        if (normalized.isEmpty()) {
+            throw new IllegalStateException("AI Base URL 未配置");
+        }
+        while (normalized.endsWith("/")) {
+            normalized = normalized.substring(0, normalized.length() - 1);
+        }
+        if (normalized.endsWith("/chat/completions")) {
+            return normalized;
+        }
+        if (normalized.endsWith("/v1")) {
+            return normalized + "/chat/completions";
+        }
+        return normalized + "/v1/chat/completions";
     }
 
     private AiConfigDto toDto(SystemAiConfig config) {
@@ -139,6 +266,14 @@ public class AiConfigService {
             throw new IllegalArgumentException(fieldName + " 必须大于 0");
         }
         return value;
+    }
+
+    private Double defaultDouble(Double value, Double defaultValue) {
+        return value == null ? defaultValue : value;
+    }
+
+    private Integer defaultInteger(Integer value, Integer defaultValue) {
+        return value == null ? defaultValue : value;
     }
 
     private String maskApiKey(String apiKey) {

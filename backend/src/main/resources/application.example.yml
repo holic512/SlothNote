@@ -2,23 +2,6 @@ spring:
   profiles:
     active: dev
 
-  mail:
-    host: "${MAIL_HOST:smtp.qq.com}"
-    port: ${MAIL_PORT:465}
-    username: "${MAIL_USERNAME:TODO@example.com}"
-    password: "${MAIL_PASSWORD:TODO_MAIL_PASSWORD}"
-    protocol: smtps
-    default-encoding: UTF-8
-    properties:
-      mail:
-        smtp:
-          auth: true
-          ssl:
-            enable: true
-          starttls:
-            enable: true
-            required: true
-
   application:
     name: SlothNote
 
@@ -41,6 +24,8 @@ spring:
 
 # AI provider config is stored in the database table `system_ai_config`.
 # Edit it from Admin / System Settings after applying the SQL migration.
+# Mail SMTP config is stored in the database table `system_mail_config`.
+# Edit it from Admin / System Settings after applying the SQL migration.
 
 server:
   port: ${SERVER_PORT:8080}
@@ -61,7 +46,3 @@ storage:
     public-base-url: "${STORAGE_PUBLIC_BASE_URL:http://localhost:8080/files}"
     enable-date-path: true
     keep-extension: true
-
-mail:
-  from: "${MAIL_FROM:TODO@example.com}"
-  from-name: "${MAIL_FROM_NAME:SlothNote}"
