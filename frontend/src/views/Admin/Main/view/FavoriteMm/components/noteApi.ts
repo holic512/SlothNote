@@ -10,8 +10,8 @@ export const fetchNotePageData = async (pageSize: number, pageNum: number) => {
   return r.data.data;
 }
 
-export const searchFavoriteNotes = async (params: any) => {
-  const r = await axios.post('admin/favoriteMm/note/search', params);
+export const searchFavoriteNotes = async (params: any, signal?: AbortSignal) => {
+  const r = await axios.post('admin/favoriteMm/note/search', params, {signal});
   return r.data.data;
 }
 

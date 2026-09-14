@@ -1,7 +1,17 @@
+<!--
+@file NodeDetailsDialog
+@project SlothNote
+@module 用户端 / 侧栏节点详情
+@description 展示笔记或文件夹的简介、创建时间、更新时间和保存时间。
+@logic 1. 打开时捕获节点快照并并行读取详情；2. 关闭、卸载或节点变化时使旧请求失效；3. 仅最新快照可更新展示数据。
+@dependencies Store: DetailsState/RightSelectNodeId, Service: Description/Details APIs
+@index_tags 节点详情, 笔记树, PromiseAll, 请求竞态
+@author holic512
+-->
 <script setup lang="ts">
 import {useDetailsState} from "@/views/User/Main/components/Sidebar/Pinia/DetailsState";
 import {useRightSelectNodeId} from "@/views/User/Main/components/Sidebar/Pinia/RightSelectNodeId";
-import {onMounted, ref, watch} from "vue";
+import {onBeforeUnmount, ref, watch} from "vue";
 import {
   getNoteDescription
 } from "@/views/User/Main/components/Sidebar/components/Description/Service/GetNoteDescription";
@@ -32,47 +42,73 @@ const createdAt = ref("");
 const updatedAt = ref("");
 // 保存时间
 const savedAt = ref("");
+let detailsRequestId = 0;
+
+const resetDetails = () => {
+  description.value = "";
+  createdAt.value = "";
+  updatedAt.value = "";
+  savedAt.value = "";
+};
 
 // 监听 当此页面被换出时 获取右键菜单的 信息
 watch(() => DetailsState.DetailsIs, async (newValue) => {
+  const requestId = ++detailsRequestId;
+  if (!newValue) return;
+
+  const selectedId = rightSelect.data.id;
+  const selectedType = rightSelect.data.type;
+  resetDetails();
+
   // 当为 true 则显示
-  if (newValue) {
-    // 判断是笔记还是文件夹
-    if (rightSelect.data.type == "NOTE") {
+  // 判断是笔记还是文件夹
+  if (selectedType == "NOTE") {
 
-      // 启动所有异步调用
-      const [doc1, doc2, doc3] = await Promise.all([
-        // doc1
-        getNoteDescription(rightSelect.data.id),
-        // doc2
-        GetNoteCreatedAtAndUpdatedAt(rightSelect.data.id),
-        // doc3
-        GetNoteSaveAt(rightSelect.data.id),
-      ]);
+    // 启动所有异步调用
+    const [doc1, doc2, doc3] = await Promise.all([
+      getNoteDescription(selectedId),
+      GetNoteCreatedAtAndUpdatedAt(selectedId),
+      GetNoteSaveAt(selectedId),
+    ]);
 
-      // 赋值
-      description.value = doc1;
-      createdAt.value = doc2.CreateAt;
-      updatedAt.value = doc2.UpdatedAt;
-      savedAt.value = doc3;
+    if (
+        requestId !== detailsRequestId
+        || !DetailsState.DetailsIs
+        || selectedId !== rightSelect.data.id
+        || selectedType !== rightSelect.data.type
+    ) return;
 
-    } else if (rightSelect.data.type == "FOLDER") {
-      // 启动所有异步调用
-      const [doc1, doc2] = await Promise.all([
-        getFolderDescription(rightSelect.data.id),
-        getFolderCreatedAtAndUpdatedAt(rightSelect.data.id),
-      ]);
+    description.value = doc1;
+    createdAt.value = doc2.CreateAt;
+    updatedAt.value = doc2.UpdatedAt;
+    savedAt.value = doc3;
 
-      description.value = doc1;
+  } else if (selectedType == "FOLDER") {
+    // 启动所有异步调用
+    const [doc1, doc2] = await Promise.all([
+      getFolderDescription(selectedId),
+      getFolderCreatedAtAndUpdatedAt(selectedId),
+    ]);
 
-      createdAt.value = doc2.CreateAt;
-      updatedAt.value = doc2.UpdatedAt;
+    if (
+        requestId !== detailsRequestId
+        || !DetailsState.DetailsIs
+        || selectedId !== rightSelect.data.id
+        || selectedType !== rightSelect.data.type
+    ) return;
 
-      savedAt.value = "仅查看笔记";
+    description.value = doc1;
 
-    }
+    createdAt.value = doc2.CreateAt;
+    updatedAt.value = doc2.UpdatedAt;
+
+    savedAt.value = "仅查看笔记";
   }
 })
+
+onBeforeUnmount(() => {
+  detailsRequestId += 1;
+});
 
 </script>
 

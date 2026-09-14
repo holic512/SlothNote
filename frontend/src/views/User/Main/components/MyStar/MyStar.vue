@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import {ref, watch} from 'vue';
+import {onBeforeUnmount, ref, watch} from 'vue';
 import {useFavoriteDialogStore} from "@/views/User/Main/components/Edit/Pinia/FavoriteDialogStore";
 import axios from "@/axios";
 import {ElMessage} from "element-plus";
@@ -9,11 +9,20 @@ const visible = ref(false);
 const folders = ref<Array<{id:number,name:string}>>([]);
 const selectedFolder = ref<number>(0);
 const remark = ref("");
+let folderController: AbortController | null = null;
 
 const fetchFolders = async () => {
-  const resp = await axios.get("user/note/favorite/folders");
-  if (resp.data.status === 200) {
-    folders.value = resp.data.data.map((f: any) => ({id: f.id, name: f.folderName}));
+  folderController?.abort();
+  const controller = new AbortController();
+  folderController = controller;
+  try {
+    const resp = await axios.get("user/note/favorite/folders", {signal: controller.signal});
+    if (controller.signal.aborted) return;
+    if (resp.data.status === 200) {
+      folders.value = resp.data.data.map((f: any) => ({id: f.id, name: f.folderName}));
+    }
+  } catch (error) {
+    if (!controller.signal.aborted) throw error;
   }
 };
 
@@ -24,6 +33,11 @@ watch(() => store.visible, async (v) => {
     remark.value = "";
     await fetchFolders();
   }
+}, {immediate: true});
+
+onBeforeUnmount(() => {
+  folderController?.abort();
+  folderController = null;
 });
 
 const close = () => store.close();

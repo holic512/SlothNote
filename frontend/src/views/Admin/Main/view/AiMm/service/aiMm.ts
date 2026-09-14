@@ -50,13 +50,13 @@ export interface AiSearchResult {
   total: number
 }
 
-export async function searchAiSessions(params: AiSearchParams): Promise<AiSearchResult> {
-  const response = await axios.post('/admin/aiMm/search', params)
+export async function searchAiSessions(params: AiSearchParams, signal?: AbortSignal): Promise<AiSearchResult> {
+  const response = await axios.post('/admin/aiMm/search', params, {signal})
   return response.data.data
 }
 
-export async function fetchAiSessionDetail(id: number): Promise<AiSessionDetail> {
-  const response = await axios.get('/admin/aiMm/detail', { params: { id } })
+export async function fetchAiSessionDetail(id: number, signal?: AbortSignal): Promise<AiSessionDetail> {
+  const response = await axios.get('/admin/aiMm/detail', { params: { id }, signal })
   return response.data.data
 }
 

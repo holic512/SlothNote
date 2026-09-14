@@ -1,9 +1,19 @@
+<!--
+@file NodeDescriptionDialog
+@project SlothNote
+@module 用户端 / 侧栏节点简介
+@description 查看和更新笔记或文件夹简介。
+@logic 1. 打开时捕获节点快照并加载简介；2. 仅当前弹窗和当前节点对应的最新响应可写入表单；3. 提交仍按捕获节点执行。
+@dependencies Store: DescriptionState/RightSelectNodeId, Service: Description APIs
+@index_tags 节点简介, 笔记树, 请求竞态, 对话框
+@author holic512
+-->
 <script setup lang="ts">
 
 // 控制页面是否显示
 import {useDescriptionState} from "@/views/User/Main/components/Sidebar/Pinia/DescriptionState";
 import {useRightSelectNodeId} from "@/views/User/Main/components/Sidebar/Pinia/RightSelectNodeId";
-import {ref, watch} from "vue";
+import {onBeforeUnmount, ref, watch} from "vue";
 import {
   getNoteDescription
 } from "@/views/User/Main/components/Sidebar/components/Description/Service/GetNoteDescription";
@@ -26,20 +36,38 @@ const rightSelect: any = useRightSelectNodeId();
 
 // 输入框内容
 const textarea = ref("")
+let descriptionRequestId = 0;
 
 // 监听 页面是否初始化显示
 watch(() => DescriptionState.DescriptionVis, async (newValue) => {
-  // 当为 true时 则证明显示-获取该 id
-  if (newValue) {
-    // 判断是笔记还是文件夹
-    if (rightSelect.data.type == "NOTE") {
-      textarea.value = await getNoteDescription(rightSelect.data.id);
-    } else if (rightSelect.data.type == "FOLDER") {
-      textarea.value = await getFolderDescription(rightSelect.data.id);
-    }
+  const requestId = ++descriptionRequestId;
+  if (!newValue) return;
 
+  const selectedId = rightSelect.data.id;
+  const selectedType = rightSelect.data.type;
+  textarea.value = "";
+
+  // 当为 true时 则证明显示-获取该 id
+  let nextDescription = "";
+  if (selectedType == "NOTE") {
+    nextDescription = await getNoteDescription(selectedId);
+  } else if (selectedType == "FOLDER") {
+    nextDescription = await getFolderDescription(selectedId);
   }
+
+  if (
+      requestId !== descriptionRequestId
+      || !DescriptionState.DescriptionVis
+      || selectedId !== rightSelect.data.id
+      || selectedType !== rightSelect.data.type
+  ) return;
+
+  textarea.value = nextDescription ?? "";
 })
+
+onBeforeUnmount(() => {
+  descriptionRequestId += 1;
+});
 
 // 执行 关闭页面
 const DialogClose = () => {
@@ -49,14 +77,16 @@ const DialogClose = () => {
 // 执行 更新简介
 const putDescription = async () => {
   let status: any;
+  const selectedId = rightSelect.data.id;
+  const selectedType = rightSelect.data.type;
   // 判断是笔记还是文件夹
-  if (rightSelect.data.type == "NOTE") {
-    status = await putNoteDescription(rightSelect.data.id, textarea.value);
-  } else if (rightSelect.data.type == "FOLDER") {
-    status = await putFolderDescription(rightSelect.data.id, textarea.value);
+  if (selectedType == "NOTE") {
+    status = await putNoteDescription(selectedId, textarea.value);
+  } else if (selectedType == "FOLDER") {
+    status = await putFolderDescription(selectedId, textarea.value);
   }
 
-  if (status == 200) {
+  if (status == 200 && selectedId === rightSelect.data.id && selectedType === rightSelect.data.type) {
     ElMessage.success("简介更新成功")
     // 执行关闭
     DialogClose();

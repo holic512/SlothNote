@@ -17,6 +17,7 @@ import {
   type NoteRow,
   type UserOption,
 } from './service/noteMm';
+import {getMaxPage, useLatestRequest} from '../../composables/useAdminListRequest';
 
 // --- 响应式折叠控制 ---
 const showFilters = ref(false);
@@ -24,19 +25,21 @@ const showFilters = ref(false);
 const q = ref<string | null>(null);
 const userIdFilter = ref<number | undefined>(undefined);
 const folderIdFilter = ref<number | undefined>(undefined);
-const noteTypeFilter = ref<number | null>(null);
+const noteTypeFilter = ref<number | undefined>(undefined);
 const isDeletedFilter = ref<number | undefined>(undefined);
 const userOptions = ref<UserOption[]>([]);
 const folderOptions = ref<FolderOption[]>([]);
 
 const minHeight = 720;
 const stepHeight = 45;
-let nowRow = ref(10);
+const nowRow = ref(10);
 const noteCount = ref(0);
 const maxPage = ref(1);
 const nowPage = ref(1);
 const rows = ref<NoteRow[]>([]);
 const selected = ref<NoteRow[]>([]);
+const listRequest = useLatestRequest();
+const previewRequest = useLatestRequest();
 
 onMounted(async () => {
   nowRow.value = calculateRows(minHeight, stepHeight);
@@ -44,7 +47,10 @@ onMounted(async () => {
   window.addEventListener('resize', handleResize);
 });
 
-onBeforeUnmount(() => { window.removeEventListener('resize', handleResize); });
+onBeforeUnmount(() => {
+  window.removeEventListener('resize', handleResize);
+  if (resizeTimeout) clearTimeout(resizeTimeout);
+});
 
 watch(userIdFilter, async () => {
   folderIdFilter.value = undefined;
@@ -53,10 +59,11 @@ watch(userIdFilter, async () => {
 });
 
 const DEBOUNCE_DELAY = 100;
-let resizeTimeout: ReturnType<typeof setTimeout>;
-const handleResize = async () => {
-  clearTimeout(resizeTimeout);
+let resizeTimeout: ReturnType<typeof setTimeout> | undefined;
+const handleResize = () => {
+  if (resizeTimeout) clearTimeout(resizeTimeout);
   resizeTimeout = setTimeout(async () => {
+    resizeTimeout = undefined;
     const rowsCount = calculateRows(minHeight, stepHeight);
     if (rowsCount !== nowRow.value) {
       nowRow.value = rowsCount;
@@ -86,8 +93,8 @@ const turnPage = async (turn: pageTurn) => {
 };
 
 const refresh = async () => {
-  await loadNotes();
-  ElMessage.success('刷新成功');
+  const committed = await loadNotes();
+  if (committed) ElMessage.success('刷新成功');
 };
 
 const batchDelete = async () => {
@@ -123,17 +130,21 @@ const previewContent = ref<string>('');
 const previewInvalid = ref(false);
 const previewMeta = ref<{ hasContent: boolean; lastSavedAt: string | null } | null>(null);
 const openPreview = async (row: NoteRow) => {
-  const content = await fetchNoteContent(row.id);
-  try {
-    const obj = JSON.parse(content);
-    previewContent.value = JSON.stringify(obj, null, 2);
-    previewInvalid.value = false;
-  } catch {
-    previewContent.value = content;
-    previewInvalid.value = !!content;
-  }
-  previewMeta.value = { hasContent: row.hasContent, lastSavedAt: row.lastSavedAt };
-  previewVisible.value = true;
+  await previewRequest.runLatest(
+      (signal) => fetchNoteContent(row.id, signal),
+      (content) => {
+        try {
+          const obj = JSON.parse(content);
+          previewContent.value = JSON.stringify(obj, null, 2);
+          previewInvalid.value = false;
+        } catch {
+          previewContent.value = content;
+          previewInvalid.value = !!content;
+        }
+        previewMeta.value = {hasContent: row.hasContent, lastSavedAt: row.lastSavedAt};
+        previewVisible.value = true;
+      },
+  );
 };
 
 const addVisible = ref<boolean>(false);
@@ -149,36 +160,39 @@ const loadFolderOptions = async (q?: string) => {
   folderOptions.value = await fetchFolderOptions(q, userIdFilter.value, 50);
 };
 
-const loadNotes = async () => {
-  const data = await searchNotes({
+const loadNotes = async (page = nowPage.value) => {
+  const pageSize = nowRow.value;
+  const requestedPage = Math.max(1, page);
+  nowPage.value = requestedPage;
+  const filters = {
     q: q.value || undefined,
     userId: userIdFilter.value,
     folderId: folderIdFilter.value,
     noteType: noteTypeFilter.value ?? undefined,
     isDeleted: isDeletedFilter.value,
-    pageNum: nowPage.value,
-    pageSize: nowRow.value,
-  });
-  noteCount.value = data.total;
-  maxPage.value = Math.max(1, Math.ceil(noteCount.value / nowRow.value));
-  if (nowPage.value > maxPage.value) {
-    nowPage.value = maxPage.value;
-    const latest = await searchNotes({
-      q: q.value || undefined,
-      userId: userIdFilter.value,
-      folderId: folderIdFilter.value,
-      noteType: noteTypeFilter.value ?? undefined,
-      isDeleted: isDeletedFilter.value,
-      pageNum: nowPage.value,
-      pageSize: nowRow.value,
-    });
-    rows.value = latest.list;
-    noteCount.value = latest.total;
-    selected.value = [];
-    return;
-  }
-  rows.value = data.list;
-  selected.value = [];
+  };
+
+  return listRequest.runLatest(
+      async (signal) => {
+        const requestPage = (pageNum: number) => searchNotes({
+          ...filters,
+          pageNum,
+          pageSize,
+        }, signal);
+        let data = await requestPage(requestedPage);
+        const resolvedMaxPage = getMaxPage(data.total, pageSize);
+        const resolvedPage = Math.min(requestedPage, resolvedMaxPage);
+        if (resolvedPage !== requestedPage) data = await requestPage(resolvedPage);
+        return {data, resolvedMaxPage, resolvedPage};
+      },
+      ({data, resolvedMaxPage, resolvedPage}) => {
+        noteCount.value = data.total;
+        maxPage.value = resolvedMaxPage;
+        nowPage.value = resolvedPage;
+        rows.value = data.list;
+        selected.value = [];
+      },
+  );
 };
 
 const handleSingleDelete = async (id: number) => {
@@ -273,7 +287,6 @@ const handleSingleRestore = async (id: number) => {
         <transition name="fade-slide">
           <div v-if="showFilters" class="toolbar-filter-panel">
              <el-select v-model="isDeletedFilter" placeholder="删除状态" style="width: 120px" clearable>
-              <el-option label="全部" :value="null" />
               <el-option label="正常" :value="0" />
               <el-option label="已删除" :value="1" />
             </el-select>

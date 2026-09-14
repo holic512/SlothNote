@@ -3,29 +3,35 @@
 @project SlothNote
 @module 用户端 / 主布局
 @description 承载用户端侧边栏、主内容路由、设置弹窗、移动弹窗和全局搜索/收藏弹窗。
-@logic 1. 控制左右分栏展开、收起与拖拽宽度；2. 检查用户资料初始化状态；3. 空闲时预加载笔记编辑页以降低首次点击卡顿。
-@dependencies Component: Sidebar/SidebarM/Setting/UserProfileInit/MoveToDialog/MyStar/SearchDialog, Store: userPreferences/UserInfoInitialized
-@index_tags 用户主布局, 侧边栏, 编辑页预加载, 首次点击优化, 分栏
+@logic 1. 按当前折叠状态异步挂载单一侧栏；2. 按弹窗状态懒加载全局功能；3. 缓存主页面并检查用户资料初始化状态。
+@dependencies Vue: defineAsyncComponent/KeepAlive, Store: userPreferences/UserInfoInitialized/FavoriteDialog/SearchDialog
+@index_tags 用户主布局, 侧边栏懒加载, 弹窗按需挂载, KeepAlive, 分栏
 @author holic512
 -->
 <script setup lang="ts">
-import Sidebar from "./components/Sidebar/Sidebar.vue"
-
-
-import {onBeforeUnmount, onMounted, ref, watch} from 'vue';
-
-// 控制设置窗 弹出与关闭
-import Setting from "./components/Setting/index.vue"
+import {computed, defineAsyncComponent, onBeforeUnmount, onMounted, ref, watch} from 'vue';
 import {useUserPreferencesStore} from "@/views/User/Main/Pinia/userPreferencesStore";
-import SidebarM from "@/views/User/Main/components/SidebarM/SidebarM.vue";
 import {useUserInfoInitialized} from "@/views/User/Main/Pinia/UserInfoInitialized";
-import UserProfileInit from "@/views/User/Main/components/UserProfileInit/UserProfileInit.vue";
+import {useFavoriteDialogStore} from "@/views/User/Main/components/Edit/Pinia/FavoriteDialogStore";
+import {useSearchDialogStore} from "@/views/User/Main/components/SidebarM/Pinia/SearchDialogStore";
+
+const Sidebar = defineAsyncComponent(() => import("./components/Sidebar/Sidebar.vue"));
+const SidebarM = defineAsyncComponent(() => import("./components/SidebarM/SidebarM.vue"));
+const Setting = defineAsyncComponent(() => import("./components/Setting/index.vue"));
+const UserProfileInit = defineAsyncComponent(() => import("./components/UserProfileInit/UserProfileInit.vue"));
+const MoveToDialog = defineAsyncComponent(() => import("./components/Sidebar/RightMenu/components/MoveToDialog.vue"));
+const MyStar = defineAsyncComponent(() => import("./components/MyStar/MyStar.vue"));
+const SearchDialog = defineAsyncComponent(() => import("./components/SidebarM/components/SearchDialog.vue"));
 
 // 控制设置是否显示
 const SettingVisible = ref<boolean>(false);
 
 // 左侧面板信息控制
 const LeftPanelState = useUserPreferencesStore();
+const favoriteDialogStore = useFavoriteDialogStore();
+const searchDialogStore = useSearchDialogStore();
+
+const cachedMainViewNames = ['UserHomeDashboard', 'UserTodoListPage', 'UserFavoriteListPage'];
 
 // 控制 Tooltip 显示与隐藏
 const showTooltip = ref(false);
@@ -98,22 +104,16 @@ onBeforeUnmount(() => {
 });
 
 
-// 控制左侧面板是否显示
-const leftPanelVis = ref(LeftPanelState.LeftPanelVis);
+// 控制左侧面板是否显示。侧栏组件保持挂载，仅切换显示状态，避免笔记树反复重建。
+const leftPanelVis = computed(() => LeftPanelState.LeftPanelVis);
 
 watch(() => LeftPanelState.LeftPanelVis, (newValue) => {
   if (newValue) {
     // 展开动作
     panel1Width.value = 250; // 切换宽度
-    setTimeout(() => {
-      leftPanelVis.value = true;
-    }, 180)
   } else {
     // 关闭动作
     panel1Width.value = 48; // 切换宽度
-    setTimeout(() => {
-      leftPanelVis.value = false;
-    }, 180)
   }
 })
 
@@ -146,31 +146,9 @@ onMounted(async () => {
     // 数据库查询没有初始化
     InfoInitializedVisible.value = true;
   }
-
-  preloadEditPage();
 })
 
-const preloadEditPage = () => {
-  const run = () => {
-    void import("./components/Edit/index.vue");
-  };
-  const idleWindow = window as Window & {
-    requestIdleCallback?: (callback: IdleRequestCallback, options?: IdleRequestOptions) => number;
-  };
-
-  if (idleWindow.requestIdleCallback) {
-    idleWindow.requestIdleCallback(run, {timeout: 1800});
-    return;
-  }
-
-  globalThis.setTimeout(run, 800);
-}
-
-// 引入移动对话框组件
-import MoveToDialog from "@/views/User/Main/components/Sidebar/RightMenu/components/MoveToDialog.vue";
 import { moveDialogVisible, moveItemType, moveItemId, currentFolderId, handleMoveToFolder, closeMoveDialog } from "@/views/User/Main/components/Sidebar/RightMenu/Service/onRightNFMove";
-import MyStar from "@/views/User/Main/components/MyStar/MyStar.vue";
-import SearchDialog from "@/views/User/Main/components/SidebarM/components/SearchDialog.vue";
 
 </script>
 
@@ -178,9 +156,13 @@ import SearchDialog from "@/views/User/Main/components/SidebarM/components/Searc
   <div class="splitter-container">
 
     <!-- 左侧面板 -->
-    <div class="panel1" :style="{ width: panel1Width + 'px' }">
-      <Sidebar v-model="SettingVisible" v-if="leftPanelVis"/>
-      <SidebarM v-if="!leftPanelVis"/>
+    <div class="panel1" :class="{ collapsed: !leftPanelVis }" :style="{ width: panel1Width + 'px' }">
+      <div v-if="leftPanelVis" class="sidebar-shell">
+        <Sidebar v-model="SettingVisible"/>
+      </div>
+      <div v-else class="sidebar-shell compact">
+        <SidebarM/>
+      </div>
     </div>
 
 
@@ -195,7 +177,11 @@ import SearchDialog from "@/views/User/Main/components/SidebarM/components/Searc
 
     <!-- 右侧面板 -->
     <div class="panel2">
-      <router-view/>
+      <router-view v-slot="{ Component }">
+        <KeepAlive :include="cachedMainViewNames" :max="3">
+          <component :is="Component"/>
+        </KeepAlive>
+      </router-view>
     </div>
 
     <!-- Tooltip，位置锁定在鼠标初次进入的位置 -->
@@ -217,13 +203,14 @@ import SearchDialog from "@/views/User/Main/components/SidebarM/components/Searc
   </div>
 
   <!--  设置动态框  -->
-  <Setting v-model="SettingVisible"/>
+  <Setting v-if="SettingVisible" v-model="SettingVisible"/>
 
   <!--  用户个人信息初始化  动态框-->
-  <UserProfileInit v-model="InfoInitializedVisible"/>
+  <UserProfileInit v-if="InfoInitializedVisible" v-model="InfoInitializedVisible"/>
 
   <!-- 移动对话框组件 -->
     <MoveToDialog
+      v-if="moveDialogVisible"
       :visible="moveDialogVisible"
       :type="moveItemType"
       :itemId="moveItemId"
@@ -234,8 +221,8 @@ import SearchDialog from "@/views/User/Main/components/SidebarM/components/Searc
     />
 
   <!-- 收藏对话框全局挂载 -->
-  <MyStar/>
-  <SearchDialog/>
+  <MyStar v-if="favoriteDialogStore.visible"/>
+  <SearchDialog v-if="searchDialogStore.visible"/>
 
 </template>
 
@@ -250,14 +237,31 @@ import SearchDialog from "@/views/User/Main/components/SidebarM/components/Searc
   height: 100vh;
   background-color: #f7f7f5;
   border-right: 1px #F1F1EF solid;
-
-  transition: width 0.3s ease-in-out; /* 设置平滑过渡动画 */
+  flex-shrink: 0;
+  overflow: hidden;
+  contain: layout paint style;
+  will-change: width;
+  transition: width 0.18s ease-out;
 }
 
+.panel1.collapsed {
+  border-right-color: #eeeeec;
+}
+
+.sidebar-shell {
+  width: 100%;
+  height: 100%;
+}
+
+.sidebar-shell.compact {
+  width: 48px;
+}
 
 .panel2 {
   height: 100vh;
   flex: 1;
+  min-width: 0;
+  overflow: hidden;
 }
 
 /* 分割线的样式 */

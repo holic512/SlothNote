@@ -4,7 +4,7 @@ import UserInfo from "@/views/User/Main/components/Setting/UserInfo.vue";
 import SystemSettings from "@/views/User/Main/components/Setting/SystemSettings.vue";
 import {ref} from "vue";
 
-const addUserVisible = defineModel()
+const addUserVisible = defineModel<boolean>({default: false})
 const activePanel = ref<'account' | 'system'>('account')
 </script>
 

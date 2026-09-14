@@ -3,7 +3,7 @@
 @project SlothNote
 @module 用户端 / 笔记编辑页
 @description 承载笔记编辑器页面，负责创建 Tiptap Editor、同步路由笔记信息并加载正文内容。
-@logic 1. 创建并 provide editor 实例；2. 根据当前笔记或分享路由加载内容；3. 对 AI 修改与窗口尺寸变化进行同步。
+@logic 1. 创建并 provide editor 实例；2. 规范化 noteId 路由并仅提交最新元数据/正文请求；3. 对 AI 修改与窗口尺寸变化进行同步。
 @dependencies Component: TipTap/PageHeader/PageRight, Store: currentNoteInfo/SaveNoteState, Service: GetNoteContent/getNoteShareInfo
 @index_tags 用户笔记, 编辑器入口, Tiptap, 路由同步, 笔记内容加载
 @author holic512
@@ -38,6 +38,7 @@ const route = useRoute();
 const router = useRouter();
 
 let lastLoadRequestId = 0;
+let lastRouteSyncRequestId = 0;
 
 const normalizeNoteId = (value: unknown): number | null => {
   if (typeof value !== "string" || value.trim() === "") {
@@ -49,13 +50,28 @@ const normalizeNoteId = (value: unknown): number | null => {
 }
 
 const syncNoteInfoFromRoute = async () => {
-  const routeNoteId = normalizeNoteId(route.query.noteId);
+  const routeNoteId = normalizeNoteId(route.query.noteId ?? route.query.id);
 
-  if (routeNoteId == null || currentNoteInfo.noteId === routeNoteId) {
+  if (routeNoteId == null) {
     return;
   }
 
+  if (route.query.noteId == null) {
+    const nextQuery = {...route.query};
+    delete nextQuery.id;
+    await router.replace({
+      path: route.path,
+      query: {...nextQuery, noteId: String(routeNoteId)},
+    });
+  }
+
+  if (currentNoteInfo.noteId === routeNoteId) return;
+
+  const requestId = ++lastRouteSyncRequestId;
+
   const shareInfo = await getNoteShareInfo(routeNoteId);
+
+  if (requestId !== lastRouteSyncRequestId) return;
 
   if (shareInfo == null) {
     ElMessage.warning("分享链接对应的笔记不存在或无权访问");
@@ -116,7 +132,7 @@ watch(
     })
 
 watch(
-    () => route.query.noteId,
+    () => [route.query.noteId, route.query.id],
     async () => {
       await syncNoteInfoFromRoute();
     }
@@ -148,6 +164,8 @@ onMounted(() => {
 });
 
 onBeforeUnmount(() => {
+  lastRouteSyncRequestId += 1;
+  lastLoadRequestId += 1;
   window.removeEventListener('resize', onWindowResize);
 });
 

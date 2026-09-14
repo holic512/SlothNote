@@ -1,15 +1,28 @@
+<!--
+@file UserLoginForm
+@project SlothNote
+@module 用户端 / 登录
+@description 提供密码与邮箱验证码登录，并仅在用户选择时记住账号名。
+@logic 1. 校验协议与登录表单；2. 登录成功后按 redirect 跳转；3. 清理历史明文密码缓存且只持久化用户名。
+@dependencies Service: pwLogin/emLogin, VueRouter, Store: token/logID
+@index_tags 用户登录, 登录重定向, 账号记忆, 凭据安全
+@author holic512
+-->
 <script setup lang="ts">
 import {onMounted, ref, watch} from "vue";
 import {ElMessage} from "element-plus";
-import {useRouter} from "vue-router";
+import {useRoute, useRouter} from "vue-router";
 import UserAgreement from "../components/userAgreement.vue";
 // 假设 service 路径正确
 import pwLogin from "./service/pwLogin"
 import {sendMail, verifyLoginCode} from "./service/emLogin";
+import {ROUTE_PATHS} from "@/router/paths";
 
-const REMEMBER_PASSWORD_KEY = 'user-login-remember-password';
+const REMEMBER_ACCOUNT_KEY = 'user-login-remember-account';
+const LEGACY_REMEMBER_PASSWORD_KEY = 'user-login-remember-password';
 
 const router = useRouter();
+const route = useRoute();
 const loginType = ref<string>('password');
 const username = ref<string>('');
 const password = ref<string>('');
@@ -20,36 +33,42 @@ const agreedToTerms = ref(false);
 const addUserVisible = ref(false);
 const rememberPassword = ref(false);
 
+const getLoginRedirect = () => {
+  const redirect = route.query.redirect;
+  return typeof redirect === 'string' && redirect.startsWith('/user/')
+      ? redirect
+      : ROUTE_PATHS.userMain;
+};
+
 type RememberedLogin = {
   username: string;
-  password: string;
 };
 
 const loadRememberedLogin = () => {
-  const saved = localStorage.getItem(REMEMBER_PASSWORD_KEY);
+  // 历史版本曾保存明文密码；读取前立即清理，不再恢复密码。
+  localStorage.removeItem(LEGACY_REMEMBER_PASSWORD_KEY);
+  const saved = localStorage.getItem(REMEMBER_ACCOUNT_KEY);
   if (!saved) return;
 
   try {
     const rememberedLogin: RememberedLogin = JSON.parse(saved);
     username.value = rememberedLogin.username ?? '';
-    password.value = rememberedLogin.password ?? '';
-    rememberPassword.value = Boolean(rememberedLogin.username || rememberedLogin.password);
+    rememberPassword.value = Boolean(rememberedLogin.username);
   } catch (error) {
-    localStorage.removeItem(REMEMBER_PASSWORD_KEY);
+    localStorage.removeItem(REMEMBER_ACCOUNT_KEY);
   }
 };
 
 const syncRememberedLogin = () => {
   if (!rememberPassword.value) {
-    localStorage.removeItem(REMEMBER_PASSWORD_KEY);
+    localStorage.removeItem(REMEMBER_ACCOUNT_KEY);
     return;
   }
 
   const rememberedLogin: RememberedLogin = {
     username: username.value,
-    password: password.value,
   };
-  localStorage.setItem(REMEMBER_PASSWORD_KEY, JSON.stringify(rememberedLogin));
+  localStorage.setItem(REMEMBER_ACCOUNT_KEY, JSON.stringify(rememberedLogin));
 };
 
 const switchLoginType = () => {
@@ -82,7 +101,7 @@ const handlePasswordLogin = async () => {
   const status = await pwLogin(username.value, password.value);
   if (status === 200) {
     syncRememberedLogin();
-    router.push("/user/main");
+    router.push(getLoginRedirect());
   } else {
     ElMessage.error('登录失败');
   }
@@ -101,7 +120,7 @@ const sendEmCode = async () => {
 const handleCodeLogin = async () => {
   // 模拟验证...
   const status = await verifyLoginCode(code.value);
-  if (status === 200) router.push("/user/main");
+  if (status === 200) router.push(getLoginRedirect());
 };
 
 onMounted(() => {
@@ -110,7 +129,7 @@ onMounted(() => {
 
 watch(rememberPassword, (enabled) => {
   if (!enabled) {
-    localStorage.removeItem(REMEMBER_PASSWORD_KEY);
+    localStorage.removeItem(REMEMBER_ACCOUNT_KEY);
   }
 });
 </script>
@@ -134,7 +153,7 @@ watch(rememberPassword, (enabled) => {
 
         <div class="remember-row">
           <el-checkbox v-model="rememberPassword" size="large">
-            记住密码
+            记住账号
           </el-checkbox>
         </div>
       </div>

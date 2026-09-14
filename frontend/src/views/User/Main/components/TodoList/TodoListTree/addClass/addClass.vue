@@ -5,7 +5,7 @@ import {addClass} from "@/views/User/Main/components/TodoList/TodoListTree/addCl
 import {useTodoCategoryState} from "@/views/User/Main/components/TodoList/Pinia/TodoCategoryState";
 
 // 控制是否显示
-const AddClassDialogVisible = defineModel();
+const AddClassDialogVisible = defineModel<boolean>({default: false});
 
 // 输入框内容
 const categoryName = ref("");

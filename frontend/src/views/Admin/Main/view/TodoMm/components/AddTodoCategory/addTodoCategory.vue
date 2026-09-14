@@ -6,7 +6,7 @@ import {fetchUserOptions} from '../../../FolderMm/components/TableView/userOptio
 
 const visible = defineModel();
 
-const form = ref<AddTodoCategoryForm>({ userId: null, type: 0, name: '' });
+const form = ref<AddTodoCategoryForm>({ userId: undefined, type: 0, name: '' });
 const rules = reactive<FormRules<AddTodoCategoryForm>>({
   userId: [{ required: true, message: '请选择用户', trigger: 'blur' }],
   type: [{ required: true, message: '请输入类型', trigger: 'blur' }],

@@ -34,6 +34,8 @@ async function verifyLoginCode(code: string): Promise<number> {
         )
         const status = response.data.status;
         if (status === 200) {
+            const {resetUserSessionState} = await import("@/session/userSession");
+            resetUserSessionState();
             // 插入token
             tokenStore().setUserToken(response.data.data);
 

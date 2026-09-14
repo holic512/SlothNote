@@ -64,9 +64,7 @@ const upNoteCoverProxy = async (noteCover: any) => {
       // 更新背景
       currentNoteInfo.cover = noteCover;
 
-      // 刷新笔记树
-      const isNoteTreeUpdated = useNoteTreeUpdate();
-      isNoteTreeUpdated.UpdatedNoteTree();
+      useNoteTreeUpdate().patchNode('NOTE', currentNoteInfo.noteId, {cover: noteCover});
 
       // 执行关闭
       NoteCoverState.NoNoteCover();

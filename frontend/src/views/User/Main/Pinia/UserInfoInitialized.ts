@@ -21,8 +21,6 @@ export const useUserInfoInitialized = defineStore('UserInfoInitialized', {
     actions: {
         // 查询用户信息是否初始化
         async checkUserInfo(): Promise<boolean> {
-            if (localStorage.getItem('hasCompletedInit') === 'true') return true;
-
             const response = await axios.get(
                 "user/settings/account/userAllProfile"
             )

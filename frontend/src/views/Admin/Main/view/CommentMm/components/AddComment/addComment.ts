@@ -2,10 +2,10 @@ import axios from "../../../../../../../axios";
 import {Ref} from "vue";
 
 export interface AddCommentForm {
-  noteId: number | null;
-  userId: number | null;
+  noteId: number | undefined;
+  userId: number | undefined;
   content: string;
-  parentId?: number | null;
+  parentId?: number;
 }
 
 export const addComment = async (form: Ref<AddCommentForm>) => {
@@ -13,10 +13,10 @@ export const addComment = async (form: Ref<AddCommentForm>) => {
     const response = await axios.post(
         "/admin/commentMm/addComment",
         {
-          noteId: form.value.noteId,
-          userId: form.value.userId,
+          noteId: form.value.noteId ?? null,
+          userId: form.value.userId ?? null,
           content: form.value.content,
-          parentId: form.value.parentId || null,
+          parentId: form.value.parentId ?? null,
         }
     );
     return response.data.status;

@@ -1,16 +1,17 @@
 <script setup lang="ts">
-import {computed, onBeforeUnmount, onMounted, ref} from 'vue';
+import {computed, onBeforeUnmount, onMounted, ref, watch} from 'vue';
 import axios from '../../../../../axios'; // 请根据实际路径调整
 import {ElMessage} from 'element-plus';
 // 请确保以下导入路径正确
 import {calculateRows} from '../FolderMm/components/TableView/calculateRows';
-import {fetchFolderInitial, fetchFolderPageData, searchFavoriteFolders, batchDeleteFavoriteFolders, batchRestoreFavoriteFolders} from './components/folderApi';
-import {fetchNoteInitial, fetchNotePageData, searchFavoriteNotes, batchDeleteFavoriteNotes, batchEnableFavoriteNotes, batchDisableFavoriteNotes, batchRestoreFavoriteNotes} from './components/noteApi';
+import {searchFavoriteFolders, batchDeleteFavoriteFolders, batchRestoreFavoriteFolders} from './components/folderApi';
+import {searchFavoriteNotes, batchDeleteFavoriteNotes, batchEnableFavoriteNotes, batchDisableFavoriteNotes, batchRestoreFavoriteNotes} from './components/noteApi';
 import {fetchUserOptions} from '../FolderMm/components/TableView/userOptions';
 import AddFavoriteFolder from './components/AddFavoriteFolder/addFavoriteFolder.vue';
 import AddFavoriteNote from './components/AddFavoriteNote/addFavoriteNote.vue';
 import FavoriteFolderDetail from './components/FolderDetail/favoriteFolderDetail.vue';
 import FavoriteNoteDetail from './components/NoteDetail/favoriteNoteDetail.vue';
+import {getMaxPage, useLatestRequest} from '../../composables/useAdminListRequest';
 
 const activeTab = ref<'folder' | 'note'>('folder');
 
@@ -20,7 +21,7 @@ const showNoteFilters = ref(false);
 
 // Folder Filters
 const value1 = ref<string | null>(null);
-const isDeletedFilter = ref<boolean | null>(null);
+const isDeletedFilter = ref<boolean | undefined>(undefined);
 const parentIdFilter = ref<number | undefined>(undefined);
 const userIdFilter = ref<number | undefined>(undefined);
 const userOptions = ref<any[]>([]);
@@ -30,164 +31,246 @@ const noteQ = ref<string | null>(null);
 const noteUserIdFilter = ref<number | undefined>(undefined);
 const noteFolderIdFilter = ref<number | undefined>(undefined);
 const noteIdFilter = ref<number | undefined>(undefined); // 补充原代码中遗漏的定义
-const noteStatusFilter = ref<boolean | null>(null);
-const noteIsDeletedFilter = ref<boolean | null>(null);
+const noteStatusFilter = ref<boolean | undefined>(undefined);
+const noteIsDeletedFilter = ref<boolean | undefined>(undefined);
 
 const minHeight = 720;
 const stepHeight = 45;
-let nowRow = ref(10);
+const nowRow = ref(10);
 
 const folderCount = ref(0);
 const noteCount = ref(0);
-const maxPage = ref(1);
-const nowPage = ref(1);
+const folderMaxPage = ref(1);
+const noteMaxPage = ref(1);
+const folderPage = ref(1);
+const notePage = ref(1);
 
 const folderRows = ref<any[]>([]);
 const noteRows = ref<any[]>([]);
+const selectedFolder = ref<any[]>([]);
+const selectedNote = ref<any[]>([]);
 
-// ... (onMounted, handleResize, turnPage, refresh 等逻辑保持不变) ...
-// 为了节省篇幅，逻辑部分未变动，直接复用你原本的代码逻辑即可
-// 注意：原代码中 noteIdFilter 似乎未定义，我在上面补上了
+const folderRequest = useLatestRequest();
+const noteRequest = useLatestRequest();
+
+const loadFolder = async (page = folderPage.value) => {
+  const pageSize = nowRow.value;
+  const requestedPage = Math.max(1, page);
+  folderPage.value = requestedPage;
+  const filters = {
+    q: value1.value || undefined,
+    isDeleted: isDeletedFilter.value,
+    userId: userIdFilter.value,
+    parentId: parentIdFilter.value,
+  };
+
+  return folderRequest.runLatest(
+      async (signal) => {
+        const requestPage = (pageNum: number) => searchFavoriteFolders({
+          ...filters,
+          pageNum,
+          pageSize,
+        }, signal);
+        let data = await requestPage(requestedPage);
+        const maxPage = getMaxPage(data.total, pageSize);
+        const resolvedPage = Math.min(requestedPage, maxPage);
+        if (resolvedPage !== requestedPage) data = await requestPage(resolvedPage);
+        return {data, maxPage, resolvedPage};
+      },
+      ({data, maxPage, resolvedPage}) => {
+        folderCount.value = data.total;
+        folderMaxPage.value = maxPage;
+        folderPage.value = resolvedPage;
+        folderRows.value = data.list;
+        selectedFolder.value = [];
+      },
+  );
+};
+
+const loadNote = async (page = notePage.value) => {
+  const pageSize = nowRow.value;
+  const requestedPage = Math.max(1, page);
+  notePage.value = requestedPage;
+  const filters = {
+    q: noteQ.value || undefined,
+    isDeleted: noteIsDeletedFilter.value,
+    favoriteStatus: noteStatusFilter.value,
+    userId: noteUserIdFilter.value,
+    favoriteFolderId: noteFolderIdFilter.value,
+    noteId: noteIdFilter.value,
+  };
+
+  return noteRequest.runLatest(
+      async (signal) => {
+        const requestPage = (pageNum: number) => searchFavoriteNotes({
+          ...filters,
+          pageNum,
+          pageSize,
+        }, signal);
+        let data = await requestPage(requestedPage);
+        const maxPage = getMaxPage(data.total, pageSize);
+        const resolvedPage = Math.min(requestedPage, maxPage);
+        if (resolvedPage !== requestedPage) data = await requestPage(resolvedPage);
+        return {data, maxPage, resolvedPage};
+      },
+      ({data, maxPage, resolvedPage}) => {
+        noteCount.value = data.total;
+        noteMaxPage.value = maxPage;
+        notePage.value = resolvedPage;
+        noteRows.value = data.list;
+        selectedNote.value = [];
+      },
+  );
+};
+
+const loadActiveTab = async () => {
+  if (activeTab.value === 'folder') {
+    return loadFolder();
+  }
+  return loadNote();
+};
 
 onMounted(async () => {
   nowRow.value = calculateRows(minHeight, stepHeight);
-  await axios.get('admin/favoriteMm/folder/getCount').then((r)=>{ folderCount.value = r.data.data; });
-  await axios.get('admin/favoriteMm/note/getCount').then((r)=>{ noteCount.value = r.data.data; });
-  maxPage.value = Math.ceil((activeTab.value==='folder'?folderCount.value:noteCount.value) / nowRow.value);
-  folderRows.value = await fetchFolderInitial(nowRow.value);
-  noteRows.value = await fetchNoteInitial(nowRow.value);
-  userOptions.value = await fetchUserOptions(undefined, 50);
+  await Promise.all([
+    loadFolder(),
+    fetchUserOptions(undefined, 50).then((options) => {
+      userOptions.value = options;
+    }),
+  ]);
   window.addEventListener('resize', handleResize);
 });
 
-onBeforeUnmount(() => { window.removeEventListener('resize', handleResize); });
+watch(activeTab, async () => {
+  await loadActiveTab();
+});
 
 const DEBOUNCE_DELAY = 100;
-let resizeTimeout: ReturnType<typeof setTimeout>;
-const handleResize = async () => {
-  clearTimeout(resizeTimeout);
+let resizeTimeout: ReturnType<typeof setTimeout> | undefined;
+const handleResize = () => {
+  if (resizeTimeout) clearTimeout(resizeTimeout);
   resizeTimeout = setTimeout(async () => {
+    resizeTimeout = undefined;
     const rows = calculateRows(minHeight, stepHeight);
-    if (rows !== nowRow.value) {
-      nowRow.value = rows;
-      maxPage.value = Math.ceil((activeTab.value==='folder'?folderCount.value:noteCount.value) / nowRow.value);
-      if (nowPage.value > maxPage.value) nowPage.value = maxPage.value;
-      if (activeTab.value==='folder') folderRows.value = await fetchFolderPageData(nowRow.value, nowPage.value);
-      else noteRows.value = await fetchNotePageData(nowRow.value, nowPage.value);
-    }
+    if (rows === nowRow.value) return;
+
+    nowRow.value = rows;
+    folderMaxPage.value = getMaxPage(folderCount.value, rows);
+    noteMaxPage.value = getMaxPage(noteCount.value, rows);
+    folderPage.value = Math.min(folderPage.value, folderMaxPage.value);
+    notePage.value = Math.min(notePage.value, noteMaxPage.value);
+    await loadActiveTab();
   }, DEBOUNCE_DELAY);
 };
+
+onBeforeUnmount(() => {
+  window.removeEventListener('resize', handleResize);
+  if (resizeTimeout) clearTimeout(resizeTimeout);
+});
 
 const dynamicHeight = computed(() => `${475 + (nowRow.value - 10) * 45}px`);
 
 enum pageTurn { FirstPage, PreviousPage, NextPage, LastPage }
 const turnPage = async (turn: pageTurn) => {
-  const load = async () => {
-    if (activeTab.value==='folder') folderRows.value = await fetchFolderPageData(nowRow.value, nowPage.value);
-    else noteRows.value = await fetchNotePageData(nowRow.value, nowPage.value);
+  const currentPage = activeTab.value === 'folder' ? folderPage.value : notePage.value;
+  const maxPage = activeTab.value === 'folder' ? folderMaxPage.value : noteMaxPage.value;
+  let targetPage = currentPage;
+
+  if (turn === pageTurn.FirstPage) targetPage = 1;
+  if (turn === pageTurn.PreviousPage) targetPage = Math.max(1, currentPage - 1);
+  if (turn === pageTurn.NextPage) targetPage = Math.min(maxPage, currentPage + 1);
+  if (turn === pageTurn.LastPage) targetPage = maxPage;
+
+  if (targetPage === currentPage) {
+    ElMessage.warning(turn === pageTurn.FirstPage || turn === pageTurn.PreviousPage ? '已经是第一页了' : '已经是最后一页了');
+    return;
   }
-  switch (turn) {
-    case pageTurn.FirstPage:
-      if (nowPage.value != 1) { nowPage.value = 1; await load(); } else { ElMessage.warning('已经是第一页了'); }
-      break;
-    case pageTurn.PreviousPage:
-      if (nowPage.value > 1) { nowPage.value = nowPage.value - 1; await load(); } else { ElMessage.warning('已经是第一页了'); }
-      break;
-    case pageTurn.NextPage:
-      if (nowPage.value < maxPage.value) { nowPage.value = nowPage.value + 1; await load(); } else { ElMessage.warning('已经是最后一页了'); }
-      break;
-    case pageTurn.LastPage:
-      if (nowPage.value != maxPage.value) { nowPage.value = maxPage.value; await load(); } else { ElMessage.warning('已经是最后一页了'); }
-      break;
+
+  if (activeTab.value === 'folder') {
+    await loadFolder(targetPage);
+  } else {
+    await loadNote(targetPage);
   }
 };
+
+const refreshFolder = () => loadFolder();
+const refreshNote = () => loadNote();
 
 const refresh = async () => {
-  await axios.get('admin/favoriteMm/folder/getCount').then((r)=>{ folderCount.value = r.data.data; });
-  await axios.get('admin/favoriteMm/note/getCount').then((r)=>{ noteCount.value = r.data.data; });
-  maxPage.value = Math.ceil((activeTab.value==='folder'?folderCount.value:noteCount.value) / nowRow.value);
-  if (maxPage.value < nowPage.value) {
-    if (activeTab.value==='folder') folderRows.value = await fetchFolderPageData(nowRow.value, maxPage.value);
-    else noteRows.value = await fetchNotePageData(nowRow.value, maxPage.value);
-  } else {
-    if (activeTab.value==='folder') folderRows.value = await fetchFolderPageData(nowRow.value, nowPage.value);
-    else noteRows.value = await fetchNotePageData(nowRow.value, nowPage.value);
-  }
-  ElMessage.success('刷新成功');
+  const committed = activeTab.value === 'folder' ? await refreshFolder() : await refreshNote();
+  if (committed) ElMessage.success('刷新成功');
 };
-
-const selectedFolder = ref();
-const selectedNote = ref();
 
 const batchDeleteFolder = async () => {
   if (!selectedFolder.value || selectedFolder.value.length === 0) { ElMessage.warning('选择为空'); return; }
   const ids = selectedFolder.value.map((p: any) => p.id);
   const s = await batchDeleteFavoriteFolders(ids);
-  if (s===200) { ElMessage.success('删除成功'); folderRows.value = await fetchFolderPageData(nowRow.value, nowPage.value); } else { ElMessage.error('无法连接服务器'); }
+  if (s===200) { ElMessage.success('删除成功'); await refreshFolder(); } else { ElMessage.error('无法连接服务器'); }
 };
 
 const batchRestoreFolder = async () => {
   if (!selectedFolder.value || selectedFolder.value.length === 0) { ElMessage.warning('选择为空'); return; }
   const ids = selectedFolder.value.map((p: any) => p.id);
   const s = await batchRestoreFavoriteFolders(ids);
-  if (s===200) { ElMessage.success('恢复成功'); folderRows.value = await fetchFolderPageData(nowRow.value, nowPage.value); } else { ElMessage.error('无法连接服务器'); }
+  if (s===200) { ElMessage.success('恢复成功'); await refreshFolder(); } else { ElMessage.error('无法连接服务器'); }
 };
 
 const batchDeleteNote = async () => {
   if (!selectedNote.value || selectedNote.value.length === 0) { ElMessage.warning('选择为空'); return; }
   const ids = selectedNote.value.map((p: any) => p.id);
   const s = await batchDeleteFavoriteNotes(ids);
-  if (s===200) { ElMessage.success('删除成功'); noteRows.value = await fetchNotePageData(nowRow.value, nowPage.value); } else { ElMessage.error('无法连接服务器'); }
+  if (s===200) { ElMessage.success('删除成功'); await refreshNote(); } else { ElMessage.error('无法连接服务器'); }
 };
 
 const batchEnableNote = async () => {
   if (!selectedNote.value || selectedNote.value.length === 0) { ElMessage.warning('选择为空'); return; }
   const ids = selectedNote.value.map((p: any) => p.id);
   const s = await batchEnableFavoriteNotes(ids);
-  if (s===200) { ElMessage.success('启用成功'); noteRows.value = await fetchNotePageData(nowRow.value, nowPage.value); } else { ElMessage.error('无法连接服务器'); }
+  if (s===200) { ElMessage.success('启用成功'); await loadNote(); } else { ElMessage.error('无法连接服务器'); }
 };
 
 const batchDisableNote = async () => {
   if (!selectedNote.value || selectedNote.value.length === 0) { ElMessage.warning('选择为空'); return; }
   const ids = selectedNote.value.map((p: any) => p.id);
   const s = await batchDisableFavoriteNotes(ids);
-  if (s===200) { ElMessage.success('禁用成功'); noteRows.value = await fetchNotePageData(nowRow.value, nowPage.value); } else { ElMessage.error('无法连接服务器'); }
+  if (s===200) { ElMessage.success('禁用成功'); await loadNote(); } else { ElMessage.error('无法连接服务器'); }
 };
 
 const batchRestoreNote = async () => {
   if (!selectedNote.value || selectedNote.value.length === 0) { ElMessage.warning('选择为空'); return; }
   const ids = selectedNote.value.map((p: any) => p.id);
   const s = await batchRestoreFavoriteNotes(ids);
-  if (s===200) { ElMessage.success('恢复成功'); noteRows.value = await fetchNotePageData(nowRow.value, nowPage.value); } else { ElMessage.error('无法连接服务器'); }
+  if (s===200) { ElMessage.success('恢复成功'); await refreshNote(); } else { ElMessage.error('无法连接服务器'); }
 };
 
 const doFolderSearch = async () => {
-  const data = await searchFavoriteFolders({
-    q: value1.value || undefined,
-    isDeleted: isDeletedFilter.value === null ? undefined : isDeletedFilter.value,
-    userId: userIdFilter.value === null ? undefined : userIdFilter.value,
-    parentId: parentIdFilter.value === null ? undefined : parentIdFilter.value,
-    pageNum: nowPage.value,
-    pageSize: nowRow.value,
-  });
-  folderRows.value = data.list;
-  folderCount.value = data.total;
-  maxPage.value = Math.ceil(folderCount.value / nowRow.value);
+  folderPage.value = 1;
+  await loadFolder(1);
 };
 
 const doNoteSearch = async () => {
-  const data = await searchFavoriteNotes({
-    q: noteQ.value || undefined,
-    isDeleted: noteIsDeletedFilter.value === null ? undefined : noteIsDeletedFilter.value,
-    favoriteStatus: noteStatusFilter.value === null ? undefined : noteStatusFilter.value,
-    userId: noteUserIdFilter.value === null ? undefined : noteUserIdFilter.value,
-    favoriteFolderId: noteFolderIdFilter.value === null ? undefined : noteFolderIdFilter.value,
-    pageNum: nowPage.value,
-    pageSize: nowRow.value,
-  });
-  noteRows.value = data.list;
-  noteCount.value = data.total;
-  maxPage.value = Math.ceil(noteCount.value / nowRow.value);
+  notePage.value = 1;
+  await loadNote(1);
+};
+
+const handleDeleteFolder = async (id: number) => {
+  const response = await axios.delete('admin/favoriteMm/folder/delete', {params: {id}});
+  if (response.data.status === 200) {
+    ElMessage.success('删除成功');
+    await refreshFolder();
+  } else {
+    ElMessage.error('无法连接服务器');
+  }
+};
+
+const handleDeleteNote = async (id: number) => {
+  const response = await axios.delete('admin/favoriteMm/note/delete', {params: {id}});
+  if (response.data.status === 200) {
+    ElMessage.success('删除成功');
+    await refreshNote();
+  } else {
+    ElMessage.error('无法连接服务器');
+  }
 };
 
 const addFavoriteFolderVisible = ref<boolean>(false);
@@ -235,7 +318,7 @@ const openNoteDetail = (id: number) => { currentNoteId.value = id; noteDetailVis
                 <div class="pagination-controls">
                   <el-divider direction="vertical" class="hidden-xs-only"/>
                   <Tag severity="info">数量: {{ folderCount }}</Tag>
-                  <Tag class="page-tag">页: {{ nowPage }}/{{ maxPage }}</Tag>
+                  <Tag class="page-tag">页: {{ folderPage }}/{{ folderMaxPage }}</Tag>
                   <div class="page-btns">
                     <Button icon="AngleDoubleLeft" severity="secondary" text size="small" @click="turnPage(0)"/>
                     <Button icon="AngleLeft" severity="secondary" text size="small" @click="turnPage(1)"/>
@@ -250,7 +333,6 @@ const openNoteDetail = (id: number) => { currentNoteId.value = id; noteDetailVis
             <transition name="fade-slide">
               <div v-if="showFolderFilters" class="toolbar-filter-panel">
                  <el-select v-model="isDeletedFilter" placeholder="删除状态" style="width: 120px" clearable>
-                  <el-option label="全部" :value="null" />
                   <el-option label="正常" :value="false" />
                   <el-option label="已删除" :value="true" />
                 </el-select>
@@ -281,7 +363,7 @@ const openNoteDetail = (id: number) => { currentNoteId.value = id; noteDetailVis
                 <template #body="{ data }">
                   <div style="display: flex; gap: 6px; align-items: center;">
                     <Button type="button" icon="Eye" rounded outlined style=" height: 32px;width: 32px" @click="openFolderDetail(data.id)"/>
-                    <Button type="button" icon="Trash" rounded outlined style=" height: 32px;width: 32px" @click="(async()=>{ const r = await axios.delete('admin/favoriteMm/folder/delete', { params: { id: data.id } }); if(r.data.status===200){ ElMessage.success('删除成功'); folderRows = await fetchFolderPageData(nowRow, nowPage) } else { ElMessage.error('无法连接服务器') } })()"/>
+                    <Button type="button" icon="Trash" rounded outlined style=" height: 32px;width: 32px" @click="handleDeleteFolder(data.id)"/>
                   </div>
                 </template>
               </Column>
@@ -320,7 +402,7 @@ const openNoteDetail = (id: number) => { currentNoteId.value = id; noteDetailVis
                 <div class="pagination-controls">
                    <el-divider direction="vertical" class="hidden-xs-only"/>
                   <Tag severity="info">数量: {{ noteCount }}</Tag>
-                  <Tag class="page-tag">页: {{ nowPage }}/{{ maxPage }}</Tag>
+                  <Tag class="page-tag">页: {{ notePage }}/{{ noteMaxPage }}</Tag>
                   <div class="page-btns">
                     <Button icon="AngleDoubleLeft" severity="secondary" text size="small" @click="turnPage(0)"/>
                     <Button icon="AngleLeft" severity="secondary" text size="small" @click="turnPage(1)"/>
@@ -335,12 +417,10 @@ const openNoteDetail = (id: number) => { currentNoteId.value = id; noteDetailVis
              <transition name="fade-slide">
               <div v-if="showNoteFilters" class="toolbar-filter-panel">
                 <el-select v-model="noteStatusFilter" placeholder="状态" style="width: 110px" clearable>
-                  <el-option label="全部" :value="null" />
                   <el-option label="已收藏" :value="true" />
                   <el-option label="取消" :value="false" />
                 </el-select>
                 <el-select v-model="noteIsDeletedFilter" placeholder="删除状态" style="width: 110px" clearable>
-                  <el-option label="全部" :value="null" />
                   <el-option label="正常" :value="false" />
                   <el-option label="已删除" :value="true" />
                 </el-select>
@@ -376,7 +456,7 @@ const openNoteDetail = (id: number) => { currentNoteId.value = id; noteDetailVis
                 <template #body="{ data }">
                   <div style="display: flex; gap: 6px; align-items: center;">
                     <Button type="button" icon="Eye" rounded outlined style=" height: 32px;width: 32px" @click="openNoteDetail(data.id)"/>
-                    <Button type="button" icon="Trash" rounded outlined style=" height: 32px;width: 32px" @click="(async()=>{ const r = await axios.delete('admin/favoriteMm/note/delete', { params: { id: data.id } }); if(r.data.status===200){ ElMessage.success('删除成功'); noteRows = await fetchNotePageData(nowRow, nowPage) } else { ElMessage.error('无法连接服务器') } })()"/>
+                    <Button type="button" icon="Trash" rounded outlined style=" height: 32px;width: 32px" @click="handleDeleteNote(data.id)"/>
                   </div>
                 </template>
               </Column>

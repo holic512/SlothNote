@@ -1,6 +1,4 @@
 <script setup lang="ts">
-import '/src/fonts/alibabaFy.css'
-
 import Tools from "./Tools/Tools.vue";
 
 import {Editor, EditorContent} from '@tiptap/vue-3'
@@ -65,16 +63,19 @@ const InputNoteTitle = ref<string>();
 const noteCover = ref<string>();
 
 let titleSyncTimer: ReturnType<typeof setTimeout> | undefined;
+let titleSyncController: AbortController | undefined;
 
-const syncNoteTitle = async (noteTitle: string) => {
+const syncNoteTitle = async (noteId: number, noteTitle: string, controller: AbortController) => {
   const nextTitle = noteTitle.trim();
 
-  if (currentNoteInfo.noteId == null || !nextTitle || nextTitle === currentNoteInfo.noteName) {
+  if (!nextTitle || noteId !== currentNoteInfo.noteId || nextTitle === currentNoteInfo.noteName) {
     InputNoteTitle.value = currentNoteInfo.noteName;
     return;
   }
 
-  const status = await updateNoteTitle(currentNoteInfo.noteId, nextTitle);
+  const status = await updateNoteTitle(noteId, nextTitle, controller.signal);
+  if (controller.signal.aborted || noteId !== currentNoteInfo.noteId) return;
+
   if (status !== 200) {
     InputNoteTitle.value = currentNoteInfo.noteName;
     return;
@@ -82,17 +83,21 @@ const syncNoteTitle = async (noteTitle: string) => {
 
   currentNoteInfo.noteName = nextTitle;
 
-  const isNoteTreeUpdated = useNoteTreeUpdate();
-  isNoteTreeUpdated.UpdatedNoteTree();
+  useNoteTreeUpdate().patchNode('NOTE', noteId, {label: nextTitle});
 }
 
 const scheduleNoteTitleSync = (noteTitle: string) => {
   if (titleSyncTimer) {
     clearTimeout(titleSyncTimer);
   }
+  titleSyncController?.abort();
+
+  const noteId = currentNoteInfo.noteId;
+  if (noteId == null) return;
 
   titleSyncTimer = setTimeout(() => {
-    void syncNoteTitle(noteTitle);
+    titleSyncController = new AbortController();
+    void syncNoteTitle(noteId, noteTitle, titleSyncController);
   }, 450);
 }
 
@@ -105,6 +110,7 @@ onBeforeUnmount(() => {
   if (titleSyncTimer) {
     clearTimeout(titleSyncTimer);
   }
+  titleSyncController?.abort();
 })
 
 // 监听 当前笔记 是否改变
@@ -112,6 +118,7 @@ watch(() => currentNoteInfo.noteId, () => {
   if (titleSyncTimer) {
     clearTimeout(titleSyncTimer);
   }
+  titleSyncController?.abort();
   SetupInfo()
 })
 
@@ -315,7 +322,8 @@ watch(() => InputNoteTitle.value, async (newValue) => {
 /* 设置编辑器内容的样式 */
 .tiptap-editor {
   width: 750px; /* 设置编辑区域的度 */
-  font-family: 'alibabaFy', serif; /* 使用自定义字体 */
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Hiragino Sans GB",
+  "Microsoft YaHei", "Noto Sans CJK SC", "Noto Sans SC", Arial, sans-serif;
   font-size: 20px; /* 设置字体大小 */
   line-height: 1; /* 确保文字与背景有良好对比 */
 

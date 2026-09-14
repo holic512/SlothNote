@@ -2,10 +2,6 @@
 //组件加载
 
 import {computed, onBeforeUnmount, onMounted, ref} from "vue";
-// 表格组件
-import axios from "../../../../../axios"; // 请确认路径
-import fetchInitialPageData from "./components/TableView/fetchInitialPageData";
-import {fetchPageData} from "./components/TableView/fetchPageData";
 import {calculateRows} from "./components/TableView/calculateRows";
 import {getStatusMsg, getStatusType} from "./components/TableView/getStatusType";
 import AddUser from "./components/AddUser/addUser.vue";
@@ -17,14 +13,15 @@ import {onlineUserCount} from "./components/OnlineUser/OnlineUserCount";
 import {searchUsers} from "./components/TableView/searchUsers";
 import {batchDisable, batchEnable, deleteUser} from "./components/TableView/batchUpdateStatus";
 import UserDetail from "./components/UserDetail/userDetail.vue";
+import {getMaxPage, useLatestRequest} from '../../composables/useAdminListRequest';
 
 // --- 响应式折叠控制 ---
 const showFilters = ref(false);
 
 // 搜素框数据
 const value1 = ref<string | null>(null);
-const statusFilter = ref<number | null>(null);
-const genderFilter = ref<string | null>(null);
+const statusFilter = ref<number | undefined>(undefined);
+const genderFilter = ref<string | undefined>(undefined);
 
 // 计算表格显示条数
 const minHeight = 720;  // 基准高度
@@ -44,60 +41,80 @@ const nowPage = ref(1);
 
 // 表格数据
 const products = ref<any[]>([]);
+const selectedProduct = ref<any[]>([]);
+const listRequest = useLatestRequest();
 
 // 在线用户数目变量
 const OUserCount = ref(0);
 
+const loadUsers = async (page = nowPage.value) => {
+  const pageSize = nowRow.value;
+  const requestedPage = Math.max(1, page);
+  nowPage.value = requestedPage;
+  const filters = {
+    q: value1.value || undefined,
+    status: statusFilter.value,
+    gender: genderFilter.value || undefined,
+  };
+
+  return listRequest.runLatest(
+      async (signal) => {
+        const requestPage = (pageNum: number) => searchUsers({
+          ...filters,
+          pageNum,
+          pageSize,
+        }, signal);
+        let data = await requestPage(requestedPage);
+        const resolvedMaxPage = getMaxPage(data.total, pageSize);
+        const resolvedPage = Math.min(requestedPage, resolvedMaxPage);
+        if (resolvedPage !== requestedPage) data = await requestPage(resolvedPage);
+        return {data, resolvedMaxPage, resolvedPage};
+      },
+      ({data, resolvedMaxPage, resolvedPage}) => {
+        userCount.value = data.total;
+        maxPage.value = resolvedMaxPage;
+        nowPage.value = resolvedPage;
+        products.value = data.list;
+        selectedProduct.value = [];
+      },
+  );
+};
+
 // 钩子函数
 onMounted(async () => {
-  // 获取当前尺寸 所能显示的 行数
   nowRow.value = calculateRows(minHeight, stepHeight);
-
-  // 获取用户总数 并 计算最大页数
-  await axios.get(
-      "admin/userMm/getUserCount",
-  ).then((response) => {
-    userCount.value = response.data.data;
-    maxPage.value = Math.ceil(userCount.value / nowRow.value);
-  });
-
-  // 获取初始数据 固定获取第一页的数据
-  products.value = await fetchInitialPageData(nowRow.value);
-
-  // 挂载 页面尺寸监听器
+  await Promise.all([
+    loadUsers(),
+    onlineUserCount().then((count) => {
+      OUserCount.value = count;
+    }),
+  ]);
   window.addEventListener('resize', handleResize);
-
-  // 获取在线用户数目
-  OUserCount.value = await onlineUserCount()
 })
+
+// 监听窗口大小变化并防抖
+const DEBOUNCE_DELAY = 100; // 防抖延时常量
+let resizeTimeout: ReturnType<typeof setTimeout> | undefined;
+const handleResize = () => {
+  if (resizeTimeout) clearTimeout(resizeTimeout);
+  resizeTimeout = setTimeout(async () => {
+    resizeTimeout = undefined;
+    const rows = calculateRows(minHeight, stepHeight);
+
+    if (rows !== nowRow.value) {
+      nowRow.value = rows;
+      maxPage.value = getMaxPage(userCount.value, rows);
+      nowPage.value = Math.min(nowPage.value, maxPage.value);
+      await loadUsers();
+    }
+  }, DEBOUNCE_DELAY);
+};
 
 // 在组件销毁时移除监听器
 onBeforeUnmount(() => {
   window.removeEventListener('resize', handleResize);
+  if (resizeTimeout) clearTimeout(resizeTimeout);
 });
-
-// 监听窗口大小变化并防抖
-const DEBOUNCE_DELAY = 100; // 防抖延时常量
-let resizeTimeout: ReturnType<typeof setTimeout>;
-const handleResize = async () => {
-  clearTimeout(resizeTimeout);
-  resizeTimeout = setTimeout(async () => {
-    const rows = calculateRows(minHeight, stepHeight);
-
-    if (rows !== nowRow.value) {
-      // 更新行数和最大页数
-      nowRow.value = rows;
-      maxPage.value = Math.ceil(userCount.value / nowRow.value);
-
-      // 调整当前页数，确保不会超出最大页数
-      if (nowPage.value > maxPage.value) {
-        nowPage.value = maxPage.value;
-      }
-      // 根据当前行数和页数重新获取数据
-      products.value = await fetchPageData(nowRow.value, nowPage.value);
-    }
-  }, DEBOUNCE_DELAY);
-};
 
 // 计算 table 的动态高度 达到适配
 const dynamicHeight = computed(() => {
@@ -117,8 +134,7 @@ const turnPage = async (turn: pageTurn) => {
   switch (turn) {
     case pageTurn.FirstPage:
       if (nowPage.value != 1) {
-        nowPage.value = 1;
-        products.value = await fetchPageData(nowRow.value, nowPage.value);
+        await loadUsers(1);
       } else {
         ElMessage.warning("已经是第一页了")
       }
@@ -126,8 +142,7 @@ const turnPage = async (turn: pageTurn) => {
 
     case pageTurn.PreviousPage:
       if (nowPage.value > 1) {
-        nowPage.value = nowPage.value - 1;
-        products.value = await fetchPageData(nowRow.value, nowPage.value);
+        await loadUsers(nowPage.value - 1);
       } else {
         ElMessage.warning("已经是第一页了")
       }
@@ -135,16 +150,14 @@ const turnPage = async (turn: pageTurn) => {
 
     case pageTurn.NextPage:
       if (nowPage.value < maxPage.value) {
-        nowPage.value = nowPage.value + 1;
-        products.value = await fetchPageData(nowRow.value, nowPage.value);
+        await loadUsers(nowPage.value + 1);
       } else {
         ElMessage.warning("已经是最后一页了")
       }
       break
     case pageTurn.LastPage:
       if (nowPage.value != maxPage.value) {
-        nowPage.value = maxPage.value;
-        products.value = await fetchPageData(nowRow.value, nowPage.value);
+        await loadUsers(maxPage.value);
       } else {
         ElMessage.warning("已经是最后一页了")
       }
@@ -157,26 +170,11 @@ const handleDebouncedTurnPage = debounceImmediate(turnPage, 200)
 
 // 刷新逻辑
 const refresh = async () => {
-  await axios.get(
-      "admin/userMm/getUserCount",
-  ).then((response) => {
-    userCount.value = response.data.data;
-    maxPage.value = Math.ceil(userCount.value / nowRow.value);
-  });
-  // 当 重新获取后 最大页数 小于当前页数 则查询最后一页
-  if (maxPage.value < nowPage.value) {
-    products.value = await fetchPageData(nowRow.value, maxPage.value);
-  } else {
-    products.value = await fetchPageData(nowRow.value, nowPage.value);
-  }
-
-  ElMessage.success("刷新成功")
+  const committed = await loadUsers();
+  if (committed) ElMessage.success("刷新成功")
 }
 // 刷新逻辑 的 防抖函数
 const handleDebouncedRefresh = debounceImmediate(refresh, 1000);
-
-// 选择逻辑
-const selectedProduct = ref();
 
 // 批量删除/防抖
 const batchDelete = async () => {
@@ -195,6 +193,7 @@ const batchDelete = async () => {
   const status = await BatchDeleteUser(ids);
   if (status === 200) {
     ElMessage.success("删除成功")
+    await refresh();
   } else {
     ElMessage.error("无法连接服务器");
   }
@@ -210,7 +209,7 @@ const batchEnableR = async () => {
   const s = await batchEnable(ids);
   if (s === 200) {
     ElMessage.success("启用成功");
-    products.value = await fetchPageData(nowRow.value, nowPage.value);
+    await loadUsers();
   } else {
     ElMessage.error("无法连接服务器");
   }
@@ -226,7 +225,7 @@ const batchDisableR = async () => {
   const s = await batchDisable(ids);
   if (s === 200) {
     ElMessage.success("禁用成功");
-    products.value = await fetchPageData(nowRow.value, nowPage.value);
+    await loadUsers();
   } else {
     ElMessage.error("无法连接服务器");
   }
@@ -234,16 +233,8 @@ const batchDisableR = async () => {
 const handleDebouncedBatchDisable = debounceImmediate(batchDisableR, 500);
 
 const doSearch = async () => {
-  const data = await searchUsers({
-    q: value1.value || undefined,
-    status: statusFilter.value === null ? undefined : statusFilter.value,
-    gender: genderFilter.value || undefined,
-    pageNum: nowPage.value,
-    pageSize: nowRow.value,
-  });
-  products.value = data.list;
-  userCount.value = data.total;
-  maxPage.value = Math.ceil(userCount.value / nowRow.value);
+  nowPage.value = 1;
+  await loadUsers(1);
 };
 const handleDebouncedSearch = debounceImmediate(doSearch, 500);
 
@@ -252,6 +243,16 @@ const currentUserId = ref<number | null>(null);
 const openDetail = (id: number) => {
   currentUserId.value = id;
   userDetailVisible.value = true;
+};
+
+const handleDeleteUser = async (id: number) => {
+  const status = await deleteUser(id);
+  if (status === 200) {
+    ElMessage.success('删除成功');
+    await refresh();
+  } else {
+    ElMessage.error('无法连接服务器');
+  }
 };
 
 
@@ -345,14 +346,12 @@ const onlineUserVisible = ref<boolean>(false);
         <transition name="fade-slide">
           <div v-if="showFilters" class="toolbar-filter-panel">
             <el-select v-model="statusFilter" placeholder="状态" style="width: 120px" clearable>
-              <el-option label="全部" :value="null"/>
               <el-option label="正常" :value="0"/>
               <el-option label="停用" :value="1"/>
               <el-option label="封禁" :value="2"/>
             </el-select>
 
             <el-select v-model="genderFilter" placeholder="性别" style="width: 120px" clearable>
-              <el-option label="全部" :value="null"/>
               <el-option label="男" value="male"/>
               <el-option label="女" value="female"/>
               <el-option label="保密" value="secret"/>
@@ -405,7 +404,7 @@ const onlineUserVisible = ref<boolean>(false);
                 <Button type="button" icon="Eye" rounded outlined style=" height: 32px;width: 32px"
                         @click="openDetail(data.id)"/>
                 <Button type="button" icon="Trash" rounded outlined style=" height: 32px;width: 32px"
-                        @click="(async()=>{ const s = await deleteUser(data.id); if(s===200){ ElMessage.success('删除成功'); products = await fetchPageData(nowRow, nowPage) } else { ElMessage.error('无法连接服务器') } })()"/>
+                        @click="handleDeleteUser(data.id)"/>
               </div>
             </template>
           </Column>

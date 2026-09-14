@@ -10,10 +10,17 @@
 -->
 <script setup lang="ts">
 import {RightPageModeEnum, useRightPageState} from "@/views/User/Main/components/Edit/Pinia/RightPageState";
-import {ref, watch} from "vue";
-import NoteComment from "@/views/User/Main/components/Edit/PageRight/components/NoteComment/NoteComment.vue";
-import NoteAI from "@/views/User/Main/components/Edit/PageRight/components/NoteAi/NoteAi.vue"
-import KnowledgeGraph from "@/views/User/Main/components/Edit/PageRight/components/KnowledgeGraph/KnowledgeGraph.vue";
+import {defineAsyncComponent, ref, watch} from "vue";
+
+const NoteComment = defineAsyncComponent(() => import(
+  "@/views/User/Main/components/Edit/PageRight/components/NoteComment/NoteComment.vue"
+));
+const NoteAI = defineAsyncComponent(() => import(
+  "@/views/User/Main/components/Edit/PageRight/components/NoteAi/NoteAi.vue"
+));
+const KnowledgeGraph = defineAsyncComponent(() => import(
+  "@/views/User/Main/components/Edit/PageRight/components/KnowledgeGraph/KnowledgeGraph.vue"
+));
 // 控制右侧边栏状态
 const rightPageState = useRightPageState();
 

@@ -10,8 +10,8 @@ export const fetchCategoryPageData = async (pageSize: number, pageNum: number) =
   return r.data.data;
 }
 
-export const searchCategories = async (params: any) => {
-  const r = await axios.post('admin/todoMm/category/search', params);
+export const searchCategories = async (params: any, signal?: AbortSignal) => {
+  const r = await axios.post('admin/todoMm/category/search', params, {signal});
   return r.data.data;
 }
 

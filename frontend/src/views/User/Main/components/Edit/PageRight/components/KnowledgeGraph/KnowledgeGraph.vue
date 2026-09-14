@@ -3,14 +3,17 @@
 @project SlothNote
 @module 用户端 / 笔记知识星图
 @description 展示可拖拽、可缩放的笔记引用知识图谱。
-@logic 1. 根据当前笔记加载图谱数据；2. 用 ECharts graph force 布局渲染节点与边；3. 点击节点后通过 noteNavigation 跳转笔记。
+@logic 1. 根据当前笔记取消旧请求并仅提交最新图谱；2. 用 ECharts graph force 布局渲染节点与边；3. 点击节点后通过 noteNavigation 跳转笔记。
 @dependencies ECharts: graph/force, Service: getKnowledgeGraph/noteNavigation, Store: currentNoteInfo
-@index_tags 知识星图, ECharts, 拖拽图谱, 笔记引用, 节点跳转
+@index_tags 知识星图, ECharts, 请求竞态, 拖拽图谱, 笔记引用, 节点跳转
 @author holic512
 -->
 <script setup lang="ts">
 import {nextTick, onBeforeUnmount, onMounted, ref, watch} from "vue";
-import * as echarts from "echarts";
+import * as echarts from "echarts/core";
+import {GraphChart} from "echarts/charts";
+import {TooltipComponent} from "echarts/components";
+import {CanvasRenderer} from "echarts/renderers";
 import {Refresh, Share} from "@element-plus/icons-vue";
 import {ElMessage} from "element-plus";
 import {useRouter} from "vue-router";
@@ -21,6 +24,8 @@ import {
   type KnowledgeGraphData,
   type KnowledgeGraphNode
 } from "@/views/User/Main/components/Edit/PageRight/components/KnowledgeGraph/service/getKnowledgeGraph";
+
+echarts.use([GraphChart, TooltipComponent, CanvasRenderer]);
 
 const router = useRouter();
 const currentNoteInfo = useCurrentNoteInfoStore();
@@ -33,18 +38,32 @@ const graphData = ref<KnowledgeGraphData>({
 });
 
 let chart: echarts.ECharts | null = null;
+let graphRequestId = 0;
+let graphController: AbortController | null = null;
+let isMounted = false;
 
 const loadGraph = async () => {
+  graphController?.abort();
+  const controller = new AbortController();
+  graphController = controller;
+  const requestId = ++graphRequestId;
+  const noteId = currentNoteInfo.noteId;
   loading.value = true;
   try {
-    graphData.value = await getKnowledgeGraph(currentNoteInfo.noteId);
+    const nextGraphData = await getKnowledgeGraph(noteId, controller.signal);
+    if (controller.signal.aborted || requestId !== graphRequestId || !isMounted) return;
+
+    graphData.value = nextGraphData;
     await nextTick();
+    if (controller.signal.aborted || requestId !== graphRequestId || !isMounted) return;
     renderGraph();
   } catch (error) {
+    if (controller.signal.aborted || requestId !== graphRequestId || !isMounted) return;
     console.error(error);
     ElMessage.error("知识星图加载失败");
   } finally {
-    loading.value = false;
+    if (requestId === graphRequestId && isMounted) loading.value = false;
+    if (graphController === controller) graphController = null;
   }
 };
 
@@ -148,11 +167,16 @@ watch(() => currentNoteInfo.noteId, () => {
 });
 
 onMounted(() => {
+  isMounted = true;
   void loadGraph();
   window.addEventListener("resize", resizeChart);
 });
 
 onBeforeUnmount(() => {
+  isMounted = false;
+  graphRequestId += 1;
+  graphController?.abort();
+  graphController = null;
   window.removeEventListener("resize", resizeChart);
   chart?.dispose();
   chart = null;

@@ -4,11 +4,13 @@
 @module 用户端 / 主侧边栏
 @description 提供用户端主导航、笔记树入口和设置弹窗入口。
 @logic 1. 控制左侧面板折叠；2. 导航到首页、搜索、待办、收藏；3. 挂载笔记树和相关右侧操作弹窗。
-@dependencies Store: useUserPreferencesStore/useSearchDialogStore, Component: NoteTree/Rename/Details/Description
+@dependencies Store: useUserPreferencesStore/useSearchDialogStore, Component: NoteTree/Rename/Details/Description, Library: vue3-context-menu
 @index_tags 用户侧边栏, 笔记树入口, 用户导航, ElementPlus图标
 @author holic512
 -->
 <script setup lang="ts">
+import '@imengyu/vue3-context-menu/lib/vue3-context-menu.css';
+import '@/css/ContextMenu.scss';
 import NoteTree from "./NoteTree/noteTree.vue";
 import {useRouter} from "vue-router";
 import Rename from "@/views/User/Main/components/Sidebar/components/Rename/Rename.vue";

@@ -1,16 +1,30 @@
+<!--
+@file UserFavoriteListPage
+@project SlothNote
+@module 用户端 / 收藏页面
+@description 展示用户收藏分类与收藏笔记列表。
+@logic 1. 加载收藏分类和分类下笔记并取消过时请求；2. KeepAlive 激活时刷新；3. 使用客户端分页限制单次 DOM 渲染数量。
+@dependencies API: user/note/favorite/*, VueRouter: useRouter, ElementPlus: ElMessageBox
+@index_tags 收藏页面, 收藏分类, KeepAlive, 路由切换性能
+@author holic512
+-->
 <script setup lang="ts">
-import { ref, onMounted, watch, computed } from 'vue';
+import {computed, onActivated, onBeforeUnmount, onDeactivated, onMounted, ref, watch} from 'vue';
 import axios from '@/axios';
 import { useRouter } from 'vue-router';
 import { ElMessage, ElMessageBox } from 'element-plus';
+import {navigateToNote} from '@/views/User/Main/components/Edit/service/noteNavigation';
 import { 
   Folder as IconFolder, 
   Document, 
   Plus, 
   MoreFilled, 
-  Delete,
   CollectionTag
 } from '@element-plus/icons-vue';
+
+defineOptions({
+  name: 'UserFavoriteListPage'
+})
 
 // --- 类型定义 ---
 interface Folder {
@@ -33,6 +47,14 @@ const folders = ref<Folder[]>([]);
 const selectedFolderId = ref<number>(0); // 0 代表 "未分类" 或 "全部"
 const notes = ref<Note[]>([]);
 const loading = ref(false);
+const currentPage = ref(1);
+const pageSize = 50;
+let folderRequestId = 0;
+let noteRequestId = 0;
+let folderController: AbortController | null = null;
+let noteController: AbortController | null = null;
+let isActive = true;
+let hasLoadedOnce = false;
 
 // 模拟一个 "未分类/全部" 的固定选项
 const defaultFolder = { id: 0, name: '默认收藏' };
@@ -40,38 +62,78 @@ const defaultFolder = { id: 0, name: '默认收藏' };
 // --- API 逻辑 ---
 
 const fetchFolders = async () => {
+  folderController?.abort();
+  const controller = new AbortController();
+  folderController = controller;
+  const requestId = ++folderRequestId;
   try {
-    const resp = await axios.get('user/note/favorite/folders');
+    const resp = await axios.get('user/note/favorite/folders', {signal: controller.signal});
+    if (controller.signal.aborted || requestId !== folderRequestId || !isActive) return;
     if (resp.data?.status === 200) {
       folders.value = resp.data.data.map((f: any) => ({ id: f.id, name: f.folderName }));
     }
-  } catch (e) { console.error(e); }
+  } catch (e) {
+    if (!controller.signal.aborted && requestId === folderRequestId && isActive) console.error(e);
+  }
 };
 
 const fetchNotes = async () => {
+  noteController?.abort();
+  const controller = new AbortController();
+  noteController = controller;
+  const requestId = ++noteRequestId;
+  const folderId = selectedFolderId.value;
   loading.value = true;
   try {
-    const resp = await axios.get('user/note/favorite/notes', { params: { folderId: selectedFolderId.value } });
+    const resp = await axios.get('user/note/favorite/notes', {
+      params: {folderId},
+      signal: controller.signal,
+    });
+    if (controller.signal.aborted || requestId !== noteRequestId || !isActive || folderId !== selectedFolderId.value) return;
     if (resp.data?.status === 200) {
       notes.value = resp.data.data || [];
     } else {
       notes.value = [];
     }
+    currentPage.value = 1;
+    hasLoadedOnce = true;
   } catch (e) {
+    if (controller.signal.aborted || requestId !== noteRequestId || !isActive) return;
     notes.value = [];
   } finally {
-    loading.value = false;
+    if (requestId === noteRequestId && isActive) loading.value = false;
   }
 };
 
 onMounted(async () => {
+  isActive = true;
   await fetchFolders();
   await fetchNotes();
 });
 
+onActivated(() => {
+  isActive = true;
+  if (hasLoadedOnce) {
+    void Promise.all([fetchFolders(), fetchNotes()]);
+  }
+});
+
+const deactivateFavoriteList = () => {
+  isActive = false;
+  folderRequestId += 1;
+  noteRequestId += 1;
+  folderController?.abort();
+  noteController?.abort();
+  folderController = null;
+  noteController = null;
+};
+
+onDeactivated(deactivateFavoriteList);
+onBeforeUnmount(deactivateFavoriteList);
+
 // 监听文件夹切换
 watch(() => selectedFolderId.value, () => {
-  fetchNotes();
+  if (isActive) void fetchNotes();
 });
 
 // --- 交互逻辑 ---
@@ -80,9 +142,8 @@ const handleSelectFolder = (id: number) => {
   selectedFolderId.value = id;
 };
 
-const openNote = (noteId: number) => {
-  // 可以在这里加个路由参数
-  router.push(`/user/main/edit?id=${noteId}`);
+const openNote = async (noteId: number) => {
+  await navigateToNote(router, {noteId});
 };
 
 const createFolder = async () => {
@@ -113,6 +174,11 @@ const currentFolderName = computed(() => {
   if (selectedFolderId.value === 0) return defaultFolder.name;
   const f = folders.value.find(i => i.id === selectedFolderId.value);
   return f ? f.name : '未知分类';
+});
+
+const pagedNotes = computed(() => {
+  const start = (currentPage.value - 1) * pageSize;
+  return notes.value.slice(start, start + pageSize);
 });
 
 // 随机生成个时间模拟一下
@@ -187,7 +253,7 @@ const getRandomDate = () => {
 
         <!-- 列表项 -->
         <div 
-          v-for="note in notes" 
+          v-for="note in pagedNotes"
           :key="note.id" 
           class="list-item"
           @click="openNote(note.noteId)"
@@ -209,6 +275,15 @@ const getRandomDate = () => {
             </div>
           </div>
         </div>
+
+        <el-pagination
+            v-if="notes.length > pageSize"
+            v-model:current-page="currentPage"
+            :page-size="pageSize"
+            :total="notes.length"
+            layout="prev, pager, next"
+            class="favorite-pagination"
+        />
 
       </div>
     </main>
@@ -431,5 +506,10 @@ const getRandomDate = () => {
   text-align: center;
   color: #D3D3D3;
   font-style: italic;
+}
+
+.favorite-pagination {
+  justify-content: flex-end;
+  padding: 16px 0 4px;
 }
 </style>

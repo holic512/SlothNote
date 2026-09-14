@@ -9,7 +9,7 @@ const emit = defineEmits<{
   success: []
 }>();
 
-const form = ref<AddNoteForm>({ userId: null, folderId: null, noteTitle: '', noteSummary: '', noteAvatar: '', noteCoverUrl: '', notePassword: '', noteType: 0 });
+const form = ref<AddNoteForm>({ userId: undefined, folderId: undefined, noteTitle: '', noteSummary: '', noteAvatar: '', noteCoverUrl: '', notePassword: '', noteType: 0 });
 const rules = reactive<FormRules<AddNoteForm>>({
   userId: [{ required: true, message: '请选择用户', trigger: 'blur' }],
   noteTitle: [{ required: true, message: '请输入标题', trigger: 'blur' }],
@@ -24,7 +24,7 @@ const loadFolderOptions = async (q?: string) => {
 };
 
 watch(() => form.value.userId, async () => {
-  form.value.folderId = null;
+  form.value.folderId = undefined;
   folderOptions.value = [];
   if (form.value.userId) {
     await loadFolderOptions();

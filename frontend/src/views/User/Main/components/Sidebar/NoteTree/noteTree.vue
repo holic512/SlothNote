@@ -3,20 +3,24 @@
 @project SlothNote
 @module 用户端 / 笔记树
 @description 展示用户文件夹与笔记树，并处理笔记跳转、右键菜单和展开状态。
-@logic 1. 加载用户完整笔记树；2. 通过统一 noteNavigation 切换笔记；3. 维护右键菜单和展开节点。
+@logic 1. 以 shallowRef 加载并缓存完整笔记树；2. 仅提交最新全量刷新并增量应用元数据补丁；3. 统一处理笔记跳转、右键菜单和展开状态。
 @dependencies Service: getUserAllTreeData/noteNavigation, Store: isNoteTreeUpdated/RightSelectNodeId/SaveNoteState
 @index_tags 笔记树, 侧边栏, 笔记跳转, noteNavigation, 卡顿优化
 @author holic512
 -->
 <script setup lang="ts">
-import {onMounted, ref, watch} from "vue";
+import {onBeforeUnmount, onMounted, ref, shallowRef, watch} from "vue";
 import type Node from 'element-plus/es/components/tree/src/model/node'
 import {Tree} from "./interface/treeInterface";
 import {useRouter} from "vue-router";
 import TopDivRightMenu from "@/views/User/Main/components/Sidebar/RightMenu/TopDivRightMenu.vue";
 import NodeRightMenu from "@/views/User/Main/components/Sidebar/RightMenu/NodeRightMenu.vue";
 import FolderRightMenu from "@/views/User/Main/components/Sidebar/RightMenu/FolderRightMenu.vue";
-import {getUserAllTreeData} from "@/views/User/Main/components/Sidebar/NoteTree/service/GetUserAllTreeData";
+import {
+  getUserAllTreeData,
+  patchNoteTreeNodes,
+  patchUserAllTreeDataCache,
+} from "@/views/User/Main/components/Sidebar/NoteTree/service/GetUserAllTreeData";
 import {useNoteTreeUpdate} from "@/views/User/Main/components/Sidebar/Pinia/isNoteTreeUpdated";
 import {useRightSelectNodeId} from "@/views/User/Main/components/Sidebar/Pinia/RightSelectNodeId";
 import {getFolderIdByNoteId} from "@/views/User/Main/components/Sidebar/NoteTree/service/GetFolderIdByNoteId";
@@ -33,23 +37,48 @@ const props = {
 }
 
 
-const NoteTreeData = ref<Tree[]>([]);
+const NoteTreeData = shallowRef<Tree[]>([]);
+let treeRequestId = 0;
+
+const loadNoteTree = async (forceRefresh = false) => {
+  const requestId = ++treeRequestId;
+  const tree = await getUserAllTreeData(forceRefresh);
+  if (requestId !== treeRequestId) return;
+  NoteTreeData.value = tree;
+};
 
 // 钩子函数 自动获取 笔记树
-onMounted(async () => {
-  NoteTreeData.value = await getUserAllTreeData();
+onMounted(() => {
+  void loadNoteTree();
 });
 
-// 监控 笔记树 的 更新状态
-const isNoteTreeUpdated = useNoteTreeUpdate();
-watch(() => isNoteTreeUpdated.isNoteTreeUpdated, async (newState) => {
-  // 当 newState 为 true 时 需要更新
-  if (newState) {
-    NoteTreeData.value = await getUserAllTreeData();
+onBeforeUnmount(() => {
+  treeRequestId += 1;
+});
 
-    isNoteTreeUpdated.UpdatedNoteTreeCompleted();
+// 监控笔记树更新事件：结构变化全量刷新，元数据变化应用节点补丁。
+const isNoteTreeUpdated = useNoteTreeUpdate();
+watch(() => isNoteTreeUpdated.revision, async (revision) => {
+  const mutation = isNoteTreeUpdated.mutation;
+  if (!mutation) return;
+
+  if (mutation.kind === 'patch') {
+    NoteTreeData.value = patchUserAllTreeDataCache(
+        mutation.nodeType,
+        mutation.nodeId,
+        mutation.changes,
+    ) || patchNoteTreeNodes(
+        NoteTreeData.value,
+        mutation.nodeType,
+        mutation.nodeId,
+        mutation.changes,
+    );
+  } else {
+    await loadNoteTree(true);
   }
-})
+
+  isNoteTreeUpdated.UpdatedNoteTreeCompleted(revision);
+}, {flush: 'sync'})
 
 // 左键点击
 const handleNodeClick = async (data: Tree, node: Node) => {

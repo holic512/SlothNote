@@ -1,3 +1,13 @@
+<!--
+@file SendNoteComment
+@project SlothNote
+@module 用户端 / 笔记评论
+@description 提交当前笔记评论并发布列表刷新事件。
+@logic 1. 校验评论与当前笔记；2. 提交期间阻止重复请求；3. 仅成功时清空原输入并递增评论 revision。
+@dependencies Service: SendComment, Store: currentNoteInfo/UpdateCommentState
+@index_tags 评论提交, 重复提交保护, 评论刷新
+@author holic512
+-->
 <script setup lang="ts">
 import {ref} from "vue";
 import {ElMessage} from "element-plus";
@@ -17,25 +27,38 @@ const UpdateCommentState = UseUpdateCommentState();
 
 // 评论框内容
 const textarea = ref('');
+const submitting = ref(false);
 
 // 发送功能
 const handleSend = async () => {
+  if (submitting.value) return;
+
   // 数据校验逻辑
-  if (!textarea.value.trim()) {
+  const content = textarea.value.trim();
+  if (!content) {
     ElMessage.warning('评论内容不能为空');
     return;
   }
 
-  // 执行发送逻辑
-  let status: any;
-  if (currentNoteInfo.noteId != null) {
-    status = await SendComment(currentNoteInfo.noteId, textarea.value)
-  }
-  if (status == 200) ElMessage.success("添加评论成功")
+  const noteId = currentNoteInfo.noteId;
+  if (noteId == null) return;
 
-  // 成功后逻辑
-  textarea.value = '';
-  UpdateCommentState.needUpdate();
+  submitting.value = true;
+  try {
+    const status = await SendComment(noteId, content)
+    if (status !== 200) {
+      ElMessage.error("添加评论失败");
+      return;
+    }
+
+    ElMessage.success("添加评论成功")
+    if (noteId === currentNoteInfo.noteId && textarea.value.trim() === content) {
+      textarea.value = '';
+    }
+    UpdateCommentState.needUpdate();
+  } finally {
+    submitting.value = false;
+  }
 
 };
 </script>
@@ -53,7 +76,7 @@ const handleSend = async () => {
       </div>
       <div class="button-container">
         <el-text class="tip-text">Ctrl + Enter 快捷发送</el-text>
-        <el-button type="primary" size="small" @click="handleSend">发送评论</el-button>
+        <el-button type="primary" size="small" :loading="submitting" @click="handleSend">发送评论</el-button>
       </div>
     </div>
   </div>

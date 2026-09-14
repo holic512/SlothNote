@@ -1,15 +1,16 @@
 <script setup lang="ts">
-import {computed, onBeforeUnmount, onMounted, ref} from 'vue';
+import {computed, onBeforeUnmount, onMounted, ref, watch} from 'vue';
 import axios from '../../../../../axios'; // 请确认路径
 import {ElMessage} from 'element-plus';
 import {calculateRows} from '../FolderMm/components/TableView/calculateRows';
 import {fetchUserOptions} from '../FolderMm/components/TableView/userOptions';
-import {fetchCategoryInitial, fetchCategoryPageData, searchCategories, batchDeleteCategories, batchRestoreCategories} from './components/categoryApi';
-import {fetchTodoInitial, fetchTodoPageData, searchTodos, batchDeleteTodos, batchRestoreTodos, batchEnableTodos, batchDisableTodos} from './components/todoApi';
+import {searchCategories, batchDeleteCategories, batchRestoreCategories} from './components/categoryApi';
+import {searchTodos, batchDeleteTodos, batchRestoreTodos, batchEnableTodos, batchDisableTodos} from './components/todoApi';
 import AddTodoCategory from './components/AddTodoCategory/addTodoCategory.vue';
 import AddTodo from './components/AddTodo/addTodo.vue';
 import TodoCategoryDetail from './components/CategoryDetail/todoCategoryDetail.vue';
 import TodoDetail from './components/TodoDetail/todoDetail.vue';
+import {getMaxPage, useLatestRequest} from '../../composables/useAdminListRequest';
 
 const activeTab = ref<'category' | 'todo'>('category');
 
@@ -19,167 +20,252 @@ const showTodoFilters = ref(false);
 
 // Category Filters
 const catQ = ref<string | null>(null);
-const catDeleted = ref<boolean | null>(null);
+const catDeleted = ref<boolean | undefined>(undefined);
 const catType = ref<number | undefined>(undefined);
 const catUserId = ref<number | undefined>(undefined);
 const userOptions = ref<any[]>([]);
 
 // Todo Filters
 const todoQ = ref<string | null>(null);
-const todoDeleted = ref<boolean | null>(null);
-const todoStatus = ref<number | null>(null);
+const todoDeleted = ref<boolean | undefined>(undefined);
+const todoStatus = ref<number | undefined>(undefined);
 const todoUserId = ref<number | undefined>(undefined);
 const todoCategoryId = ref<number | undefined>(undefined);
 
 const minHeight = 720;
 const stepHeight = 45;
-let nowRow = ref(10);
+const nowRow = ref(10);
 const categoryCount = ref(0);
 const todoCount = ref(0);
-const maxPage = ref(1);
-const nowPage = ref(1);
+const categoryMaxPage = ref(1);
+const todoMaxPage = ref(1);
+const categoryPage = ref(1);
+const todoPage = ref(1);
 const categoryRows = ref<any[]>([]);
 const todoRows = ref<any[]>([]);
+const selectedCategory = ref<any[]>([]);
+const selectedTodo = ref<any[]>([]);
+
+const categoryRequest = useLatestRequest();
+const todoRequest = useLatestRequest();
+
+const loadCategory = async (page = categoryPage.value) => {
+  const pageSize = nowRow.value;
+  const requestedPage = Math.max(1, page);
+  categoryPage.value = requestedPage;
+  const filters = {
+    q: catQ.value || undefined,
+    isDeleted: catDeleted.value,
+    userId: catUserId.value,
+    type: catType.value,
+  };
+
+  return categoryRequest.runLatest(
+      async (signal) => {
+        const requestPage = (pageNum: number) => searchCategories({
+          ...filters,
+          pageNum,
+          pageSize,
+        }, signal);
+        let data = await requestPage(requestedPage);
+        const maxPage = getMaxPage(data.total, pageSize);
+        const resolvedPage = Math.min(requestedPage, maxPage);
+        if (resolvedPage !== requestedPage) data = await requestPage(resolvedPage);
+        return {data, maxPage, resolvedPage};
+      },
+      ({data, maxPage, resolvedPage}) => {
+        categoryCount.value = data.total;
+        categoryMaxPage.value = maxPage;
+        categoryPage.value = resolvedPage;
+        categoryRows.value = data.list;
+        selectedCategory.value = [];
+      },
+  );
+};
+
+const loadTodo = async (page = todoPage.value) => {
+  const pageSize = nowRow.value;
+  const requestedPage = Math.max(1, page);
+  todoPage.value = requestedPage;
+  const filters = {
+    q: todoQ.value || undefined,
+    isDeleted: todoDeleted.value,
+    status: todoStatus.value,
+    userId: todoUserId.value,
+    categoryId: todoCategoryId.value,
+  };
+
+  return todoRequest.runLatest(
+      async (signal) => {
+        const requestPage = (pageNum: number) => searchTodos({
+          ...filters,
+          pageNum,
+          pageSize,
+        }, signal);
+        let data = await requestPage(requestedPage);
+        const maxPage = getMaxPage(data.total, pageSize);
+        const resolvedPage = Math.min(requestedPage, maxPage);
+        if (resolvedPage !== requestedPage) data = await requestPage(resolvedPage);
+        return {data, maxPage, resolvedPage};
+      },
+      ({data, maxPage, resolvedPage}) => {
+        todoCount.value = data.total;
+        todoMaxPage.value = maxPage;
+        todoPage.value = resolvedPage;
+        todoRows.value = data.list;
+        selectedTodo.value = [];
+      },
+  );
+};
+
+const loadActiveTab = async () => {
+  if (activeTab.value === 'category') {
+    return loadCategory();
+  }
+  return loadTodo();
+};
 
 onMounted(async () => {
   nowRow.value = calculateRows(minHeight, stepHeight);
-  await axios.get('admin/todoMm/category/getCount').then((r)=>{ categoryCount.value = r.data.data; });
-  await axios.get('admin/todoMm/todo/getCount').then((r)=>{ todoCount.value = r.data.data; });
-  maxPage.value = Math.ceil((activeTab.value==='category'?categoryCount.value:todoCount.value) / nowRow.value);
-  categoryRows.value = await fetchCategoryInitial(nowRow.value);
-  todoRows.value = await fetchTodoInitial(nowRow.value);
-  userOptions.value = await fetchUserOptions(undefined, 50);
+  await Promise.all([
+    loadCategory(),
+    fetchUserOptions(undefined, 50).then((options) => {
+      userOptions.value = options;
+    }),
+  ]);
   window.addEventListener('resize', handleResize);
 });
 
-onBeforeUnmount(() => { window.removeEventListener('resize', handleResize); });
+watch(activeTab, async () => {
+  await loadActiveTab();
+});
 
 const DEBOUNCE_DELAY = 100;
-let resizeTimeout: ReturnType<typeof setTimeout>;
-const handleResize = async () => {
-  clearTimeout(resizeTimeout);
+let resizeTimeout: ReturnType<typeof setTimeout> | undefined;
+const handleResize = () => {
+  if (resizeTimeout) clearTimeout(resizeTimeout);
   resizeTimeout = setTimeout(async () => {
+    resizeTimeout = undefined;
     const rows = calculateRows(minHeight, stepHeight);
-    if (rows !== nowRow.value) {
-      nowRow.value = rows;
-      maxPage.value = Math.ceil((activeTab.value==='category'?categoryCount.value:todoCount.value) / nowRow.value);
-      if (nowPage.value > maxPage.value) nowPage.value = maxPage.value;
-      if (activeTab.value==='category') categoryRows.value = await fetchCategoryPageData(nowRow.value, nowPage.value);
-      else todoRows.value = await fetchTodoPageData(nowRow.value, nowPage.value);
-    }
+    if (rows === nowRow.value) return;
+
+    nowRow.value = rows;
+    categoryMaxPage.value = getMaxPage(categoryCount.value, rows);
+    todoMaxPage.value = getMaxPage(todoCount.value, rows);
+    categoryPage.value = Math.min(categoryPage.value, categoryMaxPage.value);
+    todoPage.value = Math.min(todoPage.value, todoMaxPage.value);
+    await loadActiveTab();
   }, DEBOUNCE_DELAY);
 };
+
+onBeforeUnmount(() => {
+  window.removeEventListener('resize', handleResize);
+  if (resizeTimeout) clearTimeout(resizeTimeout);
+});
 
 const dynamicHeight = computed(() => `${475 + (nowRow.value - 10) * 45}px`);
 
 enum pageTurn { FirstPage, PreviousPage, NextPage, LastPage }
 const turnPage = async (turn: pageTurn) => {
-  const load = async () => {
-    if (activeTab.value==='category') categoryRows.value = await fetchCategoryPageData(nowRow.value, nowPage.value);
-    else todoRows.value = await fetchTodoPageData(nowRow.value, nowPage.value);
+  const currentPage = activeTab.value === 'category' ? categoryPage.value : todoPage.value;
+  const maxPage = activeTab.value === 'category' ? categoryMaxPage.value : todoMaxPage.value;
+  let targetPage = currentPage;
+
+  if (turn === pageTurn.FirstPage) targetPage = 1;
+  if (turn === pageTurn.PreviousPage) targetPage = Math.max(1, currentPage - 1);
+  if (turn === pageTurn.NextPage) targetPage = Math.min(maxPage, currentPage + 1);
+  if (turn === pageTurn.LastPage) targetPage = maxPage;
+
+  if (targetPage === currentPage) {
+    ElMessage.warning(turn === pageTurn.FirstPage || turn === pageTurn.PreviousPage ? '已经是第一页了' : '已经是最后一页了');
+    return;
   }
-  switch (turn) {
-    case pageTurn.FirstPage:
-      if (nowPage.value != 1) { nowPage.value = 1; await load(); } else { ElMessage.warning('已经是第一页了'); }
-      break;
-    case pageTurn.PreviousPage:
-      if (nowPage.value > 1) { nowPage.value = nowPage.value - 1; await load(); } else { ElMessage.warning('已经是第一页了'); }
-      break;
-    case pageTurn.NextPage:
-      if (nowPage.value < maxPage.value) { nowPage.value = nowPage.value + 1; await load(); } else { ElMessage.warning('已经是最后一页了'); }
-      break;
-    case pageTurn.LastPage:
-      if (nowPage.value != maxPage.value) { nowPage.value = maxPage.value; await load(); } else { ElMessage.warning('已经是最后一页了'); }
-      break;
+
+  if (activeTab.value === 'category') {
+    await loadCategory(targetPage);
+  } else {
+    await loadTodo(targetPage);
   }
 };
+
+const refreshCategory = () => loadCategory();
+const refreshTodo = () => loadTodo();
 
 const refresh = async () => {
-  await axios.get('admin/todoMm/category/getCount').then((r)=>{ categoryCount.value = r.data.data; });
-  await axios.get('admin/todoMm/todo/getCount').then((r)=>{ todoCount.value = r.data.data; });
-  maxPage.value = Math.ceil((activeTab.value==='category'?categoryCount.value:todoCount.value) / nowRow.value);
-  if (maxPage.value < nowPage.value) {
-    if (activeTab.value==='category') categoryRows.value = await fetchCategoryPageData(nowRow.value, maxPage.value);
-    else todoRows.value = await fetchTodoPageData(nowRow.value, maxPage.value);
-  } else {
-    if (activeTab.value==='category') categoryRows.value = await fetchCategoryPageData(nowRow.value, nowPage.value);
-    else todoRows.value = await fetchTodoPageData(nowRow.value, nowPage.value);
-  }
-  ElMessage.success('刷新成功');
+  const committed = activeTab.value === 'category' ? await refreshCategory() : await refreshTodo();
+  if (committed) ElMessage.success('刷新成功');
 };
-
-const selectedCategory = ref();
-const selectedTodo = ref();
 
 const batchDeleteCategory = async () => {
   if (!selectedCategory.value || selectedCategory.value.length === 0) { ElMessage.warning('选择为空'); return; }
   const ids = selectedCategory.value.map((p: any) => p.id);
   const s = await batchDeleteCategories(ids);
-  if (s===200) { ElMessage.success('删除成功'); categoryRows.value = await fetchCategoryPageData(nowRow.value, nowPage.value); } else { ElMessage.error('无法连接服务器'); }
+  if (s===200) { ElMessage.success('删除成功'); await refreshCategory(); } else { ElMessage.error('无法连接服务器'); }
 };
 
 const batchRestoreCategory = async () => {
   if (!selectedCategory.value || selectedCategory.value.length === 0) { ElMessage.warning('选择为空'); return; }
   const ids = selectedCategory.value.map((p: any) => p.id);
   const s = await batchRestoreCategories(ids);
-  if (s===200) { ElMessage.success('恢复成功'); categoryRows.value = await fetchCategoryPageData(nowRow.value, nowPage.value); } else { ElMessage.error('无法连接服务器'); }
+  if (s===200) { ElMessage.success('恢复成功'); await refreshCategory(); } else { ElMessage.error('无法连接服务器'); }
 };
 
 const batchDeleteTodo = async () => {
   if (!selectedTodo.value || selectedTodo.value.length === 0) { ElMessage.warning('选择为空'); return; }
   const ids = selectedTodo.value.map((p: any) => p.id);
   const s = await batchDeleteTodos(ids);
-  if (s===200) { ElMessage.success('删除成功'); todoRows.value = await fetchTodoPageData(nowRow.value, nowPage.value); } else { ElMessage.error('无法连接服务器'); }
+  if (s===200) { ElMessage.success('删除成功'); await refreshTodo(); } else { ElMessage.error('无法连接服务器'); }
 };
 
 const batchEnableTodo = async () => {
   if (!selectedTodo.value || selectedTodo.value.length === 0) { ElMessage.warning('选择为空'); return; }
   const ids = selectedTodo.value.map((p: any) => p.id);
   const s = await batchEnableTodos(ids);
-  if (s===200) { ElMessage.success('启用成功'); todoRows.value = await fetchTodoPageData(nowRow.value, nowPage.value); } else { ElMessage.error('无法连接服务器'); }
+  if (s===200) { ElMessage.success('启用成功'); await loadTodo(); } else { ElMessage.error('无法连接服务器'); }
 };
 
 const batchDisableTodo = async () => {
   if (!selectedTodo.value || selectedTodo.value.length === 0) { ElMessage.warning('选择为空'); return; }
   const ids = selectedTodo.value.map((p: any) => p.id);
   const s = await batchDisableTodos(ids);
-  if (s===200) { ElMessage.success('禁用成功'); todoRows.value = await fetchTodoPageData(nowRow.value, nowPage.value); } else { ElMessage.error('无法连接服务器'); }
+  if (s===200) { ElMessage.success('禁用成功'); await loadTodo(); } else { ElMessage.error('无法连接服务器'); }
 };
 
 const batchRestoreTodo = async () => {
   if (!selectedTodo.value || selectedTodo.value.length === 0) { ElMessage.warning('选择为空'); return; }
   const ids = selectedTodo.value.map((p: any) => p.id);
   const s = await batchRestoreTodos(ids);
-  if (s===200) { ElMessage.success('恢复成功'); todoRows.value = await fetchTodoPageData(nowRow.value, nowPage.value); } else { ElMessage.error('无法连接服务器'); }
+  if (s===200) { ElMessage.success('恢复成功'); await refreshTodo(); } else { ElMessage.error('无法连接服务器'); }
 };
 
 const doCategorySearch = async () => {
-  const data = await searchCategories({
-    q: catQ.value || undefined,
-    isDeleted: catDeleted.value === null ? undefined : catDeleted.value,
-    userId: catUserId.value === null ? undefined : catUserId.value,
-    type: catType.value === null ? undefined : catType.value,
-    pageNum: nowPage.value,
-    pageSize: nowRow.value,
-  });
-  categoryRows.value = data.list;
-  categoryCount.value = data.total;
-  maxPage.value = Math.ceil(categoryCount.value / nowRow.value);
+  categoryPage.value = 1;
+  await loadCategory(1);
 };
 
 const doTodoSearch = async () => {
-  const data = await searchTodos({
-    q: todoQ.value || undefined,
-    isDeleted: todoDeleted.value === null ? undefined : todoDeleted.value,
-    status: todoStatus.value === null ? undefined : todoStatus.value,
-    userId: todoUserId.value === null ? undefined : todoUserId.value,
-    categoryId: todoCategoryId.value === null ? undefined : todoCategoryId.value,
-    pageNum: nowPage.value,
-    pageSize: nowRow.value,
-  });
-  todoRows.value = data.list;
-  todoCount.value = data.total;
-  maxPage.value = Math.ceil(todoCount.value / nowRow.value);
+  todoPage.value = 1;
+  await loadTodo(1);
+};
+
+const handleDeleteCategory = async (id: number) => {
+  const response = await axios.delete('admin/todoMm/category/delete', {params: {id}});
+  if (response.data.status === 200) {
+    ElMessage.success('删除成功');
+    await refreshCategory();
+  } else {
+    ElMessage.error('无法连接服务器');
+  }
+};
+
+const handleDeleteTodo = async (id: number) => {
+  const response = await axios.delete('admin/todoMm/todo/delete', {params: {id}});
+  if (response.data.status === 200) {
+    ElMessage.success('删除成功');
+    await refreshTodo();
+  } else {
+    ElMessage.error('无法连接服务器');
+  }
 };
 
 const addCategoryVisible = ref<boolean>(false);
@@ -227,7 +313,7 @@ const openTodoDetail = (id: number) => { currentTodoId.value = id; todoDetailVis
                 <div class="pagination-controls">
                   <el-divider direction="vertical" class="hidden-xs-only"/>
                   <Tag severity="info">数量: {{ categoryCount }}</Tag>
-                  <Tag class="page-tag">页: {{ nowPage }}/{{ maxPage }}</Tag>
+                  <Tag class="page-tag">页: {{ categoryPage }}/{{ categoryMaxPage }}</Tag>
                   <div class="page-btns">
                     <Button icon="AngleDoubleLeft" severity="secondary" text size="small" @click="turnPage(0)"/>
                     <Button icon="AngleLeft" severity="secondary" text size="small" @click="turnPage(1)"/>
@@ -242,7 +328,6 @@ const openTodoDetail = (id: number) => { currentTodoId.value = id; todoDetailVis
             <transition name="fade-slide">
               <div v-if="showCategoryFilters" class="toolbar-filter-panel">
                 <el-select v-model="catDeleted" placeholder="删除状态" style="width: 120px" clearable>
-                  <el-option label="全部" :value="null" />
                   <el-option label="正常" :value="false" />
                   <el-option label="已删除" :value="true" />
                 </el-select>
@@ -271,7 +356,7 @@ const openTodoDetail = (id: number) => { currentTodoId.value = id; todoDetailVis
                 <template #body="{ data }">
                   <div style="display: flex; gap: 6px; align-items: center;">
                     <Button type="button" icon="Eye" rounded outlined style=" height: 32px;width: 32px" @click="openCategoryDetail(data.id)"/>
-                    <Button type="button" icon="Trash" rounded outlined style=" height: 32px;width: 32px" @click="(async()=>{ const r = await axios.delete('admin/todoMm/category/delete', { params: { id: data.id } }); if(r.data.status===200){ ElMessage.success('删除成功'); categoryRows = await fetchCategoryPageData(nowRow, nowPage) } else { ElMessage.error('无法连接服务器') } })()"/>
+                    <Button type="button" icon="Trash" rounded outlined style=" height: 32px;width: 32px" @click="handleDeleteCategory(data.id)"/>
                   </div>
                 </template>
               </Column>
@@ -311,7 +396,7 @@ const openTodoDetail = (id: number) => { currentTodoId.value = id; todoDetailVis
                 <div class="pagination-controls">
                   <el-divider direction="vertical" class="hidden-xs-only"/>
                   <Tag severity="info">数量: {{ todoCount }}</Tag>
-                  <Tag class="page-tag">页: {{ nowPage }}/{{ maxPage }}</Tag>
+                  <Tag class="page-tag">页: {{ todoPage }}/{{ todoMaxPage }}</Tag>
                   <div class="page-btns">
                     <Button icon="AngleDoubleLeft" severity="secondary" text size="small" @click="turnPage(0)"/>
                     <Button icon="AngleLeft" severity="secondary" text size="small" @click="turnPage(1)"/>
@@ -326,12 +411,10 @@ const openTodoDetail = (id: number) => { currentTodoId.value = id; todoDetailVis
             <transition name="fade-slide">
               <div v-if="showTodoFilters" class="toolbar-filter-panel">
                 <el-select v-model="todoStatus" placeholder="状态" style="width: 110px" clearable>
-                  <el-option label="全部" :value="null" />
                   <el-option label="启用" :value="1" />
                   <el-option label="禁用" :value="0" />
                 </el-select>
                 <el-select v-model="todoDeleted" placeholder="删除状态" style="width: 110px" clearable>
-                  <el-option label="全部" :value="null" />
                   <el-option label="正常" :value="false" />
                   <el-option label="已删除" :value="true" />
                 </el-select>
@@ -365,7 +448,7 @@ const openTodoDetail = (id: number) => { currentTodoId.value = id; todoDetailVis
                 <template #body="{ data }">
                   <div style="display: flex; gap: 6px; align-items: center;">
                     <Button type="button" icon="Eye" rounded outlined style=" height: 32px;width: 32px" @click="openTodoDetail(data.id)"/>
-                    <Button type="button" icon="Trash" rounded outlined style=" height: 32px;width: 32px" @click="(async()=>{ const r = await axios.delete('admin/todoMm/todo/delete', { params: { id: data.id } }); if(r.data.status===200){ ElMessage.success('删除成功'); todoRows = await fetchTodoPageData(nowRow, nowPage) } else { ElMessage.error('无法连接服务器') } })()"/>
+                    <Button type="button" icon="Trash" rounded outlined style=" height: 32px;width: 32px" @click="handleDeleteTodo(data.id)"/>
                   </div>
                 </template>
               </Column>

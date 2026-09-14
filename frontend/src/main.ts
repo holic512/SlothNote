@@ -2,63 +2,64 @@
  * @file AppMainEntry
  * @project SlothNote
  * @module 前端应用 / 启动入口
- * @description 初始化 Vue 应用、路由、状态管理、Element Plus 与全局主题。
- * @logic 1. 注册 Element Plus 与图标；2. 注册 旧组件迁移期 Element Plus 兼容组件；3. 挂载 Pinia、Router 和右键菜单插件。
- * @dependencies Vue: createApp, ElementPlus, Pinia, VueRouter, @imengyu/vue3-context-menu
- * @index_tags main.ts, Vue启动, ElementPlus主题, ElementPlus迁移, 全局组件
+ * @description 初始化 Vue 应用、路由、状态管理与迁移期兼容组件。
+ * @logic 1. 异步注册旧组件兼容层；2. 挂载 Pinia、Router 和右键菜单插件；3. Element Plus 组件、图标和样式由 Vite 按需导入。
+ * @dependencies Vue: createApp, Pinia, VueRouter
+ * @index_tags main.ts, Vue启动, ElementPlus按需导入, 兼容组件
  * @author holic512
  */
-import {createApp} from 'vue'
-import ElementPlus from 'element-plus'
-import 'element-plus/dist/index.css'
+import {createApp, defineAsyncComponent} from 'vue'
 import './styles/index.css'
 import App from './App.vue'
 import router from './router/index.js'
 import {createPinia} from "pinia";
 import piniaPluginPersistedstate from "pinia-plugin-persistedstate";
-import CompatButton from './components/element-compat/CompatButton.vue'
-import CompatColumn from './components/element-compat/CompatColumn.vue'
-import CompatDataTable from './components/element-compat/CompatDataTable.vue'
-import CompatDialog from './components/element-compat/CompatDialog.vue'
-import CompatIconField from './components/element-compat/CompatIconField.vue'
-import CompatInputIcon from './components/element-compat/CompatInputIcon.vue'
-import CompatInputText from './components/element-compat/CompatInputText.vue'
-import CompatTag from './components/element-compat/CompatTag.vue'
-
-// context-menu-scss
-import '@imengyu/vue3-context-menu/lib/vue3-context-menu.css'
-import './css/ContextMenu.scss'
+import {configureHttpErrorHandlers} from './axios'
+import {ROUTE_PATHS} from './router/paths'
+import {tokenStore} from './pinia/token'
 
 const app = createApp(App)
-
-// 配置 图标
-import * as ElementPlusIconsVue from '@element-plus/icons-vue'
-
-for (const [key, component] of Object.entries(ElementPlusIconsVue)) {
-    app.component(key, component)
-}
 
 // 配置pinia
 const pinia = createPinia()
 pinia.use(piniaPluginPersistedstate)
 
-// 旧组件迁移期兼容组件，内部全部使用 Element Plus 渲染。
-app.component('Button', CompatButton)
-app.component('Column', CompatColumn)
-app.component('DataTable', CompatDataTable)
-app.component('Dialog', CompatDialog)
-app.component('IconField', CompatIconField)
-app.component('InputIcon', CompatInputIcon)
-app.component('InputText', CompatInputText)
-app.component('Tag', CompatTag)
-
-// 配置 vue3-context-menu 右键菜单
-import '@imengyu/vue3-context-menu/lib/vue3-context-menu.css'
-import ContextMenu from '@imengyu/vue3-context-menu'
-
-app.use(ContextMenu)
+// 旧组件迁移期兼容组件按首次使用加载，避免进入任意页面都下载整套表格/弹窗实现。
+app.component('Button', defineAsyncComponent(() => import('./components/element-compat/CompatButton.vue')))
+app.component('Column', defineAsyncComponent(() => import('./components/element-compat/CompatColumn.vue')))
+app.component('DataTable', defineAsyncComponent(() => import('./components/element-compat/CompatDataTable.vue')))
+app.component('Dialog', defineAsyncComponent(() => import('./components/element-compat/CompatDialog.vue')))
+app.component('IconField', defineAsyncComponent(() => import('./components/element-compat/CompatIconField.vue')))
+app.component('InputIcon', defineAsyncComponent(() => import('./components/element-compat/CompatInputIcon.vue')))
+app.component('InputText', defineAsyncComponent(() => import('./components/element-compat/CompatInputText.vue')))
+app.component('Tag', defineAsyncComponent(() => import('./components/element-compat/CompatTag.vue')))
 
 app.use(pinia)
 app.use(router)
-app.use(ElementPlus)
+
+configureHttpErrorHandlers({
+    onUnauthorized: async (role) => {
+        const targetPath = role === 'admin' ? ROUTE_PATHS.adminLogin : ROUTE_PATHS.userLogin
+
+        if (role === 'admin') {
+            tokenStore().clearAdminToken()
+        } else {
+            const {resetUserSessionState} = await import('./session/userSession')
+            resetUserSessionState()
+        }
+
+        if (router.currentRoute.value.path !== targetPath) {
+            await router.replace({
+                path: targetPath,
+                query: {redirect: router.currentRoute.value.fullPath},
+            })
+        }
+    },
+    onForbidden: async () => {
+        if (router.currentRoute.value.path !== ROUTE_PATHS.permissionDenied) {
+            await router.replace(ROUTE_PATHS.permissionDenied)
+        }
+    },
+})
+
 app.mount('#app')

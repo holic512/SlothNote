@@ -14,7 +14,7 @@ import {RouterView} from 'vue-router'
 </script>
 
 <template>
-  <el-config-provider :empty-values="[null, undefined]" :value-on-clear="null">
+  <el-config-provider :empty-values="[null, undefined]">
     <RouterView/>
   </el-config-provider>
 </template>

@@ -6,10 +6,10 @@ import {AddCommentForm, addComment} from "./addComment";
 const addVisible = defineModel()
 
 const form = ref<AddCommentForm>({
-  noteId: null,
-  userId: null,
+  noteId: undefined,
+  userId: undefined,
   content: "",
-  parentId: null
+  parentId: undefined
 });
 
 const rules = ref<FormRules<AddCommentForm>>({
@@ -59,7 +59,7 @@ const resetForm = () => {
         <el-input v-model.number="form.parentId" class="input" placeholder="可选：父评论ID"/>
       </el-form-item>
       <el-form-item label="内容" prop="content">
-        <el-input v-model="form.content" type="textarea" rows="4" class="input" placeholder="请输入评论内容"/>
+        <el-input v-model="form.content" type="textarea" :rows="4" class="input" placeholder="请输入评论内容"/>
       </el-form-item>
     </el-form>
     <div style="padding: 0 16px 0 16px">

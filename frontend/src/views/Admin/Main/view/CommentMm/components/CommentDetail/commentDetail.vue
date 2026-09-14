@@ -46,7 +46,7 @@ const saveEdit = async () => {
             <el-text>{{ detail.content }}</el-text>
           </div>
           <div v-else>
-            <el-input v-model="editContent" type="textarea" rows="6" />
+            <el-input v-model="editContent" type="textarea" :rows="6" />
             <div style="margin-top:8px;display:flex;gap:8px">
               <el-button size="small" type="primary" @click="saveEdit">保存</el-button>
               <el-button size="small" @click="editing=false">取消</el-button>

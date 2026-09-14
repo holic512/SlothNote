@@ -78,8 +78,8 @@ export interface ContentMeta {
   lastSavedAt: string | null;
 }
 
-export async function searchNotes(params: NoteSearchParams): Promise<NoteSearchResult> {
-  const response = await axios.post('/admin/noteMm/search', params);
+export async function searchNotes(params: NoteSearchParams, signal?: AbortSignal): Promise<NoteSearchResult> {
+  const response = await axios.post('/admin/noteMm/search', params, {signal});
   return response.data.data;
 }
 
@@ -88,8 +88,8 @@ export async function fetchNoteDetail(id: number): Promise<NoteRow> {
   return response.data.data;
 }
 
-export async function fetchNoteContent(noteId: number): Promise<string> {
-  const response = await axios.get('/admin/noteMm/content/get', { params: { noteId } });
+export async function fetchNoteContent(noteId: number, signal?: AbortSignal): Promise<string> {
+  const response = await axios.get('/admin/noteMm/content/get', { params: { noteId }, signal });
   return response.data.data || '';
 }
 

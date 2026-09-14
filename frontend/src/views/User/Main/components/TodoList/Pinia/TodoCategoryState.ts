@@ -1,21 +1,18 @@
 import {defineStore} from 'pinia';
 
 interface State {
-    // 描述更新状态
-    isDescriptionVisible: boolean
-
+    revision: number
 }
 
 export const useTodoCategoryState = defineStore('TodoCategoryState', {
     state(): State {
         return {
-            isDescriptionVisible: true,
-
+            revision: 0,
         }
     },
     actions: {
         description() {
-            this.isDescriptionVisible = !this.isDescriptionVisible;
+            this.revision += 1;
         },
 
     },

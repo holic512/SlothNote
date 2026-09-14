@@ -8,6 +8,8 @@ const newName = ref("");
 const emojiPickerVis = ref(false);
 const rightSelect: any = useRightSelectNodeId();
 const RenameData = useRenameData();
+let renameTimer: ReturnType<typeof setTimeout> | undefined;
+let renameController: AbortController | undefined;
 
 // 位置计算
 const position = computed(() => ({
@@ -58,6 +60,8 @@ onMounted(() => {
 
 onBeforeUnmount(() => {
   document.removeEventListener("mousedown", handleClickOutside);
+  if (renameTimer) clearTimeout(renameTimer);
+  renameController?.abort();
 });
 
 // 表情选择器相关配置
@@ -95,17 +99,16 @@ const onSelectEmoji = async (emoji: EmojiExt) => {
 
   // 当修改成功 执行刷新 策略
   if (status == 200) {
-    // 初始化 笔记更新状态  并 更新笔记状态
-    const isNoteTreeUpdated = useNoteTreeUpdate();
-    isNoteTreeUpdated.UpdatedNoteTree();
+    useNoteTreeUpdate().patchNode(rightSelect.data.type, rightSelect.data.id, {avatar: emoji.i});
+    rightSelect.data.avatar = emoji.i;
 
     // 关闭表情选择器
     emojiPickerVis.value = false;
 
     // 当修改的是当前的笔记 同时刷新heardPage
     const currentNoteInfo = useCurrentNoteInfoStore()
-    if (currentNoteInfo.noteId == rightSelect.data.id) {
-      currentNoteInfo.noteName = newName.value;
+    if (rightSelect.data.type === 'NOTE' && currentNoteInfo.noteId == rightSelect.data.id) {
+      currentNoteInfo.avatar = emoji.i;
     }
 
   }
@@ -122,58 +125,59 @@ const removeAvatarEmoji = async () => {
 
   // 当修改成功 执行刷新 策略
   if (status == 200) {
-    // 初始化 笔记更新状态  并 更新笔记状态
-    const isNoteTreeUpdated = useNoteTreeUpdate();
-    isNoteTreeUpdated.UpdatedNoteTree();
+    useNoteTreeUpdate().patchNode(rightSelect.data.type, rightSelect.data.id, {avatar: ''});
+    rightSelect.data.avatar = '';
 
     // 关闭表情选择器
     emojiPickerVis.value = false;
 
     // 当修改的是当前的笔记 同时刷新heardPage
     const currentNoteInfo = useCurrentNoteInfoStore()
-    if (currentNoteInfo.noteId == rightSelect.data.id) {
-      currentNoteInfo.noteName = newName.value;
+    if (rightSelect.data.type === 'NOTE' && currentNoteInfo.noteId == rightSelect.data.id) {
+      currentNoteInfo.avatar = '';
     }
 
   }
 }
 
-// 监听 重命名输入框 来进行无痕重命名
-watch(() => newName.value, async () => {
-
+// 输入停止后提交，取消过时请求，并在本地增量更新节点。
+watch(() => newName.value, (value) => {
   if (!RenameData.RenameIs) return;
 
-  let status = null;
-  let updateName = newName.value;
-  if (newName.value == "") {
-    updateName = "新页面";
-  }
-  if (rightSelect.data.type == 'NOTE') {
-    // 调用笔记的重命名方法
-    status = await updateNoteTitle(rightSelect.data.id, updateName);
-  } else {
-    //调用文件夹 的重命名方法
-    status = await updateFolderTitle(rightSelect.data.id, updateName);
-  }
+  if (renameTimer) clearTimeout(renameTimer);
+  renameController?.abort();
 
-// 当修改成功 执行刷新 策略
-  if (status == 200) {
-    // 刷新笔记树
-    const isNoteTreeUpdated = useNoteTreeUpdate();
-    isNoteTreeUpdated.UpdatedNoteTree();
+  const nodeId = Number(rightSelect.data.id);
+  const nodeType = rightSelect.data.type as 'NOTE' | 'FOLDER';
+  const updateName = value.trim() || "新页面";
 
-    // 当修改的是当前的笔记 同时刷新heardPage
-    const currentNoteInfo = useCurrentNoteInfoStore()
-    if (currentNoteInfo.noteId == rightSelect.data.id) {
-      currentNoteInfo.noteName = newName.value;
+  renameTimer = setTimeout(async () => {
+    const controller = new AbortController();
+    renameController = controller;
+    const status = nodeType === 'NOTE'
+        ? await updateNoteTitle(nodeId, updateName, controller.signal)
+        : await updateFolderTitle(nodeId, updateName, controller.signal);
+
+    if (controller.signal.aborted || status !== 200) return;
+
+    useNoteTreeUpdate().patchNode(nodeType, nodeId, {label: updateName});
+    if (rightSelect.data.id === nodeId && rightSelect.data.type === nodeType) {
+      rightSelect.data.label = updateName;
     }
-  }
+
+    const currentNoteInfo = useCurrentNoteInfoStore();
+    if (nodeType === 'NOTE' && currentNoteInfo.noteId === nodeId) {
+      currentNoteInfo.noteName = updateName;
+    }
+  }, 400);
 })
 
 
 // 监听显示是否刷新 当显示刷新的 时候 重新复制 newName
 watch(() => RenameData.RenameIs, () => {
   if (!RenameData.RenameIs) {
+    if (renameTimer) clearTimeout(renameTimer);
+    renameController?.abort();
     newName.value = "";
   }
 })

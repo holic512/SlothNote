@@ -7,7 +7,7 @@ import {fetchUserOptions} from '../TableView/userOptions';
 const addFolderVisible = defineModel();
 
 const form = ref<AddFolderForm>({
-  userId: null,
+  userId: undefined,
   folderName: '',
   parentId: 0,
   description: '',

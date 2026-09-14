@@ -3,7 +3,7 @@
 @project SlothNote
 @module 管理端 / 系统设置
 @description 管理管理员资料、系统初始化、AI 服务配置和邮箱 SMTP 配置。
-@logic 1. 使用 Element Plus Tabs 分组设置项；2. 维护数据库 AI/邮箱配置；3. 支持不落库的 AI 与邮箱测试。
+@logic 1. 使用 Element Plus Tabs 分组并在首次进入时按需加载；2. 维护数据库 AI/邮箱配置；3. 支持不落库的 AI 与邮箱测试。
 @dependencies API: /admin/setting/profile, /admin/setting/systemReset, /admin/setting/aiConfig, /admin/setting/mailConfig
 @index_tags 管理端设置, 系统初始化, AI配置, 邮箱配置, ElementPlus
 @author holic512
@@ -12,7 +12,7 @@
 import axios from '@/axios'
 import { Check, Connection, Delete, Message, Refresh, User, Warning } from '@element-plus/icons-vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { computed, onMounted, ref } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
 import {
   fetchAiConfig,
   fetchMailConfig,
@@ -38,7 +38,11 @@ type AdminProfile = {
   hasEmail?: boolean
 }
 
-const activeTab = ref('profile')
+type SettingTab = 'profile' | 'ai' | 'mail' | 'reset'
+
+const activeTab = ref<SettingTab>('profile')
+const loadedTabs = new Set<SettingTab>()
+const tabLoadTasks = new Map<SettingTab, Promise<boolean>>()
 const loading = ref(false)
 const resetting = ref(false)
 const profileLoading = ref(false)
@@ -100,18 +104,20 @@ const mailPasswordStatusText = computed(() => {
   return mailConfig.value.maskedPassword || '已配置'
 })
 
-const loadProfile = async () => {
+const loadProfile = async (): Promise<boolean> => {
   profileLoading.value = true
   try {
     const response = await axios.get('/admin/setting/profile')
     if (response.data.status === 200) {
       profile.value = response.data.data || {}
       profileEmail.value = response.data.data?.email || ''
-      return
+      return true
     }
     ElMessage.error(response.data.message || '无法获取管理员资料')
+    return false
   } catch {
     ElMessage.error('无法获取管理员资料')
+    return false
   } finally {
     profileLoading.value = false
   }
@@ -171,23 +177,27 @@ const applyMailConfigToForm = (data: MailConfigView) => {
   }
 }
 
-const loadAiConfig = async () => {
+const loadAiConfig = async (): Promise<boolean> => {
   aiConfigLoading.value = true
   try {
     applyAiConfigToForm(await fetchAiConfig())
+    return true
   } catch {
     ElMessage.error('无法获取 AI 配置')
+    return false
   } finally {
     aiConfigLoading.value = false
   }
 }
 
-const loadMailConfig = async () => {
+const loadMailConfig = async (): Promise<boolean> => {
   mailConfigLoading.value = true
   try {
     applyMailConfigToForm(await fetchMailConfig())
+    return true
   } catch {
     ElMessage.error('无法获取邮箱配置')
+    return false
   } finally {
     mailConfigLoading.value = false
   }
@@ -292,28 +302,53 @@ const runMailTest = async () => {
   }
 }
 
-const loadSummary = async () => {
+const loadSummary = async (): Promise<boolean> => {
   loading.value = true
   try {
     const response = await axios.get('/admin/setting/systemReset/summary')
     if (response.data.status === 200) {
       requiredConfirmText.value = response.data.data.confirmText || 'INITIALIZE'
       tables.value = response.data.data.tables || []
-      return
+      return true
     }
     ElMessage.error(response.data.message || '无法获取系统统计')
+    return false
   } catch {
     ElMessage.error('无法获取系统统计')
+    return false
   } finally {
     loading.value = false
   }
 }
 
+const loadTabData = (tab: SettingTab): Promise<boolean> => {
+  if (tab === 'profile') return loadProfile()
+  if (tab === 'ai') return loadAiConfig()
+  if (tab === 'mail') return loadMailConfig()
+  return loadSummary()
+}
+
+const loadTab = async (tab: SettingTab, force = false): Promise<boolean> => {
+  if (!force && loadedTabs.has(tab)) return true
+
+  const existingTask = tabLoadTasks.get(tab)
+  if (existingTask) return existingTask
+
+  const task = loadTabData(tab)
+      .then((loaded) => {
+        if (loaded) loadedTabs.add(tab)
+        return loaded
+      })
+      .finally(() => {
+        if (tabLoadTasks.get(tab) === task) tabLoadTasks.delete(tab)
+      })
+
+  tabLoadTasks.set(tab, task)
+  return task
+}
+
 const reloadCurrentTab = async () => {
-  if (activeTab.value === 'profile') await loadProfile()
-  if (activeTab.value === 'ai') await loadAiConfig()
-  if (activeTab.value === 'mail') await loadMailConfig()
-  if (activeTab.value === 'reset') await loadSummary()
+  await loadTab(activeTab.value, true)
 }
 
 const executeReset = async () => {
@@ -355,8 +390,12 @@ const executeReset = async () => {
   }
 }
 
-onMounted(async () => {
-  await Promise.all([loadProfile(), loadSummary(), loadAiConfig(), loadMailConfig()])
+watch(activeTab, (tab) => {
+  void loadTab(tab)
+})
+
+onMounted(() => {
+  void loadTab(activeTab.value)
 })
 </script>
 

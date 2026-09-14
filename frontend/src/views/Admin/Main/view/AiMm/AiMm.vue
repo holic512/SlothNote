@@ -11,6 +11,7 @@ import {
   type AiSessionRow
 } from './service/aiMm'
 import AiSessionDetail from './components/AiSessionDetail/aiSessionDetail.vue'
+import { getMaxPage, useLatestRequest } from '../../composables/useAdminListRequest'
 
 const showFilters = ref(false)
 const q = ref<string | null>(null)
@@ -26,6 +27,7 @@ const maxPage = ref(1)
 const nowPage = ref(1)
 const rows = ref<AiSessionRow[]>([])
 const selected = ref<AiSessionRow[]>([])
+const listRequest = useLatestRequest()
 
 const detailVisible = ref(false)
 const currentId = ref<number | undefined>(undefined)
@@ -38,16 +40,22 @@ onMounted(async () => {
 
 onBeforeUnmount(() => {
   window.removeEventListener('resize', handleResize)
+  if (resizeTimeout) window.clearTimeout(resizeTimeout)
 })
 
 const dynamicHeight = computed(() => `${475 + (nowRow.value - 10) * 45}px`)
 
-const handleResize = async () => {
-  const rowsCount = calculateRows(minHeight, stepHeight)
-  if (rowsCount !== nowRow.value) {
+const RESIZE_DELAY = 100
+let resizeTimeout: number | undefined
+const handleResize = () => {
+  if (resizeTimeout) window.clearTimeout(resizeTimeout)
+  resizeTimeout = window.setTimeout(async () => {
+    resizeTimeout = undefined
+    const rowsCount = calculateRows(minHeight, stepHeight)
+    if (rowsCount === nowRow.value) return
     nowRow.value = rowsCount
     await loadSessions()
-  }
+  }, RESIZE_DELAY)
 }
 
 enum pageTurn { FirstPage, PreviousPage, NextPage, LastPage }
@@ -70,22 +78,45 @@ const turnPage = async (turn: pageTurn) => {
   await loadSessions()
 }
 
-const loadSessions = async () => {
-  const data = await searchAiSessions({
+const loadSessions = async (resetPage = false) => {
+  if (resetPage) nowPage.value = 1
+
+  const pageSize = nowRow.value
+  const requestedPage = nowPage.value
+  const filters = {
     q: q.value || undefined,
     userId: userIdFilter.value,
     username: usernameFilter.value || undefined,
     isDeleted: isDeletedFilter.value,
-    pageNum: nowPage.value,
-    pageSize: nowRow.value,
-  })
-  total.value = data.total
-  maxPage.value = Math.max(1, Math.ceil(total.value / nowRow.value))
-  if (nowPage.value > maxPage.value) {
-    nowPage.value = maxPage.value
   }
-  rows.value = data.list
-  selected.value = []
+  await listRequest.runLatest(
+      async (signal) => {
+        const requestPage = (pageNum: number) => searchAiSessions({
+          ...filters,
+          pageNum,
+          pageSize,
+        }, signal)
+
+        let data = await requestPage(requestedPage)
+        const resolvedMaxPage = getMaxPage(data.total, pageSize)
+        const resolvedPage = Math.min(requestedPage, resolvedMaxPage)
+        if (resolvedPage !== requestedPage) {
+          data = await requestPage(resolvedPage)
+        }
+        return {data, resolvedMaxPage, resolvedPage}
+      },
+      ({data, resolvedMaxPage, resolvedPage}) => {
+        total.value = data.total
+        maxPage.value = resolvedMaxPage
+        nowPage.value = resolvedPage
+        rows.value = data.list
+        selected.value = []
+      },
+  )
+}
+
+const doSearch = async () => {
+  await loadSessions(true)
 }
 
 const refresh = async () => {
@@ -158,7 +189,7 @@ const openDetail = (id: number) => {
               <InputText v-model="q" placeholder="Search Session Title" class="custom-input" />
             </IconField>
             <Button :icon="showFilters ? 'FilterSlash' : 'Filter'" :severity="showFilters ? 'primary' : 'secondary'" outlined size="small" @click="showFilters = !showFilters" />
-            <Button icon="Search" severity="secondary" outlined size="small" @click="loadSessions" />
+            <Button icon="Search" severity="secondary" outlined size="small" @click="doSearch" />
           </div>
 
           <div class="group-right">
@@ -188,7 +219,7 @@ const openDetail = (id: number) => {
               <el-option label="有效" :value="0" />
               <el-option label="已删除" :value="1" />
             </el-select>
-            <Button label="应用筛选" icon="Check" size="small" outlined @click="loadSessions" />
+            <Button label="应用筛选" icon="Check" size="small" outlined @click="doSearch" />
           </div>
         </transition>
       </div>

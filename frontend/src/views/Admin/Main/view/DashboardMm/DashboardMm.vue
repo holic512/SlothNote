@@ -12,11 +12,24 @@
 import { onMounted, ref, computed, watch, onUnmounted, nextTick } from "vue";
 // Element Plus
 import { ElMessage } from "element-plus";
-// ECharts
-import * as echarts from 'echarts';
+// ECharts（按需注册，避免仪表盘引入完整图表库）
+import * as echarts from 'echarts/core';
+import { BarChart, PieChart } from 'echarts/charts';
+import { GridComponent, LegendComponent, TitleComponent, TooltipComponent } from 'echarts/components';
+import { CanvasRenderer } from 'echarts/renderers';
 // API & Utils (保持原样)
 import { fetchMetrics, fetchRecent, todoDelete, todoBatchDelete, todoBatchEnable, todoBatchDisable } from "./components/api";
 import { debounceImmediate } from "@/util/debounce";
+
+echarts.use([
+  BarChart,
+  PieChart,
+  GridComponent,
+  LegendComponent,
+  TitleComponent,
+  TooltipComponent,
+  CanvasRenderer,
+]);
 
 type DashboardMetrics = {
   userCount: number;
@@ -41,8 +54,8 @@ type MetricCard = {
 const metrics = ref<Partial<DashboardMetrics>>({});
 const category = ref<string>('comment');
 const q = ref<string>('');
-const userIdFilter = ref<number | null>(null);
-const deletedFilter = ref<boolean | null>(null);
+const userIdFilter = ref<number | undefined>(undefined);
+const deletedFilter = ref<boolean | undefined>(undefined);
 const pageNum = ref(1);
 const pageSize = ref(10);
 const total = ref(0);
@@ -199,8 +212,8 @@ const load = async () => {
   const data = await fetchRecent({
     category: category.value,
     q: q.value || undefined,
-    userId: userIdFilter.value === null ? undefined : userIdFilter.value,
-    isDeleted: deletedFilter.value === null ? undefined : deletedFilter.value,
+    userId: userIdFilter.value,
+    isDeleted: deletedFilter.value,
     pageNum: pageNum.value,
     pageSize: pageSize.value,
   });
@@ -210,8 +223,7 @@ const load = async () => {
 
 const handleDebouncedLoad = debounceImmediate(load, 300);
 
-const changeCategory = async (c: string) => {
-  category.value = c;
+const changeCategory = async () => {
   pageNum.value = 1;
   selected.value = []; // 切换分类清空选中
   await load();
@@ -314,7 +326,6 @@ const tableColumns = computed(() => {
             <div class="filter-group">
                <el-input v-model.number="userIdFilter" placeholder="用户ID" size="small" style="width: 100px"/>
                <el-select v-model="deletedFilter" placeholder="状态" size="small" style="width: 100px" clearable>
-                <el-option label="全部" :value="null"/>
                 <el-option label="有效" :value="false"/>
                 <el-option label="已删除" :value="true"/>
               </el-select>

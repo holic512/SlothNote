@@ -2,8 +2,9 @@
 import {SwitchButton} from "@element-plus/icons-vue";
 import {ElMessage, ElMessageBox} from "element-plus";
 import {useRouter} from "vue-router";
-import {tokenStore} from "@/pinia/token";
 import {logout} from "@/views/User/Main/components/Setting/service/logout";
+import {resetUserSessionState} from "@/session/userSession";
+import {ROUTE_PATHS} from "@/router/paths";
 
 const router = useRouter();
 
@@ -21,8 +22,8 @@ const handleLogout = async () => {
       return;
     }
 
-    tokenStore().clearUserToken();
-    await router.push('/user/auth/login');
+    resetUserSessionState();
+    await router.push(ROUTE_PATHS.userLogin);
     ElMessage.success('已退出登录');
   } catch (error) {
     // 用户取消时不提示

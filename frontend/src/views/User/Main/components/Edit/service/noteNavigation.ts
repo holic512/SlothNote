@@ -13,6 +13,7 @@ import {ElMessage, ElMessageBox} from "element-plus";
 import {useCurrentNoteInfoStore} from "@/views/User/Main/components/Edit/Pinia/currentNoteInfo";
 import {useSaveNoteState} from "@/views/User/Main/components/Edit/Pinia/SaveNoteState";
 import {getNoteShareInfo} from "@/views/User/Main/components/Edit/PageHeader/service/getNoteShareInfo";
+import {ROUTE_PATHS} from "@/router/paths";
 
 export interface NavigateNoteMeta {
     noteId: number;
@@ -26,7 +27,7 @@ export const navigateToNote = async (router: Router, note: NavigateNoteMeta): Pr
     const currentNoteInfo = useCurrentNoteInfoStore();
     const saveState = useSaveNoteState();
 
-    if (currentNoteInfo.noteId === note.noteId && router.currentRoute.value.path === "/user/main/edit") {
+    if (currentNoteInfo.noteId === note.noteId && router.currentRoute.value.path === ROUTE_PATHS.userEdit) {
         return true;
     }
 
@@ -61,7 +62,7 @@ export const navigateToNote = async (router: Router, note: NavigateNoteMeta): Pr
     );
     saveState.saveContent();
 
-    await router.push({path: "/user/main/edit", query: {noteId: String(resolvedNote.noteId)}});
+    await router.push({path: ROUTE_PATHS.userEdit, query: {noteId: String(resolvedNote.noteId)}});
     return true;
 };
 

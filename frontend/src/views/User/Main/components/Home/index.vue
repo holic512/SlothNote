@@ -1,8 +1,22 @@
+<!--
+@file UserHomeDashboard
+@project SlothNote
+@module 用户端 / 首页仪表盘
+@description 展示用户笔记、文件夹、收藏和待办概览数据。
+@logic 1. 并发加载首页概览并取消过时请求；2. KeepAlive 激活时刷新数据；3. 渲染指标卡、状态分布和最近访问列表。
+@dependencies API: user/dashboard/*, ElementPlus: el-icon
+@index_tags 用户首页, 仪表盘, KeepAlive, 路由切换性能
+@author holic512
+-->
 <script setup lang="ts">
-import { ref, onMounted, computed } from 'vue';
+import {computed, onActivated, onBeforeUnmount, onDeactivated, onMounted, ref} from 'vue';
 import axios from '@/axios'; // 假设你的axios封装在这里
 // 引入 Element Plus 图标
-import { Document, Folder, Star, CircleCheck, Warning, Delete, Clock } from '@element-plus/icons-vue';
+import { Document, Folder, Star, CircleCheck } from '@element-plus/icons-vue';
+
+defineOptions({
+  name: 'UserHomeDashboard'
+})
 
 // --- 类型定义 ---
 interface Overview {
@@ -41,33 +55,58 @@ const todoStatus = ref<TodoStatus>({ incomplete: 0, completed: 0, deleted: 0 });
 const todoWeek = ref<TodoWeekItem[]>([]);
 const recentNotes = ref<NoteItem[]>([]);
 const loading = ref(true);
+let dashboardRequestId = 0;
+let dashboardController: AbortController | null = null;
+let isActive = true;
+let hasLoadedOnce = false;
 
 // --- 数据加载 ---
 const loadData = async () => {
+  dashboardController?.abort();
+  const controller = new AbortController();
+  dashboardController = controller;
+  const requestId = ++dashboardRequestId;
   loading.value = true;
   try {
     const [o, s, w, r] = await Promise.all([
-      axios.get('user/dashboard/overview'),
-      axios.get('user/dashboard/todoStatus'),
-      axios.get('user/dashboard/todoWeek'),
-      axios.get('user/dashboard/recentNotes'),
+      axios.get('user/dashboard/overview', {signal: controller.signal}),
+      axios.get('user/dashboard/todoStatus', {signal: controller.signal}),
+      axios.get('user/dashboard/todoWeek', {signal: controller.signal}),
+      axios.get('user/dashboard/recentNotes', {signal: controller.signal}),
     ]);
+    if (controller.signal.aborted || requestId !== dashboardRequestId || !isActive) return;
     overview.value = o.data.data || overview.value;
     todoStatus.value = s.data.data || todoStatus.value;
     todoWeek.value = w.data.data || [];
     recentNotes.value = r.data.data || [];
+    hasLoadedOnce = true;
   } catch (e) {
+    if (controller.signal.aborted || requestId !== dashboardRequestId || !isActive) return;
     console.error("Dashboard data load failed", e);
   } finally {
-    loading.value = false;
+    if (requestId === dashboardRequestId && isActive) loading.value = false;
   }
 };
 
 onMounted(() => {
-  loadData();
-  // 简单的问候语逻辑
-  const hour = new Date().getHours();
+  isActive = true;
+  void loadData();
 });
+
+onActivated(() => {
+  isActive = true;
+  if (hasLoadedOnce) void loadData();
+});
+
+const deactivateDashboard = () => {
+  isActive = false;
+  dashboardRequestId += 1;
+  dashboardController?.abort();
+  dashboardController = null;
+};
+
+onDeactivated(deactivateDashboard);
+onBeforeUnmount(deactivateDashboard);
 
 // --- 计算逻辑 ---
 const maxWeekCount = computed(() => Math.max(1, ...todoWeek.value.map(i => i.count)));
@@ -222,7 +261,7 @@ const greeting = computed(() => {
             </div>
             <div class="item-date">{{ formatDate(note.updatedAt) }}</div>
           </div>
-          <div class="list-footer" @click="console.log('Go to all notes')">
+          <div class="list-footer">
             + 查看全部笔记
           </div>
         </div>

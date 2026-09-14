@@ -10,10 +10,11 @@ export interface SearchCommentRequest {
   pageSize: number;
 }
 
-export const searchComments = async (req: SearchCommentRequest) => {
+export const searchComments = async (req: SearchCommentRequest, signal?: AbortSignal) => {
   const response = await axios.post(
       "admin/commentMm/search",
-      req
+      req,
+      {signal},
   );
   return response.data.data as { list: any[]; total: number };
 }

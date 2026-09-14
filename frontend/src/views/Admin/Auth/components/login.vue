@@ -12,10 +12,12 @@
 import { computed, ref } from 'vue';
 import { ElMessage } from 'element-plus';
 import { initAdmin, login, verCode } from "../services/login";
-import { useRouter } from 'vue-router';
+import { useRoute, useRouter } from 'vue-router';
 import { Lock, Message, Monitor } from '@element-plus/icons-vue';
+import { ROUTE_PATHS } from '@/router/paths';
 
 const router = useRouter();
+const route = useRoute();
 const currentView = ref<'login' | 'otp' | 'init'>('login');
 const isLoading = ref(false);
 
@@ -31,7 +33,12 @@ const initEmail = ref('');
 const initEmailHint = computed(() => initEmail.value.trim() ? '已配置邮箱，后续可用于安全通知。' : '邮箱可暂时留空，后续可在设置页补录。');
 
 const enterAdmin = async () => {
-  await router.push("/admin/main/home");
+  const redirect = route.query.redirect;
+  await router.push(
+      typeof redirect === 'string' && redirect.startsWith('/admin/')
+          ? redirect
+          : `${ROUTE_PATHS.adminMain}/home`
+  );
 };
 
 const sendLogin = async () => {

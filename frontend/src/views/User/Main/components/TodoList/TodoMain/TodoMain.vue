@@ -2,307 +2,52 @@
 @file UserTodoMain
 @project SlothNote
 @module 用户端 / 待办主列表
-@description 展示、创建、编辑、完成、恢复和删除用户待办事项。
-@logic 1. 根据 TodoState 加载不同待办视图；2. 支持快捷创建和弹窗编辑；3. 按分类、状态和日期展示任务。
-@dependencies Store: useTodoState, Service: TodoMain/Service, Service: ClassTree/GetUserTodoClasses
+@description 展示待办列表、分页、快捷创建和详情编辑交互。
+@logic 1. 委托 useTodoMain 编排查询与变更；2. 按状态分组展示当前页；3. 仅维护进行中与已完成区域的折叠状态。
+@dependencies Composable: useTodoMain, Element Plus
 @index_tags 待办列表, 用户任务, 分类筛选, 任务编辑
 @author holic512
 -->
 <script setup lang="ts">
-import {Calendar, Plus} from '@element-plus/icons-vue'
-import {onMounted, ref, watch} from "vue";
-import {useTodoState} from "@/views/User/Main/components/TodoList/Pinia/TodoState";
-import {getTodayDate} from "@/views/User/Main/components/TodoList/Service/getTodayDate";
-import {getAllTodoList} from "@/views/User/Main/components/TodoList/TodoMain/Service/getAllTodoList";
-import {TodoTypeById} from "@/views/User/Main/components/TodoList/TodoMain/Service/TodoTypeById";
-import {
-  getUserTodosByCategory
-} from "@/views/User/Main/components/TodoList/TodoListTree/ClassTree/Service/GetUserTodosByCategory";
-import {ReopenTodo} from "@/views/User/Main/components/TodoList/TodoMain/Service/ReopenTodo";
-import {ElMessage, ElMessageBox} from "element-plus";
-import {CompleteTodo} from "@/views/User/Main/components/TodoList/TodoMain/Service/CompleteTodo";
-import {addTodo} from "@/views/User/Main/components/TodoList/TodoMain/Service/AddTodo";
-import {updateTodo} from "@/views/User/Main/components/TodoList/TodoMain/Service/UpdateTodo";
-import {deleteTodo} from "@/views/User/Main/components/TodoList/TodoMain/Service/DeleteTodo";
-import {getTodosByDate} from "@/views/User/Main/components/TodoList/TodoMain/Service/GetTodosByDate";
-import {
-  GetUserTodoClasses
-} from "@/views/User/Main/components/TodoList/TodoListTree/ClassTree/Service/GetUserTodoClasses";
-import {getTodosForWeek} from "@/views/User/Main/components/TodoList/TodoMain/Service/GetTodosForWeek";
-import {getCompletedTodos} from "@/views/User/Main/components/TodoList/TodoMain/Service/GetCompletedTodos";
-import {getExpiredTodos} from "@/views/User/Main/components/TodoList/TodoMain/Service/GetExpiredTodos";
-import {getUncategorizedTodos} from "@/views/User/Main/components/TodoList/TodoMain/Service/GetUncategorizedTodos";
-import {getRecycleBinTodos} from "@/views/User/Main/components/TodoList/TodoMain/Service/GetRecycleBinTodos";
+import { ref } from 'vue'
+import { Calendar, Delete, Edit, Plus } from '@element-plus/icons-vue'
+import { useTodoMain } from './composables/useTodoMain'
 
-// 初始化状态变量
-const todoState = useTodoState()
+const {
+  currentViewState,
+  pageTitle,
+  TodoData,
+  currentPage,
+  pageSize,
+  inProgressTodos,
+  completedTodos,
+  newTodoInput,
+  addTodoDialogVisible,
+  newTodoForm,
+  todoCategories,
+  todoDetailDialogVisible,
+  currentTodo,
+  isEditing,
+  ReopenTodoProxy,
+  CompleteTodoProxy,
+  handleAddTodoInput,
+  submitAddTodo,
+  openTodoDetail,
+  handleUpdateTodo,
+  handleDeleteTodo,
+  resolveTodoTagType
+} = useTodoMain()
 
-// 监听todoState是否改变
-const refreshTodoList = async () => {
-  try {
-    let newState = todoState.state;
-    switch (newState) {
-      case 0:
-        pageTitle.value = "全部待办";
-        TodoData.value = await getAllTodoList();
-        break;
-
-      case 1:
-        pageTitle.value = "今天待办(" + getTodayDate() + ")";
-        // 获取今天的日期格式为yyyy-MM-dd
-        const today = new Date();
-        const formattedDate = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
-        TodoData.value = await getTodosByDate(formattedDate);
-        break;
-
-      case 2:
-        if (todoState.AClass) {
-          pageTitle.value = todoState.AClass.name;
-          TodoData.value = await getUserTodosByCategory(todoState.AClass.id);
-        }
-        break;
-
-      case 3:
-        pageTitle.value = "未分类";
-        TodoData.value = await getUncategorizedTodos();
-        break;
-
-      case 4:
-        pageTitle.value = "已完成";
-        // 获取已完成的待办事项
-        TodoData.value = await getCompletedTodos();
-        break;
-
-      case 5:
-        pageTitle.value = "已过期";
-        // 获取已过期的待办事项
-        TodoData.value = await getExpiredTodos();
-        break;
-
-      case 6:
-        pageTitle.value = "回收站";
-        TodoData.value = await getRecycleBinTodos();
-        break;
-
-      case 7:
-        pageTitle.value = "七日待做";
-        // 获取七日待办事项
-        TodoData.value = await getTodosForWeek();
-        break;
-    }
-  } catch (error) {
-    console.error("加载待办列表出错:", error);
-    ElMessage.error("加载待办列表失败");
-  }
-};
-
-// 监听左侧视图状态切换，驱动右侧列表与标题更新
-watch(() => todoState.isDescriptionVisible, async () => {
-  await refreshTodoList();
-});
-
-// 初始化
-onMounted(async () => {
-  TodoData.value = await getAllTodoList();
-})
-
-// 页面标题
-const pageTitle = ref<string>("全部待办")
-
-// 进行中和已完成 显示 的变量
 const isInProgressVisible = ref(true)
 const isCompletedVisible = ref(true)
 
-interface Todo {
-  todo_id: number;
-  title: string;
-  description: string;
-  startDate: string;
-  dueDate: string;
-  status: number;
-  category_id: number | null;
-  category_name: string | null;
-  category_type: number | null;
-  todoInfoisDeleted: boolean;
-}
-
-interface TodoCategory {
-  id: number;
-  name: string;
-}
-
-// 所有待做的 树结构
-const TodoData = ref<Todo[]>([]);
-
-// 进行中树标题的 点击函数
 const handInProgress = () => {
   isInProgressVisible.value = !isInProgressVisible.value
 }
 
-// 已完成树标题的 点击函数
 const handCompleted = () => {
   isCompletedVisible.value = !isCompletedVisible.value
 }
-
-const ReopenTodoProxy = async (todoId: number) => {
-  const status = await ReopenTodo(todoId);
-  if (status == 200) {
-    // 更新成功 - 执行 更新表单策略
-    TodoData.value = await getAllTodoList();
-  } else {
-    ElMessage.info("无法连接到服务器")
-  }
-}
-
-const CompleteTodoProxy = async (todoId: number) => {
-  const status = await CompleteTodo(todoId);
-  if (status == 200) {
-    // 更新成功 - 执行 更新表单策略
-    TodoData.value = await getAllTodoList();
-  } else {
-    ElMessage.info("无法连接到服务器")
-  }
-}
-
-// 添加待办相关
-const newTodoInput = ref('');
-const handleAddTodoInput = async (event: KeyboardEvent) => {
-  if (event.key === 'Enter' && newTodoInput.value.trim()) {
-    const todoData = {
-      title: newTodoInput.value.trim(),
-      description: '',
-      categoryId: null,
-      dueDate: null
-    };
-
-    const status = await addTodo(todoData);
-    if (status === 200) {
-      ElMessage.success("添加成功");
-      // 刷新待办列表
-      TodoData.value = await getAllTodoList();
-      // 清空输入框
-      newTodoInput.value = '';
-    } else {
-      ElMessage.error("添加失败");
-    }
-  }
-};
-
-// 新增高级表单相关数据
-const addTodoDialogVisible = ref(false);
-const newTodoForm = ref({
-  title: '',
-  description: '',
-  categoryId: null as number | null,
-  dueDate: null as string | null
-});
-
-// 获取分类列表
-const todoCategories = ref<TodoCategory[]>([]);
-const fetchCategories = async () => {
-  todoCategories.value = await GetUserTodoClasses();
-};
-
-const resolveTodoTagType = (categoryType: number | null) => {
-  return TodoTypeById(categoryType ?? 0);
-};
-
-// 打开表单并加载分类
-const openAddTodoForm = () => {
-  fetchCategories();
-  addTodoDialogVisible.value = true;
-};
-
-// 提交表单
-const submitAddTodo = async () => {
-  if (!newTodoForm.value.title) {
-    ElMessage.warning("标题不能为空");
-    return;
-  }
-
-  const status = await addTodo(newTodoForm.value);
-  if (status === 200) {
-    ElMessage.success("添加成功");
-    // 刷新待办列表
-    TodoData.value = await getAllTodoList();
-    // 关闭表单并重置
-    addTodoDialogVisible.value = false;
-    newTodoForm.value = {
-      title: '',
-      description: '',
-      categoryId: null,
-      dueDate: null
-    };
-  } else {
-    ElMessage.error("添加失败");
-  }
-};
-
-// 详情和编辑相关数据
-const todoDetailDialogVisible = ref(false);
-const currentTodo = ref({} as Todo);
-const isEditing = ref(false);
-
-// 打开待办详情
-const openTodoDetail = (todo: Todo) => {
-  currentTodo.value = {...todo};
-  todoDetailDialogVisible.value = true;
-  isEditing.value = false;
-  fetchCategories(); // 加载分类列表
-};
-
-// 更新待办
-const handleUpdateTodo = async () => {
-  if (!currentTodo.value.title) {
-    ElMessage.warning("标题不能为空");
-    return;
-  }
-
-  const todoData = {
-    title: currentTodo.value.title,
-    description: currentTodo.value.description || "",
-    categoryId: currentTodo.value.category_id ?? null,
-    dueDate: currentTodo.value.dueDate,
-    status: currentTodo.value.status
-  };
-
-  const status = await updateTodo(currentTodo.value.todo_id, todoData);
-  if (status === 200) {
-    ElMessage.success("更新成功");
-    // 刷新待办列表
-    TodoData.value = await getAllTodoList();
-    // 关闭编辑模式
-    isEditing.value = false;
-    todoDetailDialogVisible.value = false;
-  } else {
-    ElMessage.error("更新失败");
-  }
-};
-
-// 删除待办
-const handleDeleteTodo = async () => {
-  const confirmResult = await ElMessageBox.confirm(
-      '确定要删除这个待办事项吗？',
-      '提示',
-      {
-        confirmButtonText: '确定',
-        cancelButtonText: '取消',
-        type: 'warning',
-      }
-  ).catch(() => false);
-
-  if (confirmResult) {
-    const status = await deleteTodo(currentTodo.value.todo_id);
-    if (status === 200) {
-      ElMessage.success("删除成功");
-      // 刷新待办列表
-      TodoData.value = await getAllTodoList();
-      todoDetailDialogVisible.value = false;
-    } else {
-      ElMessage.error("删除失败");
-    }
-  }
-};
 </script>
 
 <template>
@@ -341,11 +86,11 @@ const handleDeleteTodo = async () => {
           </div>
 
           <!-- 进行中 数据树 -->
-          <div v-for="task in TodoData.filter(t => t.status === 0)" :key="task.todo_id" class="task-item"
+          <div v-for="task in inProgressTodos" :key="task.todo_id" class="task-item"
                v-if="isInProgressVisible" @click="openTodoDetail(task)">
             <div class="task-content">
               <!-- 选中框 -->
-              <el-checkbox v-show="todoState.state !== 6" class="task-checkbox" @click.stop="CompleteTodoProxy(task.todo_id)"/>
+              <el-checkbox v-show="currentViewState !== 6" class="task-checkbox" @click.stop="CompleteTodoProxy(task.todo_id)"/>
 
               <div class="task-label">
                 <el-text>
@@ -374,19 +119,19 @@ const handleDeleteTodo = async () => {
                 </el-text>
               </div>
 
-              <div class="task-actions" v-show="todoState.state !== 6">
+              <div class="task-actions" v-show="currentViewState !== 6">
                 <el-button-group size="small">
                   <el-button
-                      icon="Edit"
+                      :icon="Edit"
                       type="info"
                       plain
-                      @click.stop="openTodoDetail(task); isEditing = true;"
+                      @click.stop="openTodoDetail(task, true)"
                   />
                   <el-button
-                      icon="Delete"
+                      :icon="Delete"
                       type="danger"
                       plain
-                      @click.stop="currentTodo = task; handleDeleteTodo()"
+                      @click.stop="handleDeleteTodo(task)"
                   />
                 </el-button-group>
               </div>
@@ -410,11 +155,11 @@ const handleDeleteTodo = async () => {
           </div>
 
           <!-- 已完成 数据树 -->
-          <div v-if="isCompletedVisible" v-for="task in TodoData.filter(t => t.status === 1)" :key="task.todo_id"
+          <div v-if="isCompletedVisible" v-for="task in completedTodos" :key="task.todo_id"
                class="task-item" @click="openTodoDetail(task)">
             <div class="task-content">
               <!--  选中框  -->
-              <el-checkbox v-show="todoState.state !== 6" checked class="task-checkbox" @click.stop="ReopenTodoProxy(task.todo_id)"></el-checkbox>
+              <el-checkbox v-show="currentViewState !== 6" checked class="task-checkbox" @click.stop="ReopenTodoProxy(task.todo_id)"></el-checkbox>
 
               <div class="task-label completed">
                 <el-text>
@@ -437,13 +182,13 @@ const handleDeleteTodo = async () => {
                 </el-text>
               </div>
 
-              <div class="task-actions" v-show="todoState.state !== 6">
+              <div class="task-actions" v-show="currentViewState !== 6">
                 <el-button-group size="small">
                   <el-button
-                      icon="Delete"
+                      :icon="Delete"
                       type="danger"
                       plain
-                      @click.stop="currentTodo = task; handleDeleteTodo()"
+                      @click.stop="handleDeleteTodo(task)"
                   />
                 </el-button-group>
               </div>
@@ -451,6 +196,15 @@ const handleDeleteTodo = async () => {
             <div class="bottom-border"/>
           </div>
         </div>
+
+        <el-pagination
+            v-if="TodoData.length > pageSize"
+            v-model:current-page="currentPage"
+            :page-size="pageSize"
+            :total="TodoData.length"
+            layout="prev, pager, next"
+            class="todo-pagination"
+        />
       </el-scrollbar>
     </div>
 
@@ -467,7 +221,7 @@ const handleDeleteTodo = async () => {
           <el-date-picker v-model="newTodoForm.dueDate" type="datetime" placeholder="选择截止时间"/>
         </el-form-item>
         <el-form-item label="分类">
-          <el-select v-model="newTodoForm.categoryId" placeholder="选择分类" clearable @clear="newTodoForm.categoryId = null">
+          <el-select v-model="newTodoForm.categoryId" placeholder="选择分类" clearable @clear="newTodoForm.categoryId = undefined">
             <el-option
                 v-for="category in todoCategories"
                 :key="category.id"
@@ -497,7 +251,7 @@ const handleDeleteTodo = async () => {
                           :disabled="!isEditing"/>
         </el-form-item>
         <el-form-item label="分类" v-if="isEditing">
-          <el-select v-model="currentTodo.category_id" placeholder="选择分类" clearable @clear="currentTodo.category_id = null">
+          <el-select v-model="currentTodo.category_id" placeholder="选择分类" clearable @clear="currentTodo.category_id = undefined">
             <el-option
                 v-for="category in todoCategories"
                 :key="category.id"
@@ -515,8 +269,8 @@ const handleDeleteTodo = async () => {
       <template #footer>
         <div v-if="!isEditing">
           <el-button @click="todoDetailDialogVisible = false">关闭</el-button>
-          <el-button v-show="todoState.state !== 6 && !currentTodo.todoInfoisDeleted" type="primary" @click="isEditing = true">编辑</el-button>
-          <el-button v-show="todoState.state !== 6 && !currentTodo.todoInfoisDeleted" type="danger" @click="handleDeleteTodo">删除</el-button>
+          <el-button v-show="currentViewState !== 6 && !currentTodo.todoInfoisDeleted" type="primary" @click="isEditing = true">编辑</el-button>
+          <el-button v-show="currentViewState !== 6 && !currentTodo.todoInfoisDeleted" type="danger" @click="handleDeleteTodo()">删除</el-button>
         </div>
         <div v-else>
           <el-button @click="isEditing = false">取消</el-button>
@@ -608,5 +362,10 @@ const handleDeleteTodo = async () => {
 .completed {
   text-decoration: line-through;
   color: #909399;
+}
+
+.todo-pagination {
+  justify-content: flex-end;
+  padding: 12px 8px 4px;
 }
 </style>

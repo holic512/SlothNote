@@ -1,10 +1,11 @@
 <script setup lang="ts">
-import { ref, watch, nextTick } from 'vue';
+import { ref, watch, nextTick, onBeforeUnmount } from 'vue';
 import { searchNotes } from '../service/searchNotes'; // 请确保路径正确
 import { useRouter } from 'vue-router';
 import { useSearchDialogStore } from '../Pinia/SearchDialogStore'; // 请确保路径正确
 // 引入图标
 import { Search, Document, Loading, Right } from '@element-plus/icons-vue';
+import {navigateToNote} from '@/views/User/Main/components/Edit/service/noteNavigation';
 
 // --- 类型定义 ---
 interface SearchResult {
@@ -22,18 +23,27 @@ const loading = ref(false);
 const results = ref<SearchResult[]>([]);
 const router = useRouter();
 const searchInputRef = ref();
+let searchRequestId = 0;
+let searchController: AbortController | null = null;
 
 // --- 逻辑处理 ---
 
 const doSearch = async () => {
-  if (!keyword.value.trim()) {
+  const searchKeyword = keyword.value.trim();
+  searchController?.abort();
+  const requestId = ++searchRequestId;
+  if (!searchKeyword) {
     results.value = [];
+    loading.value = false;
     return;
   }
+  const controller = new AbortController();
+  searchController = controller;
   loading.value = true;
   try {
     // 这里假设 searchNotes 返回的是 Promise<SearchResult[]>
-    const res = await searchNotes(keyword.value);
+    const res = await searchNotes(searchKeyword, controller.signal);
+    if (controller.signal.aborted || requestId !== searchRequestId) return;
     // 兼容处理：如果接口没有返回 icon/path，前端补全结构以免报错
     results.value = (res || []).map((item: any) => ({
       ...item,
@@ -41,15 +51,16 @@ const doSearch = async () => {
       icon: item.icon || null
     }));
   } catch (e) {
+    if (controller.signal.aborted || requestId !== searchRequestId) return;
     console.error(e);
     results.value = [];
   } finally {
-    loading.value = false;
+    if (requestId === searchRequestId) loading.value = false;
   }
 }
 
 // 防抖 (可选，防止输入过快频繁请求)
-let timeout: any;
+let timeout: ReturnType<typeof setTimeout> | undefined;
 watch(() => keyword.value, (newVal) => {
   if (timeout) clearTimeout(timeout);
   timeout = setTimeout(() => {
@@ -65,21 +76,42 @@ watch(() => store.visible, (val) => {
     nextTick(() => {
       searchInputRef.value?.focus();
     });
+  } else {
+    searchController?.abort();
+    searchController = null;
+    searchRequestId += 1;
+    loading.value = false;
   }
-});
+}, {immediate: true});
 
 const openNote = (noteId: number) => {
   store.close();
-  router.push(`/user/main/edit?id=${noteId}`); // 假设这是你的路由结构
+  void navigateToNote(router, {noteId});
 }
 
 // 处理高亮文字 (简单实现，如果后端没返回 HTML)
+const escapeHtml = (value: string) => value
+    .replaceAll('&', '&amp;')
+    .replaceAll('<', '&lt;')
+    .replaceAll('>', '&gt;')
+    .replaceAll('"', '&quot;')
+    .replaceAll("'", '&#039;');
+
 const getHighlightSnippet = (text: string, key: string) => {
   if (!text) return '';
-  if (!key) return text;
-  const regex = new RegExp(`(${key})`, 'gi');
-  return text.replace(regex, '<span class="highlight">$1</span>');
+  const safeText = escapeHtml(text);
+  if (!key) return safeText;
+  const escapedKey = escapeHtml(key).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const regex = new RegExp(`(${escapedKey})`, 'gi');
+  return safeText.replace(regex, '<span class="highlight">$1</span>');
 }
+
+onBeforeUnmount(() => {
+  if (timeout) clearTimeout(timeout);
+  searchController?.abort();
+  searchController = null;
+  searchRequestId += 1;
+});
 </script>
 
 <template>

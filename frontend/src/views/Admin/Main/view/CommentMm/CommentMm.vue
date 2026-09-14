@@ -1,8 +1,5 @@
 <script setup lang="ts">
 import {computed, onBeforeUnmount, onMounted, ref} from "vue";
-import axios from "../../../../../axios";
-import fetchInitialPageData from "./components/TableView/fetchInitialPageData";
-import {fetchPageData} from "./components/TableView/fetchPageData";
 import {calculateRows} from "./components/TableView/calculateRows";
 import {getStatusMsg, getStatusType} from "./components/TableView/getStatusType";
 import {debounceImmediate} from "@/util/debounce";
@@ -12,12 +9,13 @@ import {searchComments} from "./components/TableView/searchComments";
 import {deleteComment} from "./components/TableView/deleteComment";
 import AddComment from "./components/AddComment/addComment.vue";
 import CommentDetail from "./components/CommentDetail/commentDetail.vue";
+import {getMaxPage, useLatestRequest} from '../../composables/useAdminListRequest';
 
 const showFilters = ref(false);
 const keyword = ref<string | null>(null);
-const noteIdFilter = ref<number | null>(null);
-const userIdFilter = ref<number | null>(null);
-const deletedFilter = ref<boolean | null>(null);
+const noteIdFilter = ref<number | undefined>(undefined);
+const userIdFilter = ref<number | undefined>(undefined);
+const deletedFilter = ref<boolean | undefined>(undefined);
 const topLevelOnly = ref<boolean>(false);
 
 const minHeight = 720;
@@ -27,37 +25,70 @@ const commentCount = ref(0);
 const maxPage = ref(1);
 const nowPage = ref(1);
 const products = ref<any[]>([]);
+const selected = ref<any[]>([]);
+const listRequest = useLatestRequest();
+
+const loadComments = async (page = nowPage.value) => {
+  const pageSize = nowRow.value;
+  const requestedPage = Math.max(1, page);
+  nowPage.value = requestedPage;
+  const filters = {
+    q: keyword.value || undefined,
+    noteId: noteIdFilter.value,
+    userId: userIdFilter.value,
+    isDeleted: deletedFilter.value,
+    topLevelOnly: topLevelOnly.value || undefined,
+  };
+
+  return listRequest.runLatest(
+      async (signal) => {
+        const requestPage = (pageNum: number) => searchComments({
+          ...filters,
+          pageNum,
+          pageSize,
+        }, signal);
+        let data = await requestPage(requestedPage);
+        const resolvedMaxPage = getMaxPage(data.total, pageSize);
+        const resolvedPage = Math.min(requestedPage, resolvedMaxPage);
+        if (resolvedPage !== requestedPage) data = await requestPage(resolvedPage);
+        return {data, resolvedMaxPage, resolvedPage};
+      },
+      ({data, resolvedMaxPage, resolvedPage}) => {
+        commentCount.value = data.total;
+        maxPage.value = resolvedMaxPage;
+        nowPage.value = resolvedPage;
+        products.value = data.list;
+        selected.value = [];
+      },
+  );
+};
 
 onMounted(async () => {
   nowRow.value = calculateRows(minHeight, stepHeight);
-  await axios.get(
-      "admin/commentMm/getCommentCount",
-  ).then((response) => {
-    commentCount.value = response.data.data;
-    maxPage.value = Math.ceil(commentCount.value / nowRow.value);
-  });
-  products.value = await fetchInitialPageData(nowRow.value);
+  await loadComments();
   window.addEventListener('resize', handleResize);
 });
 
-onBeforeUnmount(() => {
-  window.removeEventListener('resize', handleResize);
-});
-
 const DEBOUNCE_DELAY = 100;
-let resizeTimeout: ReturnType<typeof setTimeout>;
-const handleResize = async () => {
-  clearTimeout(resizeTimeout);
+let resizeTimeout: ReturnType<typeof setTimeout> | undefined;
+const handleResize = () => {
+  if (resizeTimeout) clearTimeout(resizeTimeout);
   resizeTimeout = setTimeout(async () => {
+    resizeTimeout = undefined;
     const rows = calculateRows(minHeight, stepHeight);
     if (rows !== nowRow.value) {
       nowRow.value = rows;
-      maxPage.value = Math.ceil(commentCount.value / nowRow.value);
-      if (nowPage.value > maxPage.value) nowPage.value = maxPage.value;
-      products.value = await fetchPageData(nowRow.value, nowPage.value);
+      maxPage.value = getMaxPage(commentCount.value, rows);
+      nowPage.value = Math.min(nowPage.value, maxPage.value);
+      await loadComments();
     }
   }, DEBOUNCE_DELAY);
 };
+
+onBeforeUnmount(() => {
+  window.removeEventListener('resize', handleResize);
+  if (resizeTimeout) clearTimeout(resizeTimeout);
+});
 
 const dynamicHeight = computed(() => {
   return `${475 + (nowRow.value - 10) * 45}px`;
@@ -67,60 +98,38 @@ enum pageTurn { FirstPage, PreviousPage, NextPage, LastPage }
 const turnPage = async (turn: pageTurn) => {
   switch (turn) {
     case pageTurn.FirstPage:
-      if (nowPage.value != 1) { nowPage.value = 1; products.value = await fetchPageData(nowRow.value, nowPage.value); } else { ElMessage.warning("已经是第一页了") }
+      if (nowPage.value != 1) { await loadComments(1); } else { ElMessage.warning("已经是第一页了") }
       break
     case pageTurn.PreviousPage:
-      if (nowPage.value > 1) { nowPage.value = nowPage.value - 1; products.value = await fetchPageData(nowRow.value, nowPage.value); } else { ElMessage.warning("已经是第一页了") }
+      if (nowPage.value > 1) { await loadComments(nowPage.value - 1); } else { ElMessage.warning("已经是第一页了") }
       break
     case pageTurn.NextPage:
-      if (nowPage.value < maxPage.value) { nowPage.value = nowPage.value + 1; products.value = await fetchPageData(nowRow.value, nowPage.value); } else { ElMessage.warning("已经是最后一页了") }
+      if (nowPage.value < maxPage.value) { await loadComments(nowPage.value + 1); } else { ElMessage.warning("已经是最后一页了") }
       break
     case pageTurn.LastPage:
-      if (nowPage.value != maxPage.value) { nowPage.value = maxPage.value; products.value = await fetchPageData(nowRow.value, nowPage.value); } else { ElMessage.warning("已经是最后一页了") }
+      if (nowPage.value != maxPage.value) { await loadComments(maxPage.value); } else { ElMessage.warning("已经是最后一页了") }
       break
   }
 }
 const handleDebouncedTurnPage = debounceImmediate(turnPage, 200)
 
 const refresh = async () => {
-  await axios.get(
-      "admin/commentMm/getCommentCount",
-  ).then((response) => {
-    commentCount.value = response.data.data;
-    maxPage.value = Math.ceil(commentCount.value / nowRow.value);
-  });
-  if (maxPage.value < nowPage.value) {
-    products.value = await fetchPageData(nowRow.value, maxPage.value);
-  } else {
-    products.value = await fetchPageData(nowRow.value, nowPage.value);
-  }
-  ElMessage.success("刷新成功")
+  const committed = await loadComments();
+  if (committed) ElMessage.success("刷新成功")
 }
 const handleDebouncedRefresh = debounceImmediate(refresh, 1000);
-
-const selected = ref();
 
 const batchDelete = async () => {
   if (!selected.value || selected.value.length === 0) { ElMessage.warning("选择为空"); return; }
   const ids = selected.value.map((p: any) => p.id);
   const status = await batchDeleteComments(ids);
-  if (status === 200) { ElMessage.success("删除成功"); products.value = await fetchPageData(nowRow.value, nowPage.value) } else { ElMessage.error("无法连接服务器") }
+  if (status === 200) { ElMessage.success("删除成功"); await refresh() } else { ElMessage.error("无法连接服务器") }
 }
 const handleDebouncedBatchDelete = debounceImmediate(batchDelete, 1000);
 
 const doSearch = async () => {
-  const data = await searchComments({
-    q: keyword.value || undefined,
-    noteId: noteIdFilter.value === null ? undefined : noteIdFilter.value,
-    userId: userIdFilter.value === null ? undefined : userIdFilter.value,
-    isDeleted: deletedFilter.value === null ? undefined : deletedFilter.value,
-    topLevelOnly: topLevelOnly.value || undefined,
-    pageNum: nowPage.value,
-    pageSize: nowRow.value,
-  });
-  products.value = data.list;
-  commentCount.value = data.total;
-  maxPage.value = Math.ceil(commentCount.value / nowRow.value);
+  nowPage.value = 1;
+  await loadComments(1);
 };
 const handleDebouncedSearch = debounceImmediate(doSearch, 500);
 
@@ -128,6 +137,16 @@ const addVisible = ref<boolean>(false);
 const detailVisible = ref<boolean>(false);
 const currentId = ref<number | null>(null);
 const openDetail = (id: number) => { currentId.value = id; detailVisible.value = true; };
+
+const handleDeleteComment = async (id: number) => {
+  const status = await deleteComment(id);
+  if (status === 200) {
+    ElMessage.success('删除成功');
+    await loadComments();
+  } else {
+    ElMessage.error('无法连接服务器');
+  }
+};
 </script>
 
 <template>
@@ -166,7 +185,6 @@ const openDetail = (id: number) => { currentId.value = id; detailVisible.value =
             <el-input v-model.number="noteIdFilter" placeholder="笔记ID" style="width: 120px"/>
             <el-input v-model.number="userIdFilter" placeholder="用户ID" style="width: 120px"/>
             <el-select v-model="deletedFilter" placeholder="状态" style="width: 120px" clearable>
-              <el-option label="全部" :value="null"/>
               <el-option label="有效" :value="false"/>
               <el-option label="已删除" :value="true"/>
             </el-select>
@@ -199,7 +217,7 @@ const openDetail = (id: number) => { currentId.value = id; detailVisible.value =
               <div style="display: flex; gap: 6px; align-items: center;">
                 <Button type="button" icon="Eye" rounded outlined style=" height: 32px;width: 32px" @click="openDetail(data.id)"/>
                 <Button type="button" icon="Trash" rounded outlined style=" height: 32px;width: 32px"
-                        @click="(async()=>{ const s = await deleteComment(data.id); if(s===200){ ElMessage.success('删除成功'); products = await fetchPageData(nowRow, nowPage) } else { ElMessage.error('无法连接服务器') } })()"/>
+                        @click="handleDeleteComment(data.id)"/>
               </div>
             </template>
           </Column>

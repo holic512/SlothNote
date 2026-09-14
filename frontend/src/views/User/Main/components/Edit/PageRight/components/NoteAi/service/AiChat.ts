@@ -1,6 +1,16 @@
+/**
+ * @file AiChat
+ * @project SlothNote
+ * @module 用户端 / AI 会话状态
+ * @description 管理 AI 会话、上下文、工具时间线及流式响应生命周期。
+ * @logic 1. 以取消和序号隔离会话列表/详情请求；2. 按顺序同步上下文笔记快照；3. 发送 SSE 请求并节流合并增量；4. 同步工具执行、笔记变更和账号重置状态。
+ * @dependencies Pinia, Axios, Store: token/currentNoteInfo
+ * @index_tags AI 会话, SSE, 流式节流, 请求竞态, 上下文有序同步, 工具调用, 会话状态
+ * @author holic512
+ */
 import { defineStore } from 'pinia'
 import { computed, ref } from 'vue'
-import axios from '@/axios'
+import axios, { handleHttpAuthStatus } from '@/axios'
 import { tokenStore } from '@/pinia/token'
 import { useCurrentNoteInfoStore } from '@/views/User/Main/components/Edit/Pinia/currentNoteInfo'
 
@@ -62,6 +72,7 @@ interface SendMessageOptions {
 
 const AI_DEBUG_PREFIX = '[NoteAI]'
 const DEBUG_PREVIEW_LENGTH = 240
+const STREAM_RENDER_INTERVAL_MS = 48
 
 const debugLog = (...args: unknown[]) => {
   console.debug(AI_DEBUG_PREFIX, ...args)
@@ -130,6 +141,13 @@ export const useAiChatStore = defineStore('aiChat', () => {
   const abortController = ref<AbortController | null>(null)
   const timelineByMessageId = ref<Record<number, AiTimelineItem[]>>({})
   const lastNoteMutation = ref<{ noteId: number; timestamp: number; summary: string } | null>(null)
+  let sessionListRequestId = 0
+  let sessionDetailRequestId = 0
+  let sessionListController: AbortController | null = null
+  let sessionDetailController: AbortController | null = null
+  let contextSyncGeneration = 0
+  let contextSyncQueue: Promise<void> = Promise.resolve()
+  let contextMutationRevision = 0
 
   const activeSession = computed(() => sessions.value.find(session => session.id === activeSessionId.value) || null)
 
@@ -160,60 +178,156 @@ export const useAiChatStore = defineStore('aiChat', () => {
   }
 
   const setActiveSessionId = (sessionId: number | null) => {
+    if (activeSessionId.value !== sessionId) {
+      sessionDetailRequestId += 1
+      sessionDetailController?.abort()
+      sessionDetailController = null
+    }
     activeSessionId.value = sessionId
   }
 
   const syncContextNotes = async () => {
-    if (!activeSessionId.value) {
+    const sessionId = activeSessionId.value
+    if (!sessionId) {
       return
     }
-    await axios.put(`user/ai/sessions/${activeSessionId.value}/context-notes`, {
-      noteIds: contextNotes.value.map(note => note.noteId)
-    })
+
+    const generation = contextSyncGeneration
+    const noteIds = contextNotes.value.map(note => note.noteId)
+    const syncTask = contextSyncQueue
+      .catch(() => undefined)
+      .then(async () => {
+        if (generation !== contextSyncGeneration) return
+        await axios.put(`user/ai/sessions/${sessionId}/context-notes`, { noteIds })
+      })
+
+    contextSyncQueue = syncTask
+    await syncTask
   }
 
   const loadSessions = async () => {
-    const response = await axios.get('user/ai/sessions')
-    sessions.value = response.data?.data || []
-    if (!activeSessionId.value && sessions.value.length > 0) {
-      await loadSessionDetail(sessions.value[0].id)
+    sessionListController?.abort()
+    const controller = new AbortController()
+    sessionListController = controller
+    const requestId = ++sessionListRequestId
+
+    try {
+      const response = await axios.get('user/ai/sessions', { signal: controller.signal })
+      if (controller.signal.aborted || requestId !== sessionListRequestId) return
+
+      sessions.value = response.data?.data || []
+      if (!activeSessionId.value && sessions.value.length > 0) {
+        await loadSessionDetail(sessions.value[0].id)
+      }
+    } catch (error) {
+      if (controller.signal.aborted || requestId !== sessionListRequestId) return
+      throw error
+    } finally {
+      if (sessionListController === controller) sessionListController = null
     }
   }
 
   const loadSessionDetail = async (sessionId: number) => {
-    const response = await axios.get(`user/ai/sessions/${sessionId}/messages`)
-    const detail = response.data?.data
-    activeSessionId.value = sessionId
-    messages.value = (detail?.messages || []).map((message: ChatMessage) => ({
-      ...message,
-      renderedContent: message.content
-    }))
-    contextNotes.value = detail?.contextNotes || []
+    sessionDetailController?.abort()
+    const controller = new AbortController()
+    sessionDetailController = controller
+    const requestId = ++sessionDetailRequestId
+
+    try {
+      const response = await axios.get(`user/ai/sessions/${sessionId}/messages`, {
+        signal: controller.signal
+      })
+      if (controller.signal.aborted || requestId !== sessionDetailRequestId) return
+
+      const detail = response.data?.data
+      activeSessionId.value = sessionId
+      messages.value = (detail?.messages || []).map((message: ChatMessage) => ({
+        ...message,
+        renderedContent: message.content
+      }))
+      contextMutationRevision += 1
+      contextNotes.value = detail?.contextNotes || []
+    } catch (error) {
+      if (controller.signal.aborted || requestId !== sessionDetailRequestId) return
+      throw error
+    } finally {
+      if (sessionDetailController === controller) sessionDetailController = null
+    }
   }
 
   const createEmptySession = () => {
+    sessionDetailRequestId += 1
+    sessionDetailController?.abort()
+    sessionDetailController = null
     activeSessionId.value = null
     messages.value = []
+    contextMutationRevision += 1
     contextNotes.value = []
     streamingMessageId.value = null
     selectedText.value = ''
     timelineByMessageId.value = {}
   }
 
+  const resetClientState = () => {
+    abortController.value?.abort()
+    abortController.value = null
+    sessionListRequestId += 1
+    sessionDetailRequestId += 1
+    sessionListController?.abort()
+    sessionDetailController?.abort()
+    sessionListController = null
+    sessionDetailController = null
+    contextSyncGeneration += 1
+    contextSyncQueue = Promise.resolve()
+    contextMutationRevision += 1
+    sessions.value = []
+    activeSessionId.value = null
+    messages.value = []
+    selectedText.value = ''
+    contextNotes.value = []
+    loading.value = false
+    streamingMessageId.value = null
+    timelineByMessageId.value = {}
+    lastNoteMutation.value = null
+  }
+
   const addContextNote = async (note: ContextNote) => {
     if (contextNotes.value.some(item => item.noteId === note.noteId)) {
       return
     }
-    contextNotes.value.push(note)
-    await syncContextNotes()
+    const previousNotes = contextNotes.value
+    const mutationRevision = ++contextMutationRevision
+    contextNotes.value = [...previousNotes, note]
+    try {
+      await syncContextNotes()
+    } catch (error) {
+      if (mutationRevision === contextMutationRevision) contextNotes.value = previousNotes
+      throw error
+    }
   }
 
   const removeContextNote = async (noteId: number) => {
-    contextNotes.value = contextNotes.value.filter(note => note.noteId !== noteId)
-    await syncContextNotes()
+    const previousNotes = contextNotes.value
+    const mutationRevision = ++contextMutationRevision
+    contextNotes.value = previousNotes.filter(note => note.noteId !== noteId)
+    try {
+      await syncContextNotes()
+    } catch (error) {
+      if (mutationRevision === contextMutationRevision) contextNotes.value = previousNotes
+      throw error
+    }
   }
 
   const clearAllSessions = async () => {
+    sessionListRequestId += 1
+    sessionDetailRequestId += 1
+    sessionListController?.abort()
+    sessionDetailController?.abort()
+    sessionListController = null
+    sessionDetailController = null
+    contextSyncGeneration += 1
+    contextSyncQueue = Promise.resolve()
+    contextMutationRevision += 1
     await axios.delete('user/ai/sessions')
     sessions.value = []
     createEmptySession()
@@ -223,6 +337,9 @@ export const useAiChatStore = defineStore('aiChat', () => {
     await axios.delete(`user/ai/sessions/${sessionId}`)
     sessions.value = sessions.value.filter(session => session.id !== sessionId)
     if (activeSessionId.value === sessionId) {
+      sessionDetailRequestId += 1
+      sessionDetailController?.abort()
+      sessionDetailController = null
       if (sessions.value.length > 0) {
         await loadSessionDetail(sessions.value[0].id)
       } else {
@@ -235,21 +352,23 @@ export const useAiChatStore = defineStore('aiChat', () => {
     if (!abortController.value && !streamingMessageId.value) {
       return
     }
+    const stoppedMessageId = streamingMessageId.value
     debugLog('stop requested', {
       sessionId: activeSessionId.value,
-      assistantMessageId: streamingMessageId.value
+      assistantMessageId: stoppedMessageId
     })
     abortController.value?.abort()
+    const assistantMessage = messages.value.find(message => message.id === stoppedMessageId)
+    if (assistantMessage?.status === 'streaming') {
+      assistantMessage.status = 'stopped'
+      assistantMessage.renderedContent = assistantMessage.content
+    }
     try {
       await axios.post('user/ai/stop', {
-        assistantMessageId: streamingMessageId.value,
+        assistantMessageId: stoppedMessageId,
         sessionId: activeSessionId.value
       })
     } finally {
-      const assistantMessage = messages.value.find(message => message.id === streamingMessageId.value)
-      if (assistantMessage && assistantMessage.status === 'streaming') {
-        assistantMessage.status = 'stopped'
-      }
       loading.value = false
       abortController.value = null
       streamingMessageId.value = null
@@ -310,6 +429,41 @@ export const useAiChatStore = defineStore('aiChat', () => {
     let noteMutated = false
     const tempUserMessageId = nextTempMessageId()
     const tempAssistantMessageId = nextTempMessageId()
+    let pendingDeltaMessageId: number | null = null
+    let pendingDeltaContent = ''
+    let streamRenderTimer: ReturnType<typeof setTimeout> | undefined
+
+    const flushPendingDelta = () => {
+      if (streamRenderTimer) {
+        clearTimeout(streamRenderTimer)
+        streamRenderTimer = undefined
+      }
+      if (pendingDeltaMessageId == null || !pendingDeltaContent) {
+        pendingDeltaMessageId = null
+        pendingDeltaContent = ''
+        return
+      }
+
+      const assistantMessage = messages.value.find(message => message.id === pendingDeltaMessageId)
+      if (assistantMessage) {
+        assistantMessage.content += pendingDeltaContent
+        assistantMessage.renderedContent = assistantMessage.content
+      }
+      pendingDeltaMessageId = null
+      pendingDeltaContent = ''
+    }
+
+    const queueDelta = (messageId: number, content: string) => {
+      if (!content) return
+      if (pendingDeltaMessageId != null && pendingDeltaMessageId !== messageId) {
+        flushPendingDelta()
+      }
+      pendingDeltaMessageId = messageId
+      pendingDeltaContent += content
+      if (!streamRenderTimer) {
+        streamRenderTimer = setTimeout(flushPendingDelta, STREAM_RENDER_INTERVAL_MS)
+      }
+    }
 
     messages.value.push({
       id: tempUserMessageId,
@@ -345,6 +499,7 @@ export const useAiChatStore = defineStore('aiChat', () => {
       })
 
       if (!response.ok || !response.body) {
+        handleHttpAuthStatus(response.status, 'user/ai/chat')
         const errorText = await response.text().catch(() => '')
         throw new Error(errorText || `HTTP ${response.status}`)
       }
@@ -478,14 +633,11 @@ export const useAiChatStore = defineStore('aiChat', () => {
           }
 
           if (payload.type === 'delta') {
-            const assistantMessage = messages.value.find(message => message.id === payload.assistantMessageId)
-            if (assistantMessage) {
-              assistantMessage.content += payload.content || ''
-              assistantMessage.renderedContent = assistantMessage.content
-            }
+            queueDelta(payload.assistantMessageId, payload.content || '')
           }
 
           if (payload.type === 'done') {
+            flushPendingDelta()
             const assistantMessage = messages.value.find(message => message.id === payload.assistantMessageId)
             if (assistantMessage) {
               assistantMessage.status = payload.status || 'completed'
@@ -495,6 +647,7 @@ export const useAiChatStore = defineStore('aiChat', () => {
           }
 
           if (payload.type === 'error') {
+            flushPendingDelta()
             const assistantMessage = messages.value.find(message => message.id === payload.assistantMessageId)
             const errorMessage = payload.message || 'AI 回复失败，请重试。'
             if (assistantMessage) {
@@ -534,12 +687,14 @@ export const useAiChatStore = defineStore('aiChat', () => {
       if (buffer.trim()) {
         processChunk(buffer)
       }
+      flushPendingDelta()
 
       await loadSessions()
       if (noteMutated && currentNoteInfo.noteId && currentNoteInfo.noteName) {
         currentNoteInfo.noteName = currentNoteInfo.noteName
       }
     } catch (error: any) {
+      flushPendingDelta()
       debugLog('send error', {
         name: error?.name,
         message: error?.message,
@@ -568,6 +723,7 @@ export const useAiChatStore = defineStore('aiChat', () => {
         messages.value = messages.value.filter(message => message.id !== tempUserMessageId && message.id !== tempAssistantMessageId)
       }
     } finally {
+      flushPendingDelta()
       loading.value = false
       abortController.value = null
       streamingMessageId.value = null
@@ -592,6 +748,7 @@ export const useAiChatStore = defineStore('aiChat', () => {
     loadSessions,
     loadSessionDetail,
     createEmptySession,
+    resetClientState,
     addContextNote,
     removeContextNote,
     clearAllSessions,

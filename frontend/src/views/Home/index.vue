@@ -1,15 +1,22 @@
 <script setup lang="ts">
 import {useRouter} from "vue-router";
-import {onMounted, ref} from "vue";
+import {onBeforeUnmount, onMounted, ref} from "vue";
 
 const router = useRouter();
 const isScrolled = ref(false);
 
+const updateScrollState = () => {
+  isScrolled.value = window.scrollY > 20;
+};
+
 // 监听滚动以改变导航栏样式
 onMounted(() => {
-  window.addEventListener('scroll', () => {
-    isScrolled.value = window.scrollY > 20;
-  });
+  updateScrollState();
+  window.addEventListener('scroll', updateScrollState, {passive: true});
+});
+
+onBeforeUnmount(() => {
+  window.removeEventListener('scroll', updateScrollState);
 });
 </script>
 

@@ -1,6 +1,16 @@
+<!--
+@file NoteCommentPage
+@project SlothNote
+@module 用户端 / 笔记评论
+@description 展示当前笔记的评论与回复，并处理回复提交和列表刷新。
+@logic 1. 根据笔记 ID 和评论 revision 取消旧请求并仅提交最新结果；2. 每页渲染 30 条评论；3. 回复成功后发布新的刷新 revision。
+@dependencies Service: GetComments/ReplyComment, Store: currentNoteInfo/UpdateCommentState, date-fns
+@index_tags 笔记评论, 评论分页, 请求竞态, 回复, revision
+@author holic512
+-->
 <script setup lang="ts">
 // =============== 导入区 ===============
-import {onMounted, ref, watch} from 'vue';
+import {computed, onBeforeUnmount, onMounted, ref, watch} from 'vue';
 import {formatDistanceToNow} from 'date-fns';
 import {zhCN} from 'date-fns/locale';
 
@@ -13,7 +23,6 @@ import {
   GetComments,
   IComment
 } from "@/views/User/Main/components/Edit/PageRight/components/NoteComment/service/GetComments";
-import {RightPageModeEnum, useRightPageState} from "@/views/User/Main/components/Edit/Pinia/RightPageState";
 import {useCurrentNoteInfoStore} from "@/views/User/Main/components/Edit/Pinia/currentNoteInfo";
 import {ReplyComment} from "@/views/User/Main/components/Edit/PageRight/components/NoteComment/service/ReplyComment";
 import {ElMessage} from "element-plus";
@@ -31,17 +40,48 @@ const UpdateCommentState = UseUpdateCommentState();
 
 // =============== 数据定义 ===============
 
-// 判断评论内容是否为空
-const isCommentEmpty = ref(false);
-
 // 使用接口约束 ref 显示笔记内容
 const comments = ref<IComment[]>([]);
+const loading = ref(false);
+const currentPage = ref(1);
+const pageSize = 30;
+const pagedComments = computed(() => {
+  const start = (currentPage.value - 1) * pageSize;
+  return comments.value.slice(start, start + pageSize);
+});
+
+let commentRequestId = 0;
+let commentController: AbortController | null = null;
 
 // =============== 基础方法 ===============
 const getComments = async () => {
-  if (currentNoteInfo.noteId != null) {
-    comments.value = await GetComments(currentNoteInfo.noteId)
-    if (comments.value.length != null) isCommentEmpty.value = true;
+  commentController?.abort();
+  const controller = new AbortController();
+  commentController = controller;
+  const requestId = ++commentRequestId;
+  const noteId = currentNoteInfo.noteId;
+
+  if (noteId == null) {
+    comments.value = [];
+    loading.value = false;
+    return;
+  }
+
+  loading.value = true;
+  try {
+    const nextComments = await GetComments(noteId, controller.signal)
+    if (controller.signal.aborted || requestId !== commentRequestId || noteId !== currentNoteInfo.noteId) return;
+
+    comments.value = nextComments;
+    currentPage.value = 1;
+  } catch (error) {
+    if (controller.signal.aborted || requestId !== commentRequestId) return;
+    console.error("加载评论失败", error);
+    comments.value = [];
+    ElMessage.error("加载评论失败");
+  } finally {
+    if (requestId === commentRequestId) loading.value = false;
+    if (commentController === controller) commentController = null;
   }
 }
 
@@ -50,7 +90,7 @@ const getComments = async () => {
 
 // 钩子函数
 onMounted(() => {
-  getComments();
+  void getComments();
 })
 
 // =============== 数据监听 ===============
@@ -58,17 +98,24 @@ onMounted(() => {
 // 监听 当前笔记 是否切换 - 当笔记切换时 加载评论
 watch(() => currentNoteInfo.noteId, (newValue) => {
   if (newValue != null) {
-    getComments();
+    void getComments();
+  } else {
+    commentRequestId += 1;
+    commentController?.abort();
+    comments.value = [];
   }
 })
 
 // 监听 评论是否需要更新
-watch(() => UpdateCommentState.isNeedUpdate, (newValue) => {
-  if (newValue) {
-    getComments();
-    UpdateCommentState.completeUpdate();
-  }
+watch(() => UpdateCommentState.revision, () => {
+  void getComments();
 })
+
+onBeforeUnmount(() => {
+  commentRequestId += 1;
+  commentController?.abort();
+  commentController = null;
+});
 
 
 // =============== 工具方法 ===============
@@ -79,14 +126,25 @@ const formatTime = (date: string) => {
 // =============== 回复功能 ===============
 
 // 定义回复信息
-const newReplyModels = ref({});
+const newReplyModels = ref<Record<number, string>>({});
 
-const handleReply = async (commentId: number, content: any) => {
+const handleReply = async (commentId: number, content?: string) => {
+  const nextContent = content?.trim();
+  if (!nextContent) {
+    ElMessage.warning("回复内容不能为空");
+    return;
+  }
+
   // 调用服务函数
-  const status = await ReplyComment(commentId, content)
+  const status = await ReplyComment(commentId, nextContent)
 
   // 成功后逻辑
-  if (status == 200) ElMessage.success("回复成功")
+  if (status !== 200) {
+    ElMessage.error("回复失败");
+    return;
+  }
+
+  ElMessage.success("回复成功")
   newReplyModels.value[commentId] = "";
   UpdateCommentState.needUpdate();
 };
@@ -95,9 +153,13 @@ const handleReply = async (commentId: number, content: any) => {
 </script>
 
 <template>
-  <el-scrollbar style="height: 100%;width: 100%;" v-if="isCommentEmpty">
+  <div v-if="loading" class="comment-loading">
+    <el-skeleton :rows="5" animated/>
+  </div>
 
-    <div v-for="comment in comments" :key="comment.id" class="comment-item">
+  <el-scrollbar style="height: 100%;width: 100%;" v-else-if="comments.length">
+
+    <div v-for="comment in pagedComments" :key="comment.id" class="comment-item">
 
       <!-- 主评论区域 -->
       <div class="comment-main">
@@ -160,6 +222,15 @@ const handleReply = async (commentId: number, content: any) => {
       </div>
 
     </div>
+
+    <el-pagination
+        v-if="comments.length > pageSize"
+        v-model:current-page="currentPage"
+        :page-size="pageSize"
+        :total="comments.length"
+        layout="prev, pager, next"
+        class="comment-pagination"
+    />
   </el-scrollbar>
 
   <div style="height: 100%;display: flex;justify-content: center;align-items: center;flex-direction: column" v-else>
@@ -175,6 +246,15 @@ const handleReply = async (commentId: number, content: any) => {
 </template>
 
 <style scoped>
+.comment-loading {
+  padding: 20px 16px;
+}
+
+.comment-pagination {
+  justify-content: center;
+  padding: 12px 8px 20px;
+}
+
 /* =============== 主评论样式 =============== */
 .comment-item {
   padding: 16px;

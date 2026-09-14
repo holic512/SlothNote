@@ -9,7 +9,7 @@ export interface SearchParams {
   pageSize: number;
 }
 
-export const searchFolders = async (params: SearchParams) => {
+export const searchFolders = async (params: SearchParams, signal?: AbortSignal) => {
   const response = await axios.post('/admin/folderMm/search', {
     q: params.q,
     isDeleted: params.isDeleted,
@@ -17,6 +17,6 @@ export const searchFolders = async (params: SearchParams) => {
     parentId: params.parentId,
     pageNum: params.pageNum,
     pageSize: params.pageSize,
-  });
+  }, {signal});
   return response.data.data;
 };

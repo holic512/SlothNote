@@ -1,23 +1,25 @@
-// 用于保存 评论更新状态的 pinia
+/**
+ * @file CommentUpdateState
+ * @project SlothNote
+ * @module 用户端 / 评论状态
+ * @description 发布评论列表刷新事件，确保连续新增或回复不会被布尔状态合并丢失。
+ * @logic 每次评论变更递增 revision，评论列表监听版本号并按当前笔记重新加载。
+ * @dependencies Pinia
+ * @index_tags 评论刷新, revision, Pinia, 并发状态
+ * @author holic512
+ */
 import {defineStore} from 'pinia'
 
 export const UseUpdateCommentState = defineStore('UpdateCommentState', {
     state() {
         return {
-            // 是否 需要更新 评论
-            isNeedUpdate: false as boolean,
+            revision: 0,
         }
     },
 
     actions: {
-        // 需要更新评论
         needUpdate(): void {
-            this.isNeedUpdate = true
-        },
-
-        // 已经更新评论
-        completeUpdate(): void {
-            this.isNeedUpdate = false
+            this.revision += 1
         }
     },
 

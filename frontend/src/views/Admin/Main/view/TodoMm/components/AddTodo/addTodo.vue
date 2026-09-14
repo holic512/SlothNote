@@ -6,7 +6,7 @@ import {fetchUserOptions} from '../../../FolderMm/components/TableView/userOptio
 
 const visible = defineModel();
 
-const form = ref<AddTodoForm>({ userId: null, categoryId: null, title: '', description: '', status: 1 });
+const form = ref<AddTodoForm>({ userId: undefined, categoryId: undefined, title: '', description: '', status: 1 });
 const rules = reactive<FormRules<AddTodoForm>>({
   userId: [{ required: true, message: '请选择用户', trigger: 'blur' }],
   title: [{ required: true, message: '请输入标题', trigger: 'blur' }],

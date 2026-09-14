@@ -28,6 +28,7 @@ import { computed, nextTick, onBeforeUnmount, ref } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { useRoute, useRouter } from 'vue-router'
 import { tokenStore } from '@/pinia/token'
+import { ROUTE_PATHS } from '@/router/paths'
 
 const router = useRouter()
 const route = useRoute()
@@ -106,7 +107,7 @@ const handleLogout = async () => {
     })
 
     tokenStore().clearAdminToken()
-    await router.push('/admin/auth/login')
+    await router.push(ROUTE_PATHS.adminLogin)
     ElMessage.success('已退出登录')
   } catch (error) {
     // Cancelled

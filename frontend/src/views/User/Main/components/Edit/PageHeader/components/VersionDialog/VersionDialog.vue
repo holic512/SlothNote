@@ -1,5 +1,15 @@
+<!--
+@file NoteVersionDialog
+@project SlothNote
+@module 用户端 / 笔记历史版本
+@description 展示笔记历史版本、按需加载版本详情并执行恢复。
+@logic 1. 对版本列表和详情分别分配请求序号；2. 笔记或选中版本变化时仅提交最新响应；3. 恢复前后校验笔记与版本仍一致。
+@dependencies Service: noteVersion, Store: currentNoteInfo/SaveNoteState, Editor
+@index_tags 历史版本, 版本详情, 恢复笔记, 请求竞态
+@author holic512
+-->
 <script setup lang="ts">
-import { computed, ref, watch } from 'vue'
+import { computed, onBeforeUnmount, ref, watch } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { useCurrentNoteInfoStore } from '@/views/User/Main/components/Edit/Pinia/currentNoteInfo'
 import { useSaveNoteState } from '@/views/User/Main/components/Edit/Pinia/SaveNoteState'
@@ -14,34 +24,63 @@ const loading = ref(false)
 const versions = ref<NoteVersionRow[]>([])
 const selectedVersionId = ref<number | null>(null)
 const detail = ref<NoteVersionDetail | null>(null)
+let versionsRequestId = 0
+let detailRequestId = 0
 
 const selectedVersion = computed(() => versions.value.find(item => item.id === selectedVersionId.value) || null)
 
 const loadVersions = async () => {
-  if (!currentNoteInfo.noteId) {
+  const noteId = currentNoteInfo.noteId
+  const requestId = ++versionsRequestId
+  detailRequestId += 1
+
+  if (!noteId) {
     versions.value = []
+    selectedVersionId.value = null
     detail.value = null
     return
   }
+
+  versions.value = []
+  selectedVersionId.value = null
+  detail.value = null
   loading.value = true
   try {
-    versions.value = await fetchNoteVersions(currentNoteInfo.noteId)
-    selectedVersionId.value = versions.value[0]?.id ?? null
+    const nextVersions = await fetchNoteVersions(noteId)
+    if (requestId !== versionsRequestId || !visible.value || noteId !== currentNoteInfo.noteId) return
+
+    versions.value = nextVersions
+    selectedVersionId.value = nextVersions[0]?.id ?? null
   } finally {
-    loading.value = false
+    if (requestId === versionsRequestId) loading.value = false
   }
 }
 
 const loadDetail = async () => {
-  if (!currentNoteInfo.noteId || !selectedVersionId.value) {
+  const noteId = currentNoteInfo.noteId
+  const versionId = selectedVersionId.value
+  const requestId = ++detailRequestId
+
+  if (!noteId || !versionId) {
     detail.value = null
     return
   }
-  detail.value = await fetchNoteVersionDetail(currentNoteInfo.noteId, selectedVersionId.value)
+
+  const nextDetail = await fetchNoteVersionDetail(noteId, versionId)
+  if (
+    requestId !== detailRequestId
+    || !visible.value
+    || noteId !== currentNoteInfo.noteId
+    || versionId !== selectedVersionId.value
+  ) return
+
+  detail.value = nextDetail
 }
 
 const restore = async () => {
-  if (!currentNoteInfo.noteId || !selectedVersionId.value || !detail.value) {
+  const noteId = currentNoteInfo.noteId
+  const versionId = selectedVersionId.value
+  if (!noteId || !versionId || detail.value?.id !== versionId) {
     return
   }
 
@@ -51,7 +90,9 @@ const restore = async () => {
     { type: 'warning' }
   )
 
-  const response = await restoreNoteVersion(currentNoteInfo.noteId, selectedVersionId.value)
+  if (noteId !== currentNoteInfo.noteId || versionId !== selectedVersionId.value) return
+
+  const response = await restoreNoteVersion(noteId, versionId)
   if (response?.status !== 200) {
     ElMessage.error(response?.message || '恢复失败')
     return
@@ -68,14 +109,23 @@ const restore = async () => {
   }
 }
 
-watch(visible, async (newVisible) => {
+watch([visible, () => currentNoteInfo.noteId], async ([newVisible]) => {
   if (newVisible) {
     await loadVersions()
+  } else {
+    versionsRequestId += 1
+    detailRequestId += 1
+    loading.value = false
   }
 })
 
 watch(selectedVersionId, async () => {
   await loadDetail()
+})
+
+onBeforeUnmount(() => {
+  versionsRequestId += 1
+  detailRequestId += 1
 })
 </script>
 

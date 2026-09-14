@@ -1,37 +1,51 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
 import { fetchAiSessionDetail, type AiSessionDetail } from '../../service/aiMm'
+import { useLatestRequest } from '../../../../composables/useAdminListRequest'
 
 const visible = defineModel<boolean>('visible', { required: true })
 const props = defineProps<{ sessionId?: number }>()
 
 const loading = ref(false)
 const detail = ref<AiSessionDetail | null>(null)
+const detailRequest = useLatestRequest()
+const messagePage = ref(1)
+const MESSAGE_PAGE_SIZE = 20
 
-watch(() => props.sessionId, async (newId) => {
-  if (!visible.value || !newId) {
+watch([visible, () => props.sessionId], async ([newVisible, newId], _previous, onCleanup) => {
+  let active = true
+  onCleanup(() => {
+    active = false
+  })
+
+  if (!newVisible || !newId) {
+    detailRequest.invalidate()
+    detail.value = null
+    messagePage.value = 1
+    loading.value = false
     return
   }
+
   loading.value = true
   try {
-    detail.value = await fetchAiSessionDetail(newId)
+    await detailRequest.runLatest(
+        (signal) => fetchAiSessionDetail(newId, signal),
+        (result) => {
+          detail.value = result
+          messagePage.value = 1
+        },
+    )
   } finally {
-    loading.value = false
+    if (active) loading.value = false
   }
 }, { immediate: true })
 
-watch(visible, async (newVisible) => {
-  if (newVisible && props.sessionId) {
-    loading.value = true
-    try {
-      detail.value = await fetchAiSessionDetail(props.sessionId)
-    } finally {
-      loading.value = false
-    }
-  }
-})
-
 const title = computed(() => detail.value?.session?.title || 'AI 会话详情')
+const pagedMessages = computed(() => {
+  const messages = detail.value?.messages || []
+  const start = (messagePage.value - 1) * MESSAGE_PAGE_SIZE
+  return messages.slice(start, start + MESSAGE_PAGE_SIZE)
+})
 </script>
 
 <template>
@@ -63,7 +77,7 @@ const title = computed(() => detail.value?.session?.title || 'AI 会话详情')
         <div class="section-title">消息记录</div>
         <el-scrollbar max-height="420px">
           <div class="message-list">
-            <div v-for="message in detail.messages" :key="message.id" :class="['message-item', message.role]">
+            <div v-for="message in pagedMessages" :key="message.id" :class="['message-item', message.role]">
               <div class="message-head">
                 <Tag :value="message.role" :severity="message.role === 'assistant' ? 'info' : 'contrast'" />
                 <Tag :value="message.messageType" severity="secondary" />
@@ -74,6 +88,16 @@ const title = computed(() => detail.value?.session?.title || 'AI 会话详情')
             </div>
           </div>
         </el-scrollbar>
+        <el-pagination
+            v-if="detail.messages.length > MESSAGE_PAGE_SIZE"
+            v-model:current-page="messagePage"
+            :page-size="MESSAGE_PAGE_SIZE"
+            :total="detail.messages.length"
+            layout="total, prev, pager, next"
+            small
+            background
+            class="message-pagination"
+        />
       </div>
     </div>
   </el-dialog>
@@ -158,5 +182,10 @@ const title = computed(() => detail.value?.session?.title || 'AI 会话详情')
   font-family: inherit;
   font-size: 13px;
   line-height: 1.6;
+}
+
+.message-pagination {
+  justify-content: flex-end;
+  margin-top: 14px;
 }
 </style>

@@ -15,17 +15,33 @@ const userOptions = ref<UserOption[]>([]);
 const folderOptions = ref<FolderOption[]>([]);
 const currentFolderOption = ref<FolderOption | null>(null);
 const contentError = ref<string>('');
-const previewState = computed(() => {
+const folderIdModel = computed<number | undefined>({
+  get: () => detail.value?.folderId ?? undefined,
+  set: (value) => {
+    if (detail.value) detail.value.folderId = value ?? null;
+  },
+});
+const previewState = ref({invalid: false, formatted: ''});
+const previewStale = ref(false);
+
+const updatePreview = () => {
   if (!content.value) {
-    return { invalid: false, formatted: '' };
+    previewState.value = {invalid: false, formatted: ''};
+    previewStale.value = false;
+    return;
   }
   try {
     const parsed = JSON.parse(content.value);
-    return { invalid: false, formatted: JSON.stringify(parsed, null, 2) };
+    previewState.value = {invalid: false, formatted: JSON.stringify(parsed, null, 2)};
   } catch {
-    return { invalid: true, formatted: content.value };
+    previewState.value = {invalid: true, formatted: content.value};
   }
-});
+  previewStale.value = false;
+};
+
+const markPreviewStale = () => {
+  previewStale.value = true;
+};
 
 watch(visible, async (v) => {
   if (v && noteId.value) {
@@ -33,6 +49,7 @@ watch(visible, async (v) => {
     detail.value = response.data;
     content.value = response.content;
     contentError.value = '';
+    updatePreview();
     userOptions.value = await fetchUserOptions(undefined, 50);
     await loadFolderOptions(undefined, true);
   }
@@ -77,11 +94,13 @@ const loadFolderOptions = async (q?: string, includeCurrent = false) => {
 const formatJson = () => {
   if (!content.value.trim()) {
     contentError.value = '';
+    updatePreview();
     return;
   }
   try {
     content.value = JSON.stringify(JSON.parse(content.value), null, 2);
     contentError.value = '';
+    updatePreview();
   } catch {
     contentError.value = '内容不是合法的 JSON，无法格式化';
   }
@@ -146,7 +165,7 @@ const onSaveContent = async () => {
           </el-select>
         </el-form-item>
         <el-form-item label="文件夹">
-          <el-select v-model="detail.folderId" style="width: 100%" filterable remote clearable :disabled="!detail.userId" :remote-method="(q:string)=>loadFolderOptions(q, true)" :reserve-keyword="true" @visible-change="(v:boolean)=>{ if(v) loadFolderOptions(undefined, true) }">
+          <el-select v-model="folderIdModel" style="width: 100%" filterable remote clearable :disabled="!detail.userId" :remote-method="(q:string)=>loadFolderOptions(q, true)" :reserve-keyword="true" @visible-change="(v:boolean)=>{ if(v) loadFolderOptions(undefined, true) }">
             <el-option v-for="folder in folderOptions" :key="folder.id" :label="`${folder.folderName} (#${folder.id})`" :value="folder.id" />
             <el-option v-if="currentFolderOption" :key="`current-${currentFolderOption.id}`" :label="`${currentFolderOption.folderName}`" :value="currentFolderOption.id" />
           </el-select>
@@ -176,11 +195,16 @@ const onSaveContent = async () => {
       <el-divider />
       <el-form label-width="120px" class="form-container" label-position="left">
         <el-form-item label="内容(JSON)">
-          <el-input v-model="content" type="textarea" :rows="10" placeholder="tiptap JSON" />
+          <el-input v-model="content" type="textarea" :rows="10" placeholder="tiptap JSON" @input="markPreviewStale" />
         </el-form-item>
         <el-form-item label="预览">
           <div class="preview-panel">
-            <el-tag :type="previewState.invalid ? 'danger' : 'success'">{{ previewState.invalid ? 'JSON异常' : 'JSON有效' }}</el-tag>
+            <div class="preview-header">
+              <el-tag :type="previewStale ? 'warning' : previewState.invalid ? 'danger' : 'success'">
+                {{ previewStale ? '预览待更新' : previewState.invalid ? 'JSON异常' : 'JSON有效' }}
+              </el-tag>
+              <el-button size="small" @click="updatePreview">更新预览</el-button>
+            </div>
             <pre class="preview-text">{{ previewState.formatted }}</pre>
           </div>
         </el-form-item>
@@ -204,5 +228,6 @@ const onSaveContent = async () => {
 .meta-row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
 .meta-text { color: #64748b; font-size: 13px; }
 .preview-panel { width: 100%; border: 1px solid #e2e8f0; border-radius: 8px; padding: 12px; background: #f8fafc; }
+.preview-header { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
 .preview-text { margin: 12px 0 0; white-space: pre-wrap; word-break: break-word; max-height: 240px; overflow: auto; }
 </style>

@@ -6,7 +6,7 @@ import {fetchUserOptions} from '../../../FolderMm/components/TableView/userOptio
 
 const visible = defineModel();
 
-const form = ref<AddFavoriteNoteForm>({ userId: null, noteId: null, favoriteFolderId: null, favoriteStatus: true, noteRemark: '' });
+const form = ref<AddFavoriteNoteForm>({ userId: undefined, noteId: undefined, favoriteFolderId: undefined, favoriteStatus: true, noteRemark: '' });
 const rules = reactive<FormRules<AddFavoriteNoteForm>>({
   userId: [{ required: true, message: '请选择用户', trigger: 'blur' }],
   noteId: [{ required: true, message: '请输入笔记ID', trigger: 'blur' }],

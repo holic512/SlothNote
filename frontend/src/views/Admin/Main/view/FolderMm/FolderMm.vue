@@ -1,8 +1,6 @@
 <script setup lang="ts">
 import {computed, onBeforeUnmount, onMounted, ref} from 'vue';
 import axios from '../../../../../axios'; // 请确认路径
-import fetchInitialPageData from './components/TableView/fetchInitialPageData';
-import {fetchPageData} from './components/TableView/fetchPageData';
 import {calculateRows} from './components/TableView/calculateRows';
 import {ElMessage} from 'element-plus';
 import {fetchUserOptions} from './components/TableView/userOptions';
@@ -10,12 +8,13 @@ import {BatchDeleteFolder} from './components/TableView/batchDeleteFolder';
 import {searchFolders} from './components/TableView/searchFolders';
 import AddFolder from './components/AddFolder/addFolder.vue';
 import FolderDetail from './components/FolderDetail/folderDetail.vue';
+import {getMaxPage, useLatestRequest} from '../../composables/useAdminListRequest';
 
 // --- 响应式折叠控制 ---
 const showFilters = ref(false);
 
 const value1 = ref<string | null>(null);
-const isDeletedFilter = ref<number | null>(null);
+const isDeletedFilter = ref<number | undefined>(undefined);
 const parentIdFilter = ref<number | undefined>(undefined);
 const userIdFilter = ref<number | undefined>(undefined);
 const userOptions = ref<any[]>([]);
@@ -27,35 +26,69 @@ const folderCount = ref(0);
 const maxPage = ref(1);
 const nowPage = ref(1);
 const products = ref<any[]>([]);
+const selectedProduct = ref<any[]>([]);
+const listRequest = useLatestRequest();
+
+const loadFolders = async (page = nowPage.value) => {
+  const pageSize = nowRow.value;
+  const requestedPage = Math.max(1, page);
+  nowPage.value = requestedPage;
+  const filters = {
+    q: value1.value || undefined,
+    isDeleted: isDeletedFilter.value,
+    userId: userIdFilter.value,
+    parentId: parentIdFilter.value,
+  };
+
+  return listRequest.runLatest(
+      async (signal) => {
+        const requestPage = (pageNum: number) => searchFolders({
+          ...filters,
+          pageNum,
+          pageSize,
+        }, signal);
+        let data = await requestPage(requestedPage);
+        const resolvedMaxPage = getMaxPage(data.total, pageSize);
+        const resolvedPage = Math.min(requestedPage, resolvedMaxPage);
+        if (resolvedPage !== requestedPage) data = await requestPage(resolvedPage);
+        return {data, resolvedMaxPage, resolvedPage};
+      },
+      ({data, resolvedMaxPage, resolvedPage}) => {
+        folderCount.value = data.total;
+        maxPage.value = resolvedMaxPage;
+        nowPage.value = resolvedPage;
+        products.value = data.list;
+        selectedProduct.value = [];
+      },
+  );
+};
 
 onMounted(async () => {
   nowRow.value = calculateRows(minHeight, stepHeight);
-  await axios.get('admin/folderMm/getFolderCount').then((response) => {
-    folderCount.value = response.data.data;
-    maxPage.value = Math.ceil(folderCount.value / nowRow.value);
-  });
-  products.value = await fetchInitialPageData(nowRow.value);
+  await Promise.all([
+    loadFolders(),
+    fetchUserOptions(undefined, 50).then((options) => {
+      userOptions.value = options;
+    }),
+  ]);
   window.addEventListener('resize', handleResize);
-  userOptions.value = await fetchUserOptions(undefined, 50);
 });
 
 onBeforeUnmount(() => {
   window.removeEventListener('resize', handleResize);
+  if (resizeTimeout) clearTimeout(resizeTimeout);
 });
 
 const DEBOUNCE_DELAY = 100;
-let resizeTimeout: ReturnType<typeof setTimeout>;
-const handleResize = async () => {
-  clearTimeout(resizeTimeout);
+let resizeTimeout: ReturnType<typeof setTimeout> | undefined;
+const handleResize = () => {
+  if (resizeTimeout) clearTimeout(resizeTimeout);
   resizeTimeout = setTimeout(async () => {
+    resizeTimeout = undefined;
     const rows = calculateRows(minHeight, stepHeight);
     if (rows !== nowRow.value) {
       nowRow.value = rows;
-      maxPage.value = Math.ceil(folderCount.value / nowRow.value);
-      if (nowPage.value > maxPage.value) {
-        nowPage.value = maxPage.value;
-      }
-      products.value = await fetchPageData(nowRow.value, nowPage.value);
+      await loadFolders();
     }
   }, DEBOUNCE_DELAY);
 };
@@ -67,32 +100,28 @@ const turnPage = async (turn: pageTurn) => {
   switch (turn) {
     case pageTurn.FirstPage:
       if (nowPage.value != 1) {
-        nowPage.value = 1;
-        products.value = await fetchPageData(nowRow.value, nowPage.value);
+        await loadFolders(1);
       } else {
         ElMessage.warning('已经是第一页了');
       }
       break;
     case pageTurn.PreviousPage:
       if (nowPage.value > 1) {
-        nowPage.value = nowPage.value - 1;
-        products.value = await fetchPageData(nowRow.value, nowPage.value);
+        await loadFolders(nowPage.value - 1);
       } else {
         ElMessage.warning('已经是第一页了');
       }
       break;
     case pageTurn.NextPage:
       if (nowPage.value < maxPage.value) {
-        nowPage.value = nowPage.value + 1;
-        products.value = await fetchPageData(nowRow.value, nowPage.value);
+        await loadFolders(nowPage.value + 1);
       } else {
         ElMessage.warning('已经是最后一页了');
       }
       break;
     case pageTurn.LastPage:
       if (nowPage.value != maxPage.value) {
-        nowPage.value = maxPage.value;
-        products.value = await fetchPageData(nowRow.value, nowPage.value);
+        await loadFolders(maxPage.value);
       } else {
         ElMessage.warning('已经是最后一页了');
       }
@@ -103,19 +132,9 @@ const turnPage = async (turn: pageTurn) => {
 };
 
 const refresh = async () => {
-  await axios.get('admin/folderMm/getFolderCount').then((response) => {
-    folderCount.value = response.data.data;
-    maxPage.value = Math.ceil(folderCount.value / nowRow.value);
-  });
-  if (maxPage.value < nowPage.value) {
-    products.value = await fetchPageData(nowRow.value, maxPage.value);
-  } else {
-    products.value = await fetchPageData(nowRow.value, nowPage.value);
-  }
-  ElMessage.success('刷新成功');
+  const committed = await loadFolders();
+  if (committed) ElMessage.success('刷新成功');
 };
-
-const selectedProduct = ref();
 
 const batchDelete = async () => {
   if (!selectedProduct.value || selectedProduct.value.length === 0) {
@@ -126,24 +145,15 @@ const batchDelete = async () => {
   const status = await BatchDeleteFolder(ids);
   if (status === 200) {
     ElMessage.success('删除成功');
-    products.value = await fetchPageData(nowRow.value, nowPage.value);
+    await loadFolders();
   } else {
     ElMessage.error('无法连接服务器');
   }
 };
 
 const doSearch = async () => {
-  const data = await searchFolders({
-    q: value1.value || undefined,
-    isDeleted: isDeletedFilter.value === null ? undefined : isDeletedFilter.value,
-    userId: userIdFilter.value === null ? undefined : userIdFilter.value,
-    parentId: parentIdFilter.value === null ? undefined : parentIdFilter.value,
-    pageNum: nowPage.value,
-    pageSize: nowRow.value,
-  });
-  products.value = data.list;
-  folderCount.value = data.total;
-  maxPage.value = Math.ceil(folderCount.value / nowRow.value);
+  nowPage.value = 1;
+  await loadFolders(1);
 };
 
 const addFolderVisible = ref<boolean>(false);
@@ -152,6 +162,16 @@ const currentFolderId = ref<number | null>(null);
 const openDetail = (id: number) => {
   currentFolderId.value = id;
   folderDetailVisible.value = true;
+};
+
+const handleDeleteFolder = async (id: number) => {
+  const response = await axios.delete('admin/folderMm/delete', {params: {id}});
+  if (response.data.status === 200) {
+    ElMessage.success('删除成功');
+    await loadFolders();
+  } else {
+    ElMessage.error('无法连接服务器');
+  }
 };
 
 const getDeletedMsg = (d: number) => (d === 1 ? '已删除' : '正常');
@@ -225,7 +245,6 @@ const getDeletedType = (d: number) => (d === 1 ? 'danger' : 'success');
         <transition name="fade-slide">
           <div v-if="showFilters" class="toolbar-filter-panel">
             <el-select v-model="isDeletedFilter" placeholder="删除状态" style="width: 120px" clearable>
-              <el-option label="全部" :value="null" />
               <el-option label="正常" :value="0" />
               <el-option label="已删除" :value="1" />
             </el-select>
@@ -260,7 +279,7 @@ const getDeletedType = (d: number) => (d === 1 ? 'danger' : 'success');
             <template #body="{ data }">
               <div style="display: flex; gap: 6px; align-items: center;">
                 <Button type="button" icon="Eye" rounded outlined style=" height: 32px;width: 32px" @click="openDetail(data.id)"/>
-                <Button type="button" icon="Trash" rounded outlined style=" height: 32px;width: 32px" @click="(async()=>{ const response = await axios.delete('admin/folderMm/delete', { params: { id: data.id } }); if(response.data.status===200){ ElMessage.success('删除成功'); products = await fetchPageData(nowRow, nowPage) } else { ElMessage.error('无法连接服务器') } })()"/>
+                <Button type="button" icon="Trash" rounded outlined style=" height: 32px;width: 32px" @click="handleDeleteFolder(data.id)"/>
               </div>
             </template>
           </Column>
