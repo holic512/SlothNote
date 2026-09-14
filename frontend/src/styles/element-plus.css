@@ -13,12 +13,12 @@
 }
 
 .el-button--primary {
-  --el-button-bg-color: var(--sn-primary);
-  --el-button-border-color: var(--sn-primary);
-  --el-button-hover-bg-color: var(--sn-primary-hover);
-  --el-button-hover-border-color: var(--sn-primary-hover);
-  --el-button-active-bg-color: var(--sn-primary-active);
-  --el-button-active-border-color: var(--sn-primary-active);
+  --el-button-bg-color: var(--sn-primary) !important;
+  --el-button-border-color: var(--sn-primary) !important;
+  --el-button-hover-bg-color: var(--sn-primary-hover) !important;
+  --el-button-hover-border-color: var(--sn-primary-hover) !important;
+  --el-button-active-bg-color: var(--sn-primary-active) !important;
+  --el-button-active-border-color: var(--sn-primary-active) !important;
 }
 
 .el-button.is-text:not(.is-disabled):hover {

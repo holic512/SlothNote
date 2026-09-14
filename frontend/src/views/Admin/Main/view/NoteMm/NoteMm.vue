@@ -219,7 +219,7 @@ const handleSingleRestore = async (id: number) => {
 
 <template>
   <el-scrollbar height="100%">
-    <div class="common-layout">
+    <div class="common-layout admin-list-page">
       <!-- 响应式工具栏 -->
       <div class="responsive-toolbar">
         <!-- 第一行：常用操作 -->

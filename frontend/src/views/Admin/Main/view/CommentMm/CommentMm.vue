@@ -151,7 +151,7 @@ const handleDeleteComment = async (id: number) => {
 
 <template>
   <el-scrollbar height="100%">
-    <div class="common-layout">
+    <div class="common-layout admin-list-page">
       <div class="responsive-toolbar">
         <div class="toolbar-top">
           <div class="group-left">

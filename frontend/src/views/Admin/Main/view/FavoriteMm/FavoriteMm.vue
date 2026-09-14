@@ -286,7 +286,7 @@ const openNoteDetail = (id: number) => { currentNoteId.value = id; noteDetailVis
 
 <template>
   <el-scrollbar height="100%">
-    <div class="common-layout">
+    <div class="common-layout admin-list-page">
       <el-tabs v-model="activeTab" type="card">
         <!-- ================== FOLDER TAB ================== -->
         <el-tab-pane label="收藏文件夹" name="folder">

@@ -621,13 +621,13 @@ onMounted(() => {
 
 <style scoped>
 .setting-scrollbar {
-  background: #f5f7fb;
+  background: var(--sn-bg-page);
 }
 
 .setting-page {
   min-height: 100%;
   padding: 24px;
-  color: #1f2937;
+  color: var(--sn-text-primary);
 }
 
 .setting-header {
@@ -642,21 +642,21 @@ onMounted(() => {
 .panel-head h2,
 .danger-zone h3 {
   margin: 0;
-  color: #111827;
+  color: var(--sn-text-primary);
 }
 
 .setting-header p,
 .panel-head p,
 .danger-zone p {
   margin: 6px 0 0;
-  color: #667085;
+  color: var(--sn-text-muted);
   line-height: 1.6;
 }
 
 .setting-tabs {
-  border-radius: 8px;
-  background: #ffffff;
-  border: 1px solid #e5e7eb;
+  border-radius: var(--sn-radius-lg);
+  background: var(--sn-bg-surface);
+  border: 1px solid var(--sn-border);
   padding: 14px 18px 18px;
 }
 
@@ -676,7 +676,7 @@ onMounted(() => {
   align-items: flex-start;
   gap: 16px;
   padding-bottom: 16px;
-  border-bottom: 1px solid #eef0f4;
+  border-bottom: 1px solid var(--sn-border);
   margin-bottom: 18px;
 }
 
@@ -717,9 +717,9 @@ onMounted(() => {
   gap: 10px;
   padding: 12px 14px;
   margin: 4px 0 18px;
-  border: 1px solid #eef0f4;
-  border-radius: 8px;
-  background: #fafbfc;
+  border: 1px solid var(--sn-border);
+  border-radius: var(--sn-radius-lg);
+  background: var(--sn-bg-muted);
 }
 
 .test-box {
@@ -745,9 +745,9 @@ onMounted(() => {
 .total-pill {
   min-width: 132px;
   padding: 10px 14px;
-  border-radius: 8px;
-  background: #111827;
-  color: #ffffff;
+  border-radius: var(--sn-radius-lg);
+  background: var(--sn-color-black);
+  color: var(--sn-color-white);
   display: flex;
   flex-direction: column;
   align-items: flex-end;

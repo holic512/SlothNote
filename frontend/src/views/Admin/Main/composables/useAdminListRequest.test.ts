@@ -73,4 +73,16 @@ describe('useLatestRequest', () => {
         await expect(pendingRun).resolves.toBe(false);
         expect(commit).not.toHaveBeenCalled();
     });
+
+    it('contains a latest request failure so a page lifecycle can remain rendered', async () => {
+        vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+        const commit = vi.fn();
+        const {runLatest} = useLatestRequest();
+
+        await expect(runLatest(
+            () => Promise.reject(new Error('network failed')),
+            commit,
+        )).resolves.toBe(false);
+        expect(commit).not.toHaveBeenCalled();
+    });
 });

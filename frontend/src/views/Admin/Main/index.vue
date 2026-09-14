@@ -3,7 +3,7 @@
 @project SlothNote
 @module 管理后台 / 主框架
 @description 提供管理后台侧边栏、顶部栏和子路由页面承载容器。
-@logic 1. 根据当前路由同步菜单选中态；2. 菜单点击触发路由跳转；3. 使用 Element Plus v-loading 固定显示页面加载态。
+@logic 1. 根据当前路由同步菜单选中态与页面分类；2. 菜单点击触发路由跳转；3. 缓存已访问管理页，保持切换期间内容稳定。
 @dependencies VueRouter: useRoute/useRouter, Pinia: tokenStore, ElementPlus: Menu/Container/Icon
 @index_tags 后台布局, 菜单切换, 路由视图, 异步页面加载
 @author holic512
@@ -24,7 +24,7 @@ import {
   User,
   SwitchButton
 } from '@element-plus/icons-vue'
-import { computed, nextTick, onBeforeUnmount, ref } from 'vue'
+import { computed, ref } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { useRoute, useRouter } from 'vue-router'
 import { tokenStore } from '@/pinia/token'
@@ -33,9 +33,6 @@ import { ROUTE_PATHS } from '@/router/paths'
 const router = useRouter()
 const route = useRoute()
 const isCollapsed = ref(false)
-const isRouteLoading = ref(false)
-let loadingTimer: number | undefined
-
 type MenuItem = {
   index: string
   title: string
@@ -43,17 +40,40 @@ type MenuItem = {
   alias?: string[]
 }
 
-const menuItems: MenuItem[] = [
-  { index: '/admin/main/home', title: '仪表盘', icon: Grid, alias: ['/admin/main', '/admin/main/dashboardMm'] },
-  { index: '/admin/main/userMm', title: '用户管理', icon: User },
-  { index: '/admin/main/noteMm', title: '笔记管理', icon: Document },
-  { index: '/admin/main/commentMm', title: '评论管理', icon: ChatDotRound },
-  { index: '/admin/main/folderMm', title: '文件夹管理', icon: Folder },
-  { index: '/admin/main/favoriteMm', title: '收藏管理', icon: Star },
-  { index: '/admin/main/todoMm', title: '待办管理', icon: Checked },
-  { index: '/admin/main/aiMm', title: 'AI记录', icon: Cpu },
-  { index: '/admin/main/setting', title: '系统设置', icon: Setting },
+type MenuGroup = {
+  title: string
+  items: MenuItem[]
+}
+
+const menuGroups: MenuGroup[] = [
+  {
+    title: '系统概览',
+    items: [
+      { index: '/admin/main/home', title: '仪表盘', icon: Grid, alias: ['/admin/main', '/admin/main/dashboardMm'] },
+    ],
+  },
+  {
+    title: '内容与用户',
+    items: [
+      { index: '/admin/main/userMm', title: '用户管理', icon: User },
+      { index: '/admin/main/noteMm', title: '笔记管理', icon: Document },
+      { index: '/admin/main/commentMm', title: '评论管理', icon: ChatDotRound },
+      { index: '/admin/main/folderMm', title: '文件夹管理', icon: Folder },
+      { index: '/admin/main/favoriteMm', title: '收藏管理', icon: Star },
+      { index: '/admin/main/todoMm', title: '待办管理', icon: Checked },
+    ],
+  },
+  {
+    title: '平台运行',
+    items: [
+      { index: '/admin/main/aiMm', title: 'AI 记录', icon: Cpu },
+      { index: '/admin/main/setting', title: '系统设置', icon: Setting },
+    ],
+  },
 ]
+
+const menuItems = menuGroups.flatMap((group) => group.items)
+const cachedAdminViewNames = ['DashboardMm', 'UserMm', 'NoteMm', 'CommentMm', 'FolderMm', 'FavoriteMm', 'TodoMm', 'AiMm', 'Setting']
 
 const activeMenu = computed(() => {
   const matched = menuItems.find((item) => item.index === route.path || item.alias?.includes(route.path))
@@ -61,35 +81,17 @@ const activeMenu = computed(() => {
 })
 
 const currentTitle = computed(() => (route.meta.title as string) ?? '管理后台')
+const currentCategory = computed(() => (route.meta.category as string) ?? '管理空间')
 const currentSubtitle = computed(() => (route.meta.subtitle as string) ?? '')
-
-const showRouteLoading = () => {
-  if (loadingTimer) {
-    window.clearTimeout(loadingTimer)
-    loadingTimer = undefined
-  }
-  isRouteLoading.value = true
-}
-
-const hideRouteLoading = async () => {
-  await nextTick()
-  loadingTimer = window.setTimeout(() => {
-    isRouteLoading.value = false
-    loadingTimer = undefined
-  }, 120)
-}
 
 const handleSelect = async (index: string) => {
   if (index === route.path) {
     return
   }
 
-  showRouteLoading()
   try {
     await router.push(index)
-    await hideRouteLoading()
   } catch (error) {
-    isRouteLoading.value = false
     ElMessage.error('页面切换失败，请稍后重试')
   }
 }
@@ -114,11 +116,6 @@ const handleLogout = async () => {
   }
 }
 
-onBeforeUnmount(() => {
-  if (loadingTimer) {
-    window.clearTimeout(loadingTimer)
-  }
-})
 </script>
 
 <template>
@@ -132,7 +129,7 @@ onBeforeUnmount(() => {
           </div>
           <div v-show="!isCollapsed" class="brand-text">
             <strong>SlothNote</strong>
-            <span>Admin Console</span>
+            <span>管理空间</span>
           </div>
         </div>
 
@@ -144,12 +141,15 @@ onBeforeUnmount(() => {
               class="admin-menu"
               @select="handleSelect"
           >
-            <el-menu-item v-for="item in menuItems" :key="item.index" :index="item.index">
-              <el-icon><component :is="item.icon" /></el-icon>
-              <template #title>
-                <span>{{ item.title }}</span>
-              </template>
-            </el-menu-item>
+            <template v-for="group in menuGroups" :key="group.title">
+              <p v-show="!isCollapsed" class="menu-group-title">{{ group.title }}</p>
+              <el-menu-item v-for="item in group.items" :key="item.index" :index="item.index">
+                <el-icon><component :is="item.icon" /></el-icon>
+                <template #title>
+                  <span>{{ item.title }}</span>
+                </template>
+              </el-menu-item>
+            </template>
           </el-menu>
         </el-scrollbar>
       </el-aside>
@@ -166,17 +166,16 @@ onBeforeUnmount(() => {
             </div>
 
             <div class="page-header-info">
+              <span class="page-category">{{ currentCategory }}</span>
               <h1 class="page-title">{{ currentTitle }}</h1>
-              <el-tag v-if="currentSubtitle" type="info" effect="plain" size="small" round class="page-subtitle">
-                {{ currentSubtitle }}
-              </el-tag>
+              <span v-if="currentSubtitle" class="page-subtitle">{{ currentSubtitle }}</span>
             </div>
           </div>
 
           <div class="header-right">
             <div class="admin-badge">
               <span class="dot"></span>
-              Super Admin
+              管理员会话
             </div>
             <el-button type="danger" plain round size="small" class="logout-btn" @click="handleLogout">
               <el-icon class="el-icon--left"><SwitchButton /></el-icon>退出登录
@@ -188,14 +187,11 @@ onBeforeUnmount(() => {
         <el-main class="admin-main">
           <el-scrollbar>
             <div class="admin-content-wrapper">
-              <div
-                  class="admin-content"
-                  v-loading="isRouteLoading"
-                  element-loading-text="页面加载中..."
-                  element-loading-background="rgba(255, 255, 255, 0.82)"
-              >
+              <div class="admin-content">
                 <router-view v-slot="{ Component }">
-                  <component :is="Component" v-if="Component" />
+                  <KeepAlive :include="cachedAdminViewNames" :max="9">
+                    <component :is="Component" v-if="Component" :key="route.name" />
+                  </KeepAlive>
                 </router-view>
               </div>
             </div>
@@ -212,7 +208,7 @@ onBeforeUnmount(() => {
   height: 100vh;
   width: 100vw;
   overflow: hidden;
-  background-color: #f6f7f9;
+  background-color: var(--sn-bg-page);
 }
 
 .admin-layout {
@@ -221,12 +217,12 @@ onBeforeUnmount(() => {
 
 /* ================= 侧边栏 ================= */
 .admin-aside {
-  background: #ffffff;
-  border-right: 1px solid #e8edf3;
+  background: var(--sn-bg-surface);
+  border-right: 1px solid var(--sn-border);
   display: flex;
   flex-direction: column;
   transition: width 0.3s cubic-bezier(0.2, 0, 0, 1);
-  box-shadow: 1px 0 4px rgba(15, 23, 42, 0.03);
+  box-shadow: none;
   z-index: 10;
 }
 
@@ -237,7 +233,7 @@ onBeforeUnmount(() => {
   align-items: center;
   justify-content: flex-start;
   gap: 10px;
-  border-bottom: 1px solid #e8edf3;
+  border-bottom: 1px solid var(--sn-border);
   overflow: hidden;
   white-space: nowrap;
 }
@@ -251,14 +247,14 @@ onBeforeUnmount(() => {
   flex-shrink: 0;
   width: 28px;
   height: 28px;
-  border-radius: 7px;
+  border-radius: var(--sn-radius-base);
   display: flex;
   align-items: center;
   justify-content: center;
-  background: linear-gradient(135deg, #409eff, #337ecc);
+  background: var(--sn-color-black);
   color: #ffffff;
   font-size: 16px;
-  box-shadow: 0 3px 8px rgba(64, 158, 255, 0.22);
+  box-shadow: none;
 }
 
 .brand-text {
@@ -268,13 +264,13 @@ onBeforeUnmount(() => {
 }
 
 .brand-text strong {
-  color: #1f2937;
+  color: var(--sn-text-primary);
   font-size: 15px;
   line-height: 1.2;
 }
 
 .brand-text span {
-  color: #9ca3af;
+  color: var(--sn-text-muted);
   font-size: 11px;
   line-height: 1;
 }
@@ -286,45 +282,60 @@ onBeforeUnmount(() => {
 
 .admin-menu {
   border-right: none;
-  padding: 8px 6px;
+  padding: 12px 8px 16px;
+  background: transparent;
+}
+
+.menu-group-title {
+  margin: 14px 8px 6px;
+  color: var(--sn-text-muted);
+  font-size: 11px;
+  font-weight: 500;
+  line-height: 1.2;
+}
+
+.menu-group-title:first-child {
+  margin-top: 2px;
 }
 
 .admin-menu :deep(.el-menu-item) {
-  height: 36px;
-  line-height: 36px;
-  margin-bottom: 3px;
-  border-radius: 6px;
-  color: #4b5563;
+  height: 38px;
+  line-height: 38px;
+  margin-bottom: 2px;
+  border-radius: var(--sn-radius-base);
+  color: var(--sn-text-regular);
   transition: all 0.2s;
 }
 
 .admin-menu :deep(.el-menu-item:hover) {
-  background-color: #f3f4f6;
-  color: #111827;
+  background-color: var(--sn-bg-muted);
+  color: var(--sn-text-primary);
 }
 
 .admin-menu :deep(.el-menu-item.is-active) {
-  background-color: #ebf5ff;
-  color: #409eff;
-  font-weight: 600;
+  background-color: var(--sn-color-black);
+  color: var(--sn-color-white);
+  font-weight: 500;
 }
 
 /* ================= 主体与 Header ================= */
 .admin-main-layout {
   display: flex;
   flex-direction: column;
-  background-color: #f6f7f9;
+  min-width: 0;
+  min-height: 0;
+  background-color: var(--sn-bg-page);
 }
 
 .admin-header {
   height: 52px;
   padding: 0 16px;
-  background: #ffffff;
-  border-bottom: 1px solid #e8edf3;
+  background: var(--sn-bg-surface);
+  border-bottom: 1px solid var(--sn-border);
   display: flex;
   align-items: center;
   justify-content: space-between;
-  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.03);
+  box-shadow: none;
   z-index: 5;
 }
 
@@ -343,27 +354,57 @@ onBeforeUnmount(() => {
   justify-content: center;
   cursor: pointer;
   border-radius: 6px;
-  color: #4b5563;
+  color: var(--sn-text-regular);
   transition: background 0.2s;
 }
 
 .collapse-trigger:hover {
-  background: #f3f4f6;
-  color: #111827;
+  background: var(--sn-bg-muted);
+  color: var(--sn-text-primary);
 }
 
 .page-header-info {
   display: flex;
   align-items: center;
-  gap: 8px;
+  flex-wrap: nowrap;
+  min-height: 28px;
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+}
+
+.page-category {
+  color: var(--sn-text-muted);
+  font-size: 11px;
+  font-weight: 500;
+  line-height: 1;
+  flex: 0 0 auto;
 }
 
 .page-title {
   margin: 0;
+  padding-left: 10px;
+  margin-left: 10px;
+  border-left: 1px solid var(--sn-border-strong);
   font-size: 16px;
   font-weight: 600;
-  color: #111827;
+  color: var(--sn-text-primary);
   line-height: 1;
+  flex: 0 0 auto;
+}
+
+.page-subtitle {
+  min-width: 0;
+  max-width: min(42vw, 540px);
+  margin-left: 10px;
+  padding-left: 10px;
+  overflow: hidden;
+  border-left: 1px solid var(--sn-border);
+  color: var(--sn-text-muted);
+  font-size: 12px;
+  line-height: 1;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .header-right {
@@ -377,47 +418,50 @@ onBeforeUnmount(() => {
   align-items: center;
   gap: 7px;
   font-size: 13px;
-  color: #4b5563;
+  color: var(--sn-text-regular);
   font-weight: 500;
 }
 
 .admin-badge .dot {
   width: 7px;
   height: 7px;
-  background-color: #10b981;
+  background-color: #22a06b;
   border-radius: 50%;
-  box-shadow: 0 0 0 2px rgba(16, 185, 129, 0.16);
+  box-shadow: 0 0 0 2px rgba(34, 160, 107, 0.14);
 }
 
 .logout-btn {
-  border: none;
-  background: #fef2f2;
+  --el-button-text-color: var(--sn-text-regular);
+  --el-button-bg-color: var(--sn-bg-muted);
+  --el-button-border-color: var(--sn-border);
 }
 .logout-btn:hover {
-  background: #fee2e2;
+  --el-button-bg-color: var(--sn-gray-200);
+  --el-button-border-color: var(--sn-border-strong);
 }
 
 /* ================= 内容区 ================= */
 .admin-main {
-  padding: 0; /* padding 移到内部包装器，配合滚动条 */
-  overflow: hidden; /* 让 el-scrollbar 接管滚动 */
+  min-height: 0;
+  padding: 0;
+  overflow: hidden;
   display: flex;
   flex-direction: column;
 }
 
 .admin-content-wrapper {
-  padding: 12px;
+  padding: 16px;
   min-height: 100%;
   box-sizing: border-box;
 }
 
 .admin-content {
-  background: #ffffff;
-  border: 1px solid #edf1f5;
-  border-radius: 8px;
-  box-shadow: 0 2px 5px rgba(15, 23, 42, 0.03);
-  padding: 16px;
-  min-height: calc(100vh - 52px - 24px);
+  min-height: calc(100vh - 52px - 32px);
+}
+
+.admin-main :deep(> .el-scrollbar) {
+  min-height: 0;
+  flex: 1;
 }
 
 /* ================= 移动端适配 ================= */
@@ -442,12 +486,23 @@ onBeforeUnmount(() => {
   }
 
   .admin-content-wrapper {
-    padding: 8px;
+    padding: 12px;
   }
 
   .admin-content {
-    min-height: calc(100vh - 52px - 16px);
-    padding: 12px;
+    min-height: calc(100vh - 52px - 24px);
+  }
+}
+
+@media (max-width: 480px) {
+  .page-category {
+    display: none;
+  }
+
+  .page-title {
+    margin-left: 0;
+    padding-left: 0;
+    border-left: 0;
   }
 }
 </style>

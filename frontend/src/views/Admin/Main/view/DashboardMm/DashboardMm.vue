@@ -120,7 +120,7 @@ const dashboardFacts = computed(() => [
 onMounted(async () => {
   // 并行加载数据，提高速度
   const [metricsData] = await Promise.all([
-    fetchMetrics(),
+    fetchMetrics().catch(() => undefined),
     load()
   ]);
   metrics.value = metricsData || {};
@@ -209,16 +209,21 @@ watch(metrics, () => {
 // --- 业务逻辑 (保持原有接口调用) ---
 
 const load = async () => {
-  const data = await fetchRecent({
-    category: category.value,
-    q: q.value || undefined,
-    userId: userIdFilter.value,
-    isDeleted: deletedFilter.value,
-    pageNum: pageNum.value,
-    pageSize: pageSize.value,
-  });
-  list.value = data.list;
-  total.value = data.total;
+  try {
+    const data = await fetchRecent({
+      category: category.value,
+      q: q.value || undefined,
+      userId: userIdFilter.value,
+      isDeleted: deletedFilter.value,
+      pageNum: pageNum.value,
+      pageSize: pageSize.value,
+    });
+    list.value = data?.list ?? [];
+    total.value = data?.total ?? 0;
+  } catch {
+    list.value = [];
+    total.value = 0;
+  }
 }
 
 const handleDebouncedLoad = debounceImmediate(load, 300);
@@ -412,24 +417,24 @@ const tableColumns = computed(() => {
   gap: 10px;
 }
 .metric-card {
-  background: #ffffff;
-  border: 1px solid #edf1f5;
-  border-radius: 8px;
+  background: var(--sn-bg-surface);
+  border: 1px solid var(--sn-border);
+  border-radius: var(--sn-radius-lg);
   padding: 12px;
   display: flex;
   align-items: center;
   gap: 10px;
-  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.03);
+  box-shadow: var(--sn-shadow-sm);
   transition: border-color 0.2s, box-shadow 0.2s;
 }
 .metric-card:hover {
-  border-color: #dbe5f0;
-  box-shadow: 0 2px 6px rgba(15, 23, 42, 0.05);
+  border-color: var(--sn-border-strong);
+  box-shadow: var(--sn-shadow-md);
 }
 .metric-icon {
   width: 34px;
   height: 34px;
-  border-radius: 7px;
+  border-radius: var(--sn-radius-base);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -437,14 +442,14 @@ const tableColumns = computed(() => {
   font-size: 16px;
 }
 
-.tone-blue .metric-icon { background: #eff6ff; color: #2563eb; }
-.tone-green .metric-icon { background: #f0fdf4; color: #16a34a; }
-.tone-slate .metric-icon { background: #f1f5f9; color: #475569; }
-.tone-amber .metric-icon { background: #fffbeb; color: #d97706; }
-.tone-violet .metric-icon { background: #f5f3ff; color: #7c3aed; }
-.tone-cyan .metric-icon { background: #ecfeff; color: #0891b2; }
-.tone-rose .metric-icon { background: #fff1f2; color: #e11d48; }
-.tone-indigo .metric-icon { background: #eef2ff; color: #4f46e5; }
+.tone-blue .metric-icon,
+.tone-green .metric-icon,
+.tone-slate .metric-icon,
+.tone-amber .metric-icon,
+.tone-violet .metric-icon,
+.tone-cyan .metric-icon,
+.tone-rose .metric-icon,
+.tone-indigo .metric-icon { background: var(--sn-bg-muted); color: var(--sn-text-regular); }
 
 .metric-info {
   display: flex;
@@ -452,20 +457,20 @@ const tableColumns = computed(() => {
   min-width: 0;
 }
 .metric-info .label {
-  color: #526174;
+  color: var(--sn-text-regular);
   font-size: 12px;
   font-weight: 500;
   line-height: 1.2;
 }
 .metric-info .value {
-  color: #1e293b;
+  color: var(--sn-text-primary);
   font-size: 20px;
   font-weight: 700;
   line-height: 1.25;
 }
 .metric-info .helper {
   overflow: hidden;
-  color: #94a3b8;
+  color: var(--sn-text-muted);
   font-size: 11px;
   line-height: 1.2;
   text-overflow: ellipsis;
@@ -477,9 +482,9 @@ const tableColumns = computed(() => {
   grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
   gap: 8px;
   padding: 10px 12px;
-  border: 1px solid #edf1f5;
-  border-radius: 8px;
-  background: #fbfcfd;
+  border: 1px solid var(--sn-border);
+  border-radius: var(--sn-radius-lg);
+  background: var(--sn-bg-muted);
 }
 
 .fact-item {
@@ -488,12 +493,12 @@ const tableColumns = computed(() => {
   justify-content: space-between;
   gap: 8px;
   min-width: 0;
-  color: #64748b;
+  color: var(--sn-text-muted);
   font-size: 12px;
 }
 
 .fact-item strong {
-  color: #1f2937;
+  color: var(--sn-text-primary);
   font-size: 14px;
   font-weight: 700;
 }
@@ -505,11 +510,11 @@ const tableColumns = computed(() => {
   gap: 12px;
 }
 .chart-container {
-  background: #ffffff;
-  border: 1px solid #edf1f5;
-  border-radius: 8px;
+  background: var(--sn-bg-surface);
+  border: 1px solid var(--sn-border);
+  border-radius: var(--sn-radius-lg);
   padding: 12px;
-  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.03);
+  box-shadow: var(--sn-shadow-sm);
 }
 .echart-instance {
   width: 100%;
@@ -518,10 +523,10 @@ const tableColumns = computed(() => {
 
 /* Data Panel */
 .data-panel {
-  background: #ffffff;
-  border: 1px solid #edf1f5;
-  border-radius: 8px;
-  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.03);
+  background: var(--sn-bg-surface);
+  border: 1px solid var(--sn-border);
+  border-radius: var(--sn-radius-lg);
+  box-shadow: var(--sn-shadow-sm);
   padding: 12px;
   display: flex;
   flex-direction: column;
@@ -533,7 +538,7 @@ const tableColumns = computed(() => {
   align-items: center;
   flex-wrap: wrap;
   gap: 10px;
-  border-bottom: 1px solid #edf1f5;
+  border-bottom: 1px solid var(--sn-border);
   padding-bottom: 10px;
 }
 .toolbar-left, .toolbar-right {
@@ -551,7 +556,7 @@ const tableColumns = computed(() => {
 }
 .action-group {
   padding-left: 8px;
-  border-left: 1px solid #e2e8f0;
+  border-left: 1px solid var(--sn-border);
 }
 
 /* Table & Pagination */
@@ -569,7 +574,7 @@ const tableColumns = computed(() => {
   margin-top: 4px;
 }
 .total-info {
-  color: #94a3b8;
+  color: var(--sn-text-muted);
   font-size: 13px;
 }
 

@@ -281,7 +281,7 @@ const openTodoDetail = (id: number) => { currentTodoId.value = id; todoDetailVis
 
 <template>
   <el-scrollbar height="100%">
-    <div class="common-layout">
+    <div class="common-layout admin-list-page">
       <el-tabs v-model="activeTab" type="card">
         <!-- ==================== CATEGORY TAB ==================== -->
         <el-tab-pane label="待做分类" name="category">

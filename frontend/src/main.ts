@@ -3,7 +3,7 @@
  * @project SlothNote
  * @module 前端应用 / 启动入口
  * @description 初始化 Vue 应用、路由、状态管理与迁移期兼容组件。
- * @logic 1. 异步注册旧组件兼容层；2. 挂载 Pinia、Router 和右键菜单插件；3. Element Plus 组件、图标和样式由 Vite 按需导入。
+ * @logic 1. 异步注册旧组件兼容层与迁移期提示指令；2. 挂载 Pinia、Router 和右键菜单插件；3. Element Plus 组件、图标和样式由 Vite 按需导入。
  * @dependencies Vue: createApp, Pinia, VueRouter
  * @index_tags main.ts, Vue启动, ElementPlus按需导入, 兼容组件
  * @author holic512
@@ -19,6 +19,35 @@ import {ROUTE_PATHS} from './router/paths'
 import {tokenStore} from './pinia/token'
 
 const app = createApp(App)
+
+type TooltipBindingValue = string | { value?: string } | null | undefined
+
+const resolveTooltipText = (value: TooltipBindingValue): string => {
+    if (typeof value === 'string') return value
+    if (value && typeof value.value === 'string') return value.value
+    return ''
+}
+
+// 兼容旧页面的 v-tooltip 写法：旧 PrimeVue 指令已移除，保留原有提示文案并落到原生可访问提示。
+const syncNativeTooltip = (element: HTMLElement, value: TooltipBindingValue) => {
+    const text = resolveTooltipText(value)
+    if (text) {
+        element.setAttribute('title', text)
+        if (!element.getAttribute('aria-label')) element.setAttribute('aria-label', text)
+        return
+    }
+
+    element.removeAttribute('title')
+}
+
+app.directive('tooltip', {
+    mounted(element: HTMLElement, binding: { value: TooltipBindingValue }) {
+        syncNativeTooltip(element, binding.value)
+    },
+    updated(element: HTMLElement, binding: { value: TooltipBindingValue }) {
+        syncNativeTooltip(element, binding.value)
+    },
+})
 
 // 配置pinia
 const pinia = createPinia()

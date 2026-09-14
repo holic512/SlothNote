@@ -40,3 +40,89 @@ body {
   border-radius: var(--sn-radius-base);
   background: var(--sn-bg-muted);
 }
+
+/* 管理端列表页共享工作台：统一筛选、操作、分页和表格的空间与层级。 */
+.admin-shell .admin-list-page {
+  min-height: 100%;
+  padding: 0;
+  background: transparent;
+}
+
+.admin-shell .admin-list-page .responsive-toolbar {
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.admin-shell .admin-list-page .toolbar-top {
+  min-height: 40px;
+  gap: 12px;
+}
+
+.admin-shell .admin-list-page .group-left,
+.admin-shell .admin-list-page .group-right,
+.admin-shell .admin-list-page .pagination-controls {
+  gap: 8px;
+}
+
+.admin-shell .admin-list-page .custom-input {
+  width: 220px;
+  height: 34px;
+  padding: 5px 10px;
+  color: var(--sn-text-primary);
+  font-size: 13px;
+}
+
+.admin-shell .admin-list-page .toolbar-filter-panel {
+  min-height: 48px;
+  padding: 10px 12px;
+  border-color: var(--sn-border);
+  border-radius: var(--sn-radius-lg);
+}
+
+.admin-shell .admin-list-page .table-container {
+  width: 100%;
+  margin-top: 0;
+  padding: 0;
+  overflow: auto;
+  border: 1px solid var(--sn-border);
+  border-radius: var(--sn-radius-lg);
+  background: var(--sn-bg-surface);
+  box-shadow: var(--sn-shadow-sm);
+}
+
+.admin-shell .admin-list-page .el-table {
+  --el-table-header-bg-color: var(--sn-bg-muted);
+  --el-table-border-color: var(--sn-border);
+}
+
+.admin-shell .admin-list-page .el-table th.el-table__cell {
+  height: 42px;
+  color: var(--sn-text-regular);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.admin-shell .admin-list-page .el-table td.el-table__cell {
+  height: 44px;
+}
+
+.admin-shell .admin-list-page .page-tag {
+  min-width: auto;
+}
+
+@media (max-width: 768px) {
+  .admin-shell .admin-list-page .toolbar-top {
+    align-items: stretch;
+  }
+
+  .admin-shell .admin-list-page .group-left,
+  .admin-shell .admin-list-page .group-right,
+  .admin-shell .admin-list-page .pagination-controls {
+    width: 100%;
+  }
+
+  .admin-shell .admin-list-page .custom-input {
+    width: auto;
+    flex: 1;
+  }
+}

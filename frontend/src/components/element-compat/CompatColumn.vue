@@ -3,7 +3,7 @@
 @project SlothNote
 @module 前端组件 / 旧组件迁移兼容层
 @description 用 Element Plus el-table-column 承接旧 Column field/header/body 语义。
-@logic 1. field/header 映射为 prop/label；2. selectionMode 映射为 selection 列；3. 将 body 插槽转换为 Element Plus default 插槽。
+@logic 1. field/header 映射为 prop/label；2. selectionMode 映射为 selection 列；3. 将旧百分比列宽换算为最小像素宽度，避免 Element Plus 将其误解为极窄固定宽度。
 @dependencies ElementPlus: el-table-column
 @index_tags Column迁移, el-table-column, 表格列, ElementPlus兼容
 @author holic512
@@ -20,9 +20,23 @@ const props = defineProps<{
   frozen?: boolean
 }>()
 
-const width = computed(() => {
+const declaredWidth = computed(() => {
   const match = props.headerStyle?.match(/width:\s*([^;]+)/)
   return match?.[1]?.trim()
+})
+
+const width = computed(() => {
+  const value = declaredWidth.value
+  return value && !value.endsWith('%') ? value : undefined
+})
+
+const minWidth = computed(() => {
+  const value = declaredWidth.value
+  if (!value?.endsWith('%')) return undefined
+
+  const percentage = Number.parseFloat(value)
+  if (!Number.isFinite(percentage)) return undefined
+  return Math.max(100, Math.round(percentage * 9))
 })
 </script>
 
@@ -38,13 +52,14 @@ const width = computed(() => {
       :prop="field"
       :label="header"
       :width="width"
+      :min-width="minWidth"
       :fixed="position === 'fixed' || frozen"
   >
     <template v-if="$slots.body" #default="scope">
-      <slot name="body" :data="scope.row" :field="field" />
+      <slot name="body" :data="scope?.row ?? {}" :field="field" />
     </template>
     <template v-else-if="$slots.default" #default="scope">
-      <slot :data="scope.row" :field="field" />
+      <slot :data="scope?.row ?? {}" :field="field" />
     </template>
   </el-table-column>
 </template>

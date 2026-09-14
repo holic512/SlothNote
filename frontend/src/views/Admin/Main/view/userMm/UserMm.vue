@@ -14,6 +14,7 @@ import {searchUsers} from "./components/TableView/searchUsers";
 import {batchDisable, batchEnable, deleteUser} from "./components/TableView/batchUpdateStatus";
 import UserDetail from "./components/UserDetail/userDetail.vue";
 import {getMaxPage, useLatestRequest} from '../../composables/useAdminListRequest';
+import {getUserAvatarFallback, getUserAvatarUrl, getUserDisplayName} from './userPresentation';
 
 // --- 响应式折叠控制 ---
 const showFilters = ref(false);
@@ -265,7 +266,7 @@ const onlineUserVisible = ref<boolean>(false);
 
 <template>
   <el-scrollbar height="100%">
-    <div class="common-layout">
+    <div class="common-layout admin-list-page">
       <!-- 响应式工具栏 -->
       <div class="responsive-toolbar">
         <!-- 第一行：主要操作与常用搜索 -->
@@ -374,14 +375,14 @@ const onlineUserVisible = ref<boolean>(false);
               <div style="display: flex; align-items: center;">
                 <el-avatar
                     :size="28"
-                    :src="data.avatar"
+                    :src="getUserAvatarUrl(data)"
                     shape="square"
                     style="margin-right: 8px"
                 >
-                  {{ data.username.charAt(0).toUpperCase() }}
+                  {{ getUserAvatarFallback(data) }}
                 </el-avatar>
                 <el-text tag="b">
-                  {{ data.username }}
+                  {{ getUserDisplayName(data) }}
                 </el-text>
 
               </div>
