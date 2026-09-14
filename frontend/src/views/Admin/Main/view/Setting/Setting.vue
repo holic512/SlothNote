@@ -400,17 +400,12 @@ onMounted(() => {
 </script>
 
 <template>
-  <el-scrollbar height="100%" class="setting-scrollbar">
-    <div class="setting-page">
-      <header class="setting-header">
-        <div>
-          <h1>系统设置</h1>
-          <p>集中维护管理员资料、AI 服务、邮箱 SMTP 和初始化操作。</p>
-        </div>
+  <div class="setting-page">
+      <div class="setting-toolbar">
         <el-button :icon="Refresh" :loading="loading || profileLoading || aiConfigLoading || mailConfigLoading" @click="reloadCurrentTab">
           刷新当前页
         </el-button>
-      </header>
+      </div>
 
       <el-tabs v-model="activeTab" class="setting-tabs">
         <el-tab-pane name="profile">
@@ -615,37 +610,28 @@ onMounted(() => {
           </section>
         </el-tab-pane>
       </el-tabs>
-    </div>
-  </el-scrollbar>
+  </div>
 </template>
 
 <style scoped>
-.setting-scrollbar {
-  background: var(--sn-bg-page);
-}
-
 .setting-page {
   min-height: 100%;
-  padding: 24px;
   color: var(--sn-text-primary);
 }
 
-.setting-header {
+.setting-toolbar {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  gap: 16px;
-  margin-bottom: 16px;
+  justify-content: flex-end;
+  margin-bottom: 12px;
 }
 
-.setting-header h1,
 .panel-head h2,
 .danger-zone h3 {
   margin: 0;
   color: var(--sn-text-primary);
 }
 
-.setting-header p,
 .panel-head p,
 .danger-zone p {
   margin: 6px 0 0;
@@ -791,11 +777,6 @@ onMounted(() => {
 }
 
 @media (max-width: 900px) {
-  .setting-page {
-    padding: 16px;
-  }
-
-  .setting-header,
   .panel-head,
   .danger-zone {
     grid-template-columns: 1fr;
