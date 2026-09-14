@@ -56,6 +56,7 @@ public class UserAiService {
     private static final int MAX_CURRENT_NOTE_CHARS = 1500;
     private static final int MAX_TOOL_STEPS = 2;
     private static final int DEBUG_PREVIEW_CHARS = 240;
+    private static final String TOOL_EXECUTION_FAILURE_PREFIX = "工具未执行：";
 
     private final ObjectMapper objectMapper = new ObjectMapper();
     private final AiConfigService aiConfigService;
@@ -66,6 +67,7 @@ public class UserAiService {
     private final UNoteRepM noteRepM;
     private final UserUserRepository userUserRepository;
     private final UserAiToolService userAiToolService;
+    private final UserAiPermissionService permissionService;
     private final ConcurrentHashMap<Long, AtomicBoolean> stopFlags = new ConcurrentHashMap<>();
 
     public UserAiService(AiConfigService aiConfigService,
@@ -75,7 +77,8 @@ public class UserAiService {
                          AiNoteContextRepository aiNoteContextRepository,
                          UNoteRepM noteRepM,
                          UserUserRepository userUserRepository,
-                         UserAiToolService userAiToolService) {
+                         UserAiToolService userAiToolService,
+                         UserAiPermissionService permissionService) {
         this.aiConfigService = aiConfigService;
         this.sessionRepository = sessionRepository;
         this.messageRepository = messageRepository;
@@ -84,6 +87,7 @@ public class UserAiService {
         this.noteRepM = noteRepM;
         this.userUserRepository = userUserRepository;
         this.userAiToolService = userAiToolService;
+        this.permissionService = permissionService;
     }
 
     @Transactional(readOnly = true)
@@ -147,41 +151,23 @@ public class UserAiService {
         return getContextNotes(userId, sessionId);
     }
 
-    public AiToolPlanPreviewDto previewToolPlan(Long userId, ChatRequest request) {
-        if (request == null || request.getText() == null || request.getText().trim().isEmpty()) {
-            return new AiToolPlanPreviewDto("none", "{}", false, false, "本次无需调用工具。");
-        }
-        AiConfigService.RuntimeConfig aiConfig = aiConfigService.requireEnabledConfig();
-        ToolPlan plan = planToolUse(aiConfig, buildPreviewMessages(userId, request), request.getText().trim());
-        if (plan == null || "none".equals(plan.tool())) {
-            return new AiToolPlanPreviewDto("none", "{}", false, false, "本次无需调用工具。");
-        }
-        String argumentsJson;
-        try {
-            argumentsJson = objectMapper.writeValueAsString(plan.arguments() == null ? objectMapper.createObjectNode() : plan.arguments());
-        } catch (Exception e) {
-            argumentsJson = "{}";
-        }
-        boolean writeTool = userAiToolService.isWriteTool(plan.tool());
-        return new AiToolPlanPreviewDto(
-                plan.tool(),
-                argumentsJson,
-                writeTool,
-                writeTool,
-                userAiToolService.summarizePlan(plan.tool(), plan.arguments(), request)
-        );
-    }
-
     public SseEmitter chat(Long userId, ChatRequest request) {
         String text = request.getText() == null ? "" : request.getText().trim();
         if (text.isEmpty()) {
             throw new IllegalArgumentException("text cannot be empty");
         }
 
-        log.info("AI chat start: userId={}, sessionId={}, type={}, textLength={}, contextNoteCount={}",
+        UserAiPermissionDto permissions = permissionService.getPermissions(userId);
+        if (!Boolean.TRUE.equals(permissions.getCanReadAllNotes())) {
+            request.setContextNoteIds(Collections.emptyList());
+            request.setSelectedText(null);
+            request.setCurrentNoteTitle(null);
+            request.setCurrentNoteCover(null);
+        }
+
+        log.info("AI chat start: userId={}, sessionId={}, textLength={}, contextNoteCount={}",
                 userId,
                 request.getSessionId(),
-                request.getMessageType(),
                 text.length(),
                 request.getContextNoteIds() == null ? 0 : request.getContextNoteIds().size());
         log.debug("AI chat request detail: selectedTextLength={}, contextNoteIds={}, textPreview={}",
@@ -191,7 +177,7 @@ public class UserAiService {
 
         AiChatSession session = resolveOrCreateSession(userId, request);
         List<Long> contextNoteIds = request.getContextNoteIds();
-        if (contextNoteIds != null) {
+        if (contextNoteIds != null && Boolean.TRUE.equals(permissions.getCanReadAllNotes())) {
             replaceContextNotes(userId, session.getId(), contextNoteIds);
         }
 
@@ -203,7 +189,7 @@ public class UserAiService {
         stopFlags.put(assistantMessage.getId(), stopFlag);
 
         Thread streamThread = new Thread(
-                () -> streamAiResponse(emitter, stopFlag, session, userId, request, assistantMessage, userMessage),
+                () -> streamAiResponse(emitter, stopFlag, session, userId, request, permissions, assistantMessage, userMessage),
                 "ai-chat-" + assistantMessage.getId()
         );
         streamThread.start();
@@ -237,6 +223,7 @@ public class UserAiService {
                                   AiChatSession session,
                                   Long userId,
                                   ChatRequest request,
+                                  UserAiPermissionDto permissions,
                                   AiChatMessage assistantMessage,
                                   AiChatMessage userMessage) {
         StringBuilder fullContent = new StringBuilder();
@@ -256,6 +243,7 @@ public class UserAiService {
                     userId,
                     session.getId(),
                     request,
+                    permissions,
                     userMessage.getId(),
                     assistantMessage.getId(),
                     progressPayload -> {
@@ -385,6 +373,7 @@ public class UserAiService {
                                                       Long userId,
                                                       Long sessionId,
                                                       ChatRequest request,
+                                                      UserAiPermissionDto permissions,
                                                       Long currentUserMessageId,
                                                       Long currentAssistantMessageId,
                                                       Consumer<Map<String, Object>> progressEmitter) {
@@ -393,7 +382,7 @@ public class UserAiService {
         requestBody.put("stream", true);
         requestBody.put("temperature", aiConfig.temperature());
         requestBody.put("max_tokens", aiConfig.maxTokens());
-        requestBody.put("messages", buildMessagesWithTools(aiConfig, userId, sessionId, request, currentUserMessageId, currentAssistantMessageId, progressEmitter));
+        requestBody.put("messages", buildMessagesWithTools(aiConfig, userId, sessionId, request, permissions, currentUserMessageId, currentAssistantMessageId, progressEmitter));
         return requestBody;
     }
 
@@ -401,22 +390,21 @@ public class UserAiService {
                                                              Long userId,
                                                              Long sessionId,
                                                              ChatRequest request,
+                                                             UserAiPermissionDto permissions,
                                                              Long currentUserMessageId,
                                                              Long currentAssistantMessageId,
                                                              Consumer<Map<String, Object>> progressEmitter) {
-        List<Map<String, String>> messages = buildMessages(userId, sessionId, request, true, currentUserMessageId, currentAssistantMessageId);
+        List<Map<String, String>> messages = buildMessages(userId, sessionId, request, permissions, true, currentUserMessageId, currentAssistantMessageId);
         log.debug("AI base messages prepared: sessionId={}, count={}, summary={}",
                 sessionId, messages.size(), summarizeMessageList(messages));
         Set<String> executedPlans = new HashSet<>();
-        if (shouldRefreshCurrentNoteContext(request)) {
+        if (shouldRefreshCurrentNoteContext(request, permissionService.getPermissions(userId))) {
             appendLatestCurrentNoteSnapshot(messages, userId, request, currentAssistantMessageId, progressEmitter, true);
         }
         emitStatus(progressEmitter, currentAssistantMessageId, "planning", "正在规划是否需要调用工具");
         for (int i = 0; i < MAX_TOOL_STEPS; i++) {
-            ToolPlan plan = i == 0 ? resolveRequestedWritePlan(request, messages) : null;
-            if (plan == null) {
-                plan = planToolUse(aiConfig, messages, request.getText().trim());
-            }
+            UserAiPermissionDto plannerPermissions = permissionService.getPermissions(userId);
+            ToolPlan plan = planToolUse(aiConfig, messages, request.getText().trim(), plannerPermissions);
             if (plan == null || "none".equals(plan.tool())) {
                 log.debug("AI tool planning skipped: sessionId={}, step={}, plan={}", sessionId, i + 1, plan);
                 break;
@@ -428,12 +416,25 @@ public class UserAiService {
             }
             log.info("AI tool planning selected: sessionId={}, step={}, tool={}, arguments={}",
                     sessionId, i + 1, plan.tool(), plan.arguments());
+            if (!permissionService.canUseTool(plannerPermissions, plan.tool())) {
+                String deniedMessage = "AI 权限未允许执行工具：" + plan.tool();
+                log.warn("AI tool plan denied by current permissions: sessionId={}, step={}, tool={}",
+                        sessionId, i + 1, plan.tool());
+                emitToolResult(progressEmitter, currentAssistantMessageId, plan.tool(), false, deniedMessage);
+                messages.add(Map.of("role", "system", "content", "工具未执行：" + deniedMessage));
+                break;
+            }
             emitStatus(progressEmitter, currentAssistantMessageId, mapToolStatus(plan.tool()), "正在执行工具：" + plan.tool());
             emitToolCall(progressEmitter, currentAssistantMessageId, plan.tool(), plan.arguments(), request, userAiToolService.isWriteTool(plan.tool()));
             String toolResult = executeToolPlan(userId, plan, request);
-            if (toolResult == null || toolResult.isBlank()) {
-                log.warn("AI tool execution returned empty: sessionId={}, step={}, tool={}", sessionId, i + 1, plan.tool());
-                emitToolResult(progressEmitter, currentAssistantMessageId, plan.tool(), false, "工具没有返回结果");
+            if (toolResult == null || toolResult.isBlank() || toolResult.startsWith(TOOL_EXECUTION_FAILURE_PREFIX)) {
+                String failureMessage = toolResult == null || toolResult.isBlank()
+                        ? "工具没有返回结果"
+                        : toolResult.substring(TOOL_EXECUTION_FAILURE_PREFIX.length());
+                log.warn("AI tool execution failed: sessionId={}, step={}, tool={}, reason={}",
+                        sessionId, i + 1, plan.tool(), failureMessage);
+                emitToolResult(progressEmitter, currentAssistantMessageId, plan.tool(), false, failureMessage);
+                messages.add(Map.of("role", "system", "content", "工具未执行：" + failureMessage));
                 break;
             }
             log.debug("AI tool execution result: sessionId={}, step={}, tool={}, resultPreview={}",
@@ -443,7 +444,8 @@ public class UserAiService {
                     "role", "system",
                     "content", "以下是工具调用结果，请仅在相关时引用，并明确说明这是你基于工具检索得到的信息：\n" + toolResult
             ));
-            if (userAiToolService.isWriteTool(plan.tool())) {
+            if (userAiToolService.isWriteTool(plan.tool())
+                    && Boolean.TRUE.equals(permissionService.getPermissions(userId).getCanReadAllNotes())) {
                 appendLatestCurrentNoteSnapshot(messages, userId, request, currentAssistantMessageId, progressEmitter, false);
             }
         }
@@ -454,13 +456,16 @@ public class UserAiService {
     private List<Map<String, String>> buildMessages(Long userId,
                                                     Long sessionId,
                                                     ChatRequest request,
+                                                    UserAiPermissionDto permissions,
                                                     boolean includeToolGuide,
                                                     Long currentUserMessageId,
                                                     Long currentAssistantMessageId) {
         List<Map<String, String>> messages = new ArrayList<>();
-        messages.add(Map.of("role", "system", "content", buildSystemPrompt(request.getMessageType(), includeToolGuide)));
+        messages.add(Map.of("role", "system", "content", buildSystemPrompt(permissions, includeToolGuide)));
 
-        List<ContextNoteDto> contextNotes = getContextNotes(userId, sessionId);
+        List<ContextNoteDto> contextNotes = Boolean.TRUE.equals(permissions.getCanReadAllNotes())
+                ? getContextNotes(userId, sessionId)
+                : Collections.emptyList();
         if (!contextNotes.isEmpty()) {
             String contextBlock = buildContextBlock(contextNotes);
             log.debug("AI context block prepared: sessionId={}, noteCount={}, preview={}",
@@ -468,11 +473,11 @@ public class UserAiService {
             messages.add(Map.of("role", "system", "content", contextBlock));
         }
 
-        if (request.getCurrentNoteId() != null) {
+        if (Boolean.TRUE.equals(permissions.getCanReadAllNotes()) && request.getCurrentNoteId() != null) {
             messages.add(Map.of("role", "system", "content", buildCurrentNoteHint(userId, request)));
         }
 
-        if (request.getSelectedText() != null && !request.getSelectedText().isBlank()) {
+        if (Boolean.TRUE.equals(permissions.getCanReadAllNotes()) && request.getSelectedText() != null && !request.getSelectedText().isBlank()) {
             log.debug("AI selected text included: sessionId={}, length={}, preview={}",
                     sessionId, request.getSelectedText().trim().length(), previewText(request.getSelectedText().trim()));
             messages.add(Map.of("role", "system", "content",
@@ -501,8 +506,7 @@ public class UserAiService {
         return messages;
     }
 
-    private String buildSystemPrompt(String messageType, boolean includeToolGuide) {
-        String normalizedType = messageType == null || messageType.isBlank() ? "chat" : messageType;
+    private String buildSystemPrompt(UserAiPermissionDto permissions, boolean includeToolGuide) {
         String base = """
                 你是 SlothNote 的 AI 助手。
                 回答要求：
@@ -512,43 +516,72 @@ public class UserAiService {
                 4. 如果回答引用了用户选择的笔记内容，要明确说明“根据你选择的笔记，我理解到……”，不要假装这些内容来自你自身记忆。
                 5. 不要输出原始 HTML。
                 6. 优先使用最新上下文；如果当前笔记可能已变更，要以最新工具结果和最新笔记快照为准，不要重复引用过期内容。
-                7. 如果你打算让用户把内容插入笔记，优先把可直接插入的内容放进标准 fenced code block。
-                8. 当用户要求你直接修改当前笔记时：
-                   - 如果已经授权写入，就直接执行并明确说明改了什么。
-                   - 如果还没授权，不要反复兜圈子；用 1 到 2 句说明限制，并给出唯一清晰的下一步。
-                9. 当用户要求“重新获取当前笔记内容”或问题明显依赖当前最新正文时，应优先依据最新当前笔记快照回答，不要被旧的 selectedText 干扰。
+                7. 当用户要求直接修改笔记时，只有在可用工具中存在对应写入工具时才执行；否则简洁说明该功能需要在设置中开启。
+                8. 当用户要求“重新获取当前笔记内容”或问题明显依赖当前最新正文时，应优先依据最新当前笔记快照回答，不要被旧的 selectedText 干扰。
                 """;
         if (includeToolGuide) {
-            base = base + """
-                    
-                    可用工具：
-                    - search_user_notes：搜索当前用户名下的笔记列表。
-                    - read_note：读取当前用户某篇笔记的标题、摘要和正文片段。
-                    - get_current_note：读取当前正在编辑的笔记上下文。
-                    - replace_selected_text：替换当前选中文本。
-                    - append_to_current_note：向当前笔记末尾追加内容。
-                    - insert_after_selected_text：在当前选中文本后插入内容。
-                    - update_current_note_title：更新当前笔记标题。
-                    - save_current_note_summary：更新当前笔记摘要。
-                    - update_current_note_cover：更新当前笔记封面。
-                    工具使用原则：
-                    - 只有当用户明确要求查找、列出、回忆某篇笔记内容，或当前上下文不足以回答时，才考虑工具。
-                    - 当用户询问“当前笔记现在是什么内容”“重新获取当前笔记”等，优先使用 get_current_note。
-                    - 当用户明确要求修改当前打开笔记，且当前笔记 ID 已提供时，可以使用写工具。
-                    - 不要臆造 noteId；写工具只能针对当前打开笔记。
-                    - 不要为了普通闲聊或已知问题滥用工具。
-                    """;
+            base = base + buildAllowedToolGuide(permissions);
         }
-        return switch (normalizedType) {
-            case "explain" -> base + "\n当前任务：解释用户给出的内容，优先用简洁的分点说明概念、作用和上下文。";
-            case "polish" -> base + "\n当前任务：润色用户给出的内容，先给优化后的文本，再简短说明优化点。";
-            case "summary" -> base + "\n当前任务：概括用户给出的内容，直接输出一段清晰的 Markdown 摘要，控制在 200 字左右。";
-            case "agent_update_summary" -> base + "\n当前任务：基于当前打开笔记生成更适合作为简介的摘要，并优先通过工具直接写入当前笔记摘要。";
-            case "agent_generate_summary_to_note" -> base + "\n当前任务：阅读当前打开笔记，生成清晰摘要，并优先通过工具直接写入当前笔记摘要。";
-            case "agent_update_title" -> base + "\n当前任务：根据当前打开笔记内容拟定更准确简洁的标题，并优先通过工具直接更新当前笔记标题。";
-            case "agent_update_cover" -> base + "\n当前任务：根据当前打开笔记内容，在可用封面选项中挑选最匹配的封面，并优先通过工具直接更新当前笔记封面。";
-            default -> base + "\n当前任务：进行自然对话，必要时给出结构化建议。";
-        };
+        return base + "\n当前任务：进行自然对话，必要时给出结构化建议。";
+    }
+
+    private String buildAllowedToolGuide(UserAiPermissionDto permissions) {
+        StringBuilder guide = new StringBuilder("\n已授权的 AI 工具与常见处理流程：\n");
+        if (Boolean.TRUE.equals(permissions.getCanReadAllNotes())) {
+            guide.append("- 查询或阅读笔记：用户要求查找、列出或回忆笔记时，可搜索并读取其名下笔记。\n")
+                    .append("- 当前笔记上下文：需要核对最新正文、标题、简介或封面时，可读取当前打开笔记。\n");
+        }
+        if (Boolean.TRUE.equals(permissions.getCanWriteNoteContent())) {
+            guide.append("- 正文编辑：用户明确要求替换选区、在选区后插入或追加内容时，可编辑当前打开笔记。\n");
+        }
+        if (Boolean.TRUE.equals(permissions.getCanWriteNoteTitle())) {
+            guide.append("- 标题优化：用户明确要求修改当前笔记标题时，可直接更新标题。\n");
+        }
+        if (Boolean.TRUE.equals(permissions.getCanWriteNoteSummary())) {
+            guide.append("- 简介整理：用户明确要求生成并保存当前笔记简介时，可直接更新简介。\n");
+        }
+        if (Boolean.TRUE.equals(permissions.getCanWriteNoteCover())) {
+            guide.append("- 封面调整：用户明确要求更换当前笔记封面时，可从可用封面中选择并更新。\n");
+        }
+        guide.append("工具使用原则：只在用户明确需要笔记数据或修改笔记时使用；不得臆造 noteId；写工具只能作用于当前打开且属于该用户的笔记。");
+        return guide.toString();
+    }
+
+    private String buildPlannerPrompt(UserAiPermissionDto permissions) {
+        StringBuilder prompt = new StringBuilder("""
+                你是一个工具规划器。你只输出单个 JSON 对象，不输出解释。
+                你的任务是判断是否需要调用已授权工具帮助回答用户问题。
+                可选输出始终包含：{"tool":"none"}
+                """);
+        if (Boolean.TRUE.equals(permissions.getCanReadAllNotes())) {
+            prompt.append("- {\"tool\":\"search_user_notes\",\"arguments\":{\"query\":\"关键词\",\"limit\":5}}\n")
+                    .append("- {\"tool\":\"read_note\",\"arguments\":{\"noteId\":123,\"maxChars\":1200}}\n")
+                    .append("- {\"tool\":\"get_current_note\",\"arguments\":{\"maxChars\":1500}}\n");
+        }
+        if (Boolean.TRUE.equals(permissions.getCanWriteNoteContent())) {
+            prompt.append("- {\"tool\":\"replace_selected_text\",\"arguments\":{\"replacement\":\"替换后的内容\"}}\n")
+                    .append("- {\"tool\":\"append_to_current_note\",\"arguments\":{\"content\":\"要追加的内容\"}}\n")
+                    .append("- {\"tool\":\"insert_after_selected_text\",\"arguments\":{\"content\":\"要插入的内容\"}}\n");
+        }
+        if (Boolean.TRUE.equals(permissions.getCanWriteNoteTitle())) {
+            prompt.append("- {\"tool\":\"update_current_note_title\",\"arguments\":{\"title\":\"新的标题\"}}\n");
+        }
+        if (Boolean.TRUE.equals(permissions.getCanWriteNoteSummary())) {
+            prompt.append("- {\"tool\":\"save_current_note_summary\",\"arguments\":{\"summary\":\"新的摘要\"}}\n");
+        }
+        if (Boolean.TRUE.equals(permissions.getCanWriteNoteCover())) {
+            prompt.append("- {\"tool\":\"update_current_note_cover\",\"arguments\":{\"cover\":\"1-001\"}}\n");
+        }
+        prompt.append("""
+                规则：
+                - 现有上下文足够或普通闲聊时，输出 {"tool":"none"}。
+                - 仅可选择上方列出的工具，绝不能使用未授权工具。
+                - 只有用户明确要求修改当前打开笔记时才选择写工具。
+                - replace_selected_text 和 insert_after_selected_text 只能在已有 selectedText 时使用。
+                - update_current_note_cover 只能使用可用封面选项或 none。
+                - 不要臆造 noteId；写工具不能指定其他笔记。
+                """);
+        return prompt.toString();
     }
 
     private String buildContextBlock(List<ContextNoteDto> contextNotes) {
@@ -610,7 +643,6 @@ public class UserAiService {
                     .append(shrink(request.getSelectedText().trim(), MAX_SELECTED_TEXT_CHARS))
                     .append("\n```\n");
         }
-        builder.append("- 可用写权限: ").append(Boolean.TRUE.equals(request.getAllowCurrentNoteWrite()) ? "已允许修改当前笔记" : "未允许修改当前笔记");
         return builder.toString();
     }
 
@@ -643,7 +675,7 @@ public class UserAiService {
         message.setSessionId(session.getId());
         message.setUserId(userId);
         message.setRole("user");
-        message.setMessageType(normalizeMessageType(request.getMessageType()));
+        message.setMessageType("chat");
         message.setContentMd(request.getText().trim());
         message.setStatus("completed");
         session.setLastMessageAt(LocalDateTime.now());
@@ -661,19 +693,12 @@ public class UserAiService {
         message.setSessionId(session.getId());
         message.setUserId(userId);
         message.setRole("assistant");
-        message.setMessageType(normalizeMessageType(request.getMessageType()));
+        message.setMessageType("chat");
         message.setContentMd("");
         message.setStatus("streaming");
         session.setLastMessageAt(LocalDateTime.now());
         sessionRepository.save(session);
         return messageRepository.save(message);
-    }
-
-    private String normalizeMessageType(String messageType) {
-        if (messageType == null || messageType.isBlank()) {
-            return "chat";
-        }
-        return messageType;
     }
 
     private String buildSessionTitle(String text) {
@@ -725,30 +750,10 @@ public class UserAiService {
         );
     }
 
-    private List<Map<String, String>> buildPreviewMessages(Long userId, ChatRequest request) {
-        List<Map<String, String>> messages = new ArrayList<>();
-        messages.add(Map.of("role", "system", "content", buildSystemPrompt(request.getMessageType(), true)));
-        if (request.getContextNoteIds() != null && !request.getContextNoteIds().isEmpty()) {
-            List<NoteInfo> notes = aiNoteContextRepository.findByIdInAndUserIdAndIsDeleted(request.getContextNoteIds(), userId, 0);
-            List<ContextNoteDto> previewNotes = notes.stream()
-                    .map(note -> new ContextNoteDto(note.getId(), note.getNoteTitle(), note.getNoteSummary(), note.getNoteAvatar() == null ? null : new String(note.getNoteAvatar())))
-                    .toList();
-            if (!previewNotes.isEmpty()) {
-                messages.add(Map.of("role", "system", "content", buildContextBlock(previewNotes)));
-            }
-        }
-        if (request.getCurrentNoteId() != null) {
-            messages.add(Map.of("role", "system", "content", buildCurrentNoteHint(userId, request)));
-        }
-        if (request.getSelectedText() != null && !request.getSelectedText().isBlank()) {
-            messages.add(Map.of("role", "system", "content",
-                    "用户当前额外选中的精确文本如下，请优先结合这段文本回答：\n\n```text\n" + shrink(request.getSelectedText().trim(), MAX_SELECTED_TEXT_CHARS) + "\n```"));
-        }
-        messages.add(Map.of("role", "user", "content", request.getText().trim()));
-        return messages;
-    }
-
-    private ToolPlan planToolUse(AiConfigService.RuntimeConfig aiConfig, List<Map<String, String>> messages, String userQuestion) {
+    private ToolPlan planToolUse(AiConfigService.RuntimeConfig aiConfig,
+                                 List<Map<String, String>> messages,
+                                 String userQuestion,
+                                 UserAiPermissionDto permissions) {
         try {
             Map<String, Object> requestBody = new HashMap<>();
             requestBody.put("model", aiConfig.model());
@@ -756,31 +761,7 @@ public class UserAiService {
             requestBody.put("temperature", aiConfig.plannerTemperature());
             requestBody.put("max_tokens", aiConfig.plannerMaxTokens());
             requestBody.put("messages", List.of(
-                    Map.of("role", "system", "content", """
-                            你是一个工具规划器。你只输出 JSON，不输出解释。
-                            你的任务是判断是否需要调用工具来帮助回答用户问题。
-                            可选输出：
-                            1. {"tool":"none"}
-                            2. {"tool":"search_user_notes","arguments":{"query":"关键词","limit":5}}
-                            3. {"tool":"read_note","arguments":{"noteId":123,"maxChars":1200}}
-                            4. {"tool":"get_current_note","arguments":{"maxChars":1500}}
-                            5. {"tool":"replace_selected_text","arguments":{"replacement":"替换后的纯文本内容"}}
-                            6. {"tool":"append_to_current_note","arguments":{"content":"要追加的内容，可以包含 fenced code block"}}
-                            7. {"tool":"insert_after_selected_text","arguments":{"content":"要插入的纯文本内容"}}
-                            8. {"tool":"update_current_note_title","arguments":{"title":"新的标题"}}
-                            9. {"tool":"save_current_note_summary","arguments":{"summary":"新的摘要"}}
-                            10. {"tool":"update_current_note_cover","arguments":{"cover":"1-001"}}
-                            规则：
-                            - 如果现有上下文已经足够，输出 {"tool":"none"}。
-                            - 只有当用户要搜索、列出、定位、回忆笔记内容时，才考虑工具。
-                            - 如果用户要求重新获取当前笔记、核对当前笔记最新内容、继续基于刚修改后的笔记操作，优先使用 get_current_note。
-                            - 只有当用户明确要求修改当前打开笔记时，才考虑写工具。
-                            - replace_selected_text 和 insert_after_selected_text 只能在已有 selectedText 时使用。
-                            - update_current_note_cover 只能使用可用封面选项或 none。
-                            - 写工具只能针对当前打开笔记，不要输出其他 noteId。
-                            - 不要臆造 noteId。
-                            - 输出必须是单个 JSON 对象。
-                            """),
+                    Map.of("role", "system", "content", buildPlannerPrompt(permissions)),
                     Map.of("role", "user", "content", "用户问题：" + userQuestion),
                     Map.of("role", "user", "content", "已有消息上下文摘要：" + summarizeMessagesForPlanner(messages))
             ));
@@ -802,29 +783,11 @@ public class UserAiService {
         }
     }
 
-    private ToolPlan resolveRequestedWritePlan(ChatRequest request, List<Map<String, String>> messages) {
-        if (!Boolean.TRUE.equals(request.getAllowCurrentNoteWrite())) {
-            return null;
-        }
-        if (request.getPlannedToolName() == null || request.getPlannedToolName().isBlank()) {
-            return null;
-        }
-        if (!userAiToolService.isWriteTool(request.getPlannedToolName())) {
-            return null;
-        }
+    private String executeToolPlan(Long userId,
+                                   ToolPlan plan,
+                                   ChatRequest request) {
         try {
-            JsonNode arguments = request.getPlannedToolArgumentsJson() == null || request.getPlannedToolArgumentsJson().isBlank()
-                    ? objectMapper.createObjectNode()
-                    : objectMapper.readTree(request.getPlannedToolArgumentsJson());
-            return new ToolPlan(request.getPlannedToolName(), arguments);
-        } catch (Exception e) {
-            log.warn("AI requested write plan parse failed: {}", e.getMessage());
-            return null;
-        }
-    }
-
-    private String executeToolPlan(Long userId, ToolPlan plan, ChatRequest request) {
-        try {
+            permissionService.requireToolAccess(permissionService.getPermissions(userId), plan.tool());
             if (UserAiToolService.SEARCH_USER_NOTES.equals(plan.tool())) {
                 String query = plan.arguments().path("query").asText("");
                 int limit = plan.arguments().path("limit").asInt(5);
@@ -867,9 +830,6 @@ public class UserAiService {
                 Map<String, Object> data = userAiToolService.getCurrentNote(userId, request, plan.arguments().path("maxChars").asInt(1500));
                 return "工具 get_current_note 返回结果：\n" + objectMapper.writerWithDefaultPrettyPrinter().writeValueAsString(data);
             }
-            if (userAiToolService.isWriteTool(plan.tool()) && !Boolean.TRUE.equals(request.getAllowCurrentNoteWrite())) {
-                return "工具 " + plan.tool() + " 未执行：当前请求未授权修改当前笔记。";
-            }
             if (UserAiToolService.REPLACE_SELECTED_TEXT.equals(plan.tool())) {
                 Map<String, Object> result = userAiToolService.replaceSelectedText(userId, request, plan.arguments().path("replacement").asText(""));
                 return "工具 replace_selected_text 返回结果：\n" + objectMapper.writerWithDefaultPrettyPrinter().writeValueAsString(result);
@@ -898,16 +858,14 @@ public class UserAiService {
         } catch (Exception e) {
             log.error("AI tool execution failed: userId={}, tool={}, arguments={}, error={}",
                     userId, plan.tool(), plan.arguments(), e.getMessage(), e);
+            return TOOL_EXECUTION_FAILURE_PREFIX + (e.getMessage() == null ? "工具执行失败" : e.getMessage());
         }
-        return null;
+        return TOOL_EXECUTION_FAILURE_PREFIX + "不支持的工具：" + plan.tool();
     }
 
-    private boolean shouldRefreshCurrentNoteContext(ChatRequest request) {
-        if (request == null || request.getCurrentNoteId() == null) {
+    private boolean shouldRefreshCurrentNoteContext(ChatRequest request, UserAiPermissionDto permissions) {
+        if (request == null || request.getCurrentNoteId() == null || !Boolean.TRUE.equals(permissions.getCanReadAllNotes())) {
             return false;
-        }
-        if (isAgentMessageType(request.getMessageType())) {
-            return true;
         }
         String text = request.getText() == null ? "" : request.getText().trim();
         if (text.isEmpty()) {
@@ -930,17 +888,15 @@ public class UserAiService {
                 || text.contains("封面");
     }
 
-    private boolean isAgentMessageType(String messageType) {
-        return messageType != null && messageType.startsWith("agent_");
-    }
-
     private void appendLatestCurrentNoteSnapshot(List<Map<String, String>> messages,
                                                  Long userId,
                                                  ChatRequest request,
                                                  Long assistantMessageId,
                                                  Consumer<Map<String, Object>> progressEmitter,
                                                  boolean initialSync) {
-        if (request == null || request.getCurrentNoteId() == null) {
+        if (request == null
+                || request.getCurrentNoteId() == null
+                || !permissionService.canUseTool(permissionService.getPermissions(userId), UserAiToolService.GET_CURRENT_NOTE)) {
             return;
         }
         try {

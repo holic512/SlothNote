@@ -17,7 +17,7 @@ import { useCurrentNoteInfoStore } from '@/views/User/Main/components/Edit/Pinia
 export interface ChatMessage {
   id: number
   role: 'user' | 'assistant'
-  messageType: 'chat' | 'explain' | 'polish' | 'summary'
+  messageType: string
   content: string
   renderedContent?: string
   status: 'completed' | 'streaming' | 'stopped' | 'failed'
@@ -37,14 +37,6 @@ export interface ContextNote {
   icon?: string | null
 }
 
-export interface ToolPlanPreview {
-  tool: string
-  argumentsJson: string
-  requiresConfirmation: boolean
-  writeTool: boolean
-  summary: string
-}
-
 export interface AiTimelineItem {
   id: string
   kind: 'status' | 'tool_call' | 'tool_result'
@@ -55,19 +47,6 @@ export interface AiTimelineItem {
   success?: boolean
   writeTool?: boolean
   createdAt: string
-}
-
-export type MessageType =
-  | ChatMessage['messageType']
-  | 'agent_update_summary'
-  | 'agent_generate_summary_to_note'
-  | 'agent_update_title'
-  | 'agent_update_cover'
-
-interface SendMessageOptions {
-  allowCurrentNoteWrite?: boolean
-  plannedToolName?: string
-  plannedToolArgumentsJson?: string
 }
 
 const AI_DEBUG_PREFIX = '[NoteAI]'
@@ -85,39 +64,6 @@ const previewText = (value?: string | null) => {
   }
   return `${normalized.slice(0, DEBUG_PREVIEW_LENGTH)}...`
 }
-
-const buildRequestText = (messageType: MessageType, selectedText: string, inputText: string) => {
-  const cleanSelectedText = selectedText.trim()
-  const cleanInputText = inputText.trim()
-
-  if (messageType === 'explain') {
-    return cleanInputText || `请解释这段内容，尽量讲清概念、作用和上下文：\n\n${cleanSelectedText}`
-  }
-  if (messageType === 'polish') {
-    return cleanInputText || `请润色这段内容，并说明你做了哪些优化：\n\n${cleanSelectedText}`
-  }
-  if (messageType === 'summary') {
-    return cleanInputText || `请把这段内容概括成一段不超过 200 字的简介：\n\n${cleanSelectedText}`
-  }
-  if (messageType === 'agent_update_summary') {
-    return cleanInputText || '请根据当前打开笔记的内容，生成一段适合作为笔记简介的摘要，并直接更新到当前笔记摘要。'
-  }
-  if (messageType === 'agent_generate_summary_to_note') {
-    return cleanInputText || '请阅读当前打开笔记，先生成一段清晰摘要，再直接写入当前笔记摘要。'
-  }
-  if (messageType === 'agent_update_title') {
-    return cleanInputText || '请根据当前打开笔记内容，为它拟一个更准确、简洁的标题，并直接更新当前笔记标题。'
-  }
-  if (messageType === 'agent_update_cover') {
-    return cleanInputText || '请根据当前打开笔记内容和风格，从可用封面中选择一个最合适的封面，并直接更新当前笔记封面。'
-  }
-  return cleanInputText
-}
-
-const normalizeStoredMessageType = (messageType: MessageType): ChatMessage['messageType'] =>
-  ['chat', 'explain', 'polish', 'summary'].includes(messageType)
-    ? (messageType as ChatMessage['messageType'])
-    : 'chat'
 
 const nextTimelineId = () => `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
 const nextTempMessageId = () => -Date.now() - Math.floor(Math.random() * 1000)
@@ -375,28 +321,9 @@ export const useAiChatStore = defineStore('aiChat', () => {
     }
   }
 
-  const previewToolPlan = async (inputText: string, messageType: MessageType = 'chat') => {
+  const sendMessage = async (inputText: string, includeNoteContext: boolean) => {
     const currentNoteInfo = useCurrentNoteInfoStore()
-    const text = buildRequestText(messageType, selectedText.value, inputText)
-    if (!text.trim()) {
-      return null
-    }
-    const response = await axios.post('user/ai/tools/plan', {
-      sessionId: activeSessionId.value,
-      text,
-      messageType,
-      selectedText: selectedText.value || null,
-      contextNoteIds: contextNotes.value.map(note => note.noteId),
-      currentNoteId: currentNoteInfo.noteId,
-      currentNoteTitle: currentNoteInfo.noteName || null,
-      currentNoteCover: currentNoteInfo.cover || null
-    })
-    return response.data?.data as ToolPlanPreview | null
-  }
-
-  const sendMessage = async (inputText: string, messageType: MessageType = 'chat', options: SendMessageOptions = {}) => {
-    const currentNoteInfo = useCurrentNoteInfoStore()
-    const text = buildRequestText(messageType, selectedText.value, inputText)
+    const text = inputText.trim()
     if (!text.trim()) {
       return
     }
@@ -406,27 +333,21 @@ export const useAiChatStore = defineStore('aiChat', () => {
     const requestPayload = {
       sessionId: activeSessionId.value,
       text,
-      messageType,
-      selectedText: selectedText.value || null,
-      contextNoteIds: contextNotes.value.map(note => note.noteId),
+      selectedText: includeNoteContext ? selectedText.value || null : null,
+      contextNoteIds: includeNoteContext ? contextNotes.value.map(note => note.noteId) : [],
       currentNoteId: currentNoteInfo.noteId,
-      currentNoteTitle: currentNoteInfo.noteName || null,
-      currentNoteCover: currentNoteInfo.cover || null,
-      allowCurrentNoteWrite: options.allowCurrentNoteWrite === true,
-      plannedToolName: options.plannedToolName || null,
-      plannedToolArgumentsJson: options.plannedToolArgumentsJson || null
+      currentNoteTitle: includeNoteContext ? currentNoteInfo.noteName || null : null,
+      currentNoteCover: includeNoteContext ? currentNoteInfo.cover || null : null
     }
     debugLog('send start', {
       sessionId: activeSessionId.value,
-      messageType,
       textLength: text.length,
-      contextNoteIds: contextNotes.value.map(note => note.noteId),
+      contextNoteIds: requestPayload.contextNoteIds,
       currentNoteId: currentNoteInfo.noteId,
-      selectedTextLength: selectedText.value.trim().length,
+      selectedTextLength: requestPayload.selectedText?.trim().length || 0,
       textPreview: previewText(text)
     })
 
-    let noteMutated = false
     const tempUserMessageId = nextTempMessageId()
     const tempAssistantMessageId = nextTempMessageId()
     let pendingDeltaMessageId: number | null = null
@@ -468,7 +389,7 @@ export const useAiChatStore = defineStore('aiChat', () => {
     messages.value.push({
       id: tempUserMessageId,
       role: 'user',
-      messageType: normalizeStoredMessageType(messageType),
+      messageType: 'chat',
       content: text,
       renderedContent: text,
       status: 'completed',
@@ -477,7 +398,7 @@ export const useAiChatStore = defineStore('aiChat', () => {
     messages.value.push({
       id: tempAssistantMessageId,
       role: 'assistant',
-      messageType: normalizeStoredMessageType(messageType),
+      messageType: 'chat',
       content: '',
       renderedContent: '',
       status: 'streaming',
@@ -545,7 +466,7 @@ export const useAiChatStore = defineStore('aiChat', () => {
                 messages.value.push({
                   id: payload.userMessageId,
                   role: 'user',
-                  messageType: normalizeStoredMessageType(messageType),
+                  messageType: 'chat',
                   content: text,
                   renderedContent: text,
                   status: 'completed',
@@ -562,7 +483,7 @@ export const useAiChatStore = defineStore('aiChat', () => {
                 messages.value.push({
                   id: payload.assistantMessageId,
                   role: 'assistant',
-                  messageType: normalizeStoredMessageType(messageType),
+                  messageType: 'chat',
                   content: '',
                   renderedContent: '',
                   status: 'streaming',
@@ -604,26 +525,7 @@ export const useAiChatStore = defineStore('aiChat', () => {
               createdAt: new Date().toISOString()
             })
             if (payload.success && currentNoteInfo.noteId && WRITE_TOOLS.includes(payload.tool)) {
-              noteMutated = true
               selectedText.value = ''
-              if (payload.tool === 'update_current_note_title' && requestPayload.plannedToolArgumentsJson) {
-                try {
-                  const args = JSON.parse(requestPayload.plannedToolArgumentsJson)
-                  if (typeof args?.title === 'string' && args.title.trim()) {
-                    currentNoteInfo.noteName = args.title.trim()
-                  }
-                } catch {
-                  // ignore invalid preview payload
-                }
-              }
-              if (payload.tool === 'update_current_note_cover' && requestPayload.plannedToolArgumentsJson) {
-                try {
-                  const args = JSON.parse(requestPayload.plannedToolArgumentsJson)
-                  currentNoteInfo.cover = typeof args?.cover === 'string' && args.cover.trim() ? args.cover.trim() : null
-                } catch {
-                  currentNoteInfo.cover = null
-                }
-              }
               lastNoteMutation.value = {
                 noteId: currentNoteInfo.noteId,
                 timestamp: Date.now(),
@@ -658,7 +560,7 @@ export const useAiChatStore = defineStore('aiChat', () => {
               messages.value.push({
                 id: Date.now(),
                 role: 'assistant',
-                messageType: normalizeStoredMessageType(messageType),
+                messageType: 'chat',
                 content: errorMessage,
                 renderedContent: errorMessage,
                 status: 'failed',
@@ -690,9 +592,6 @@ export const useAiChatStore = defineStore('aiChat', () => {
       flushPendingDelta()
 
       await loadSessions()
-      if (noteMutated && currentNoteInfo.noteId && currentNoteInfo.noteName) {
-        currentNoteInfo.noteName = currentNoteInfo.noteName
-      }
     } catch (error: any) {
       flushPendingDelta()
       debugLog('send error', {
@@ -712,7 +611,7 @@ export const useAiChatStore = defineStore('aiChat', () => {
           messages.value.push({
             id: Date.now(),
             role: 'assistant',
-            messageType: normalizeStoredMessageType(messageType),
+            messageType: 'chat',
             content: 'AI 回复失败，请重试。',
             renderedContent: 'AI 回复失败，请重试。',
             status: 'failed',
@@ -753,7 +652,6 @@ export const useAiChatStore = defineStore('aiChat', () => {
     removeContextNote,
     clearAllSessions,
     deleteSession,
-    previewToolPlan,
     sendMessage,
     stopChat
   }

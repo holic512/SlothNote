@@ -23,7 +23,7 @@ spring:
     init:
       mode: always
       schema-locations: classpath:sql/sqlite/schema.sql
-      data-locations: classpath:sql/sqlite/data.sql,classpath:sql/sqlite/migrate-legacy-timestamps.sql
+      data-locations: classpath:sql/sqlite/data.sql,classpath:sql/sqlite/migrate-legacy-timestamps.sql,classpath:sql/sqlite/migrate-user-ai-permissions.sql
       separator: "@@"
 
 # AI provider config is stored in the database table `system_ai_config`.

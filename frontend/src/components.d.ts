@@ -85,6 +85,7 @@ declare module 'vue' {
     Grid: typeof import('@element-plus/icons-vue')['Grid']
     HomeFilled: typeof import('@element-plus/icons-vue')['HomeFilled']
     InfoFilled: typeof import('@element-plus/icons-vue')['InfoFilled']
+    MagicStick: typeof import('@element-plus/icons-vue')['MagicStick']
     Menu: typeof import('@element-plus/icons-vue')['Menu']
     MessageBox: typeof import('@element-plus/icons-vue')['MessageBox']
     MoreFilled: typeof import('@element-plus/icons-vue')['MoreFilled']

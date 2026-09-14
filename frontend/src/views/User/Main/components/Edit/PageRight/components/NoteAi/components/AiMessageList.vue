@@ -2,27 +2,22 @@
 @file AiMessageList
 @project SlothNote
 @module 用户端 / 笔记 AI 消息列表
-@description 展示有界 AI 消息窗口、工具时间线、Markdown 内容和消息级操作。
-@logic 1. 委托 composable 维护消息窗口及缓存；2. 会话切换重置窗口；3. 最新窗口新增消息时滚动到底部；4. 将代码块插入意图上抛。
-@dependencies Composable: useAiMessagePresentation, Component: SaveSummaryButton, Types: AiChat
-@index_tags AI 消息列表, 会话窗口, Markdown, 代码块
+@description 展示有界 AI 消息窗口、工具时间线和 Markdown 内容。
+@logic 1. 委托 composable 维护消息窗口及缓存；2. 会话切换重置窗口；3. 最新窗口新增消息时滚动到底部。
+@dependencies Composable: useAiMessagePresentation, Types: AiChat
+@index_tags AI 消息列表, 会话窗口, Markdown, 工具时间线
 @author holic512
 -->
 <script setup lang="ts">
 import { nextTick, ref, toRef, watch } from 'vue'
-import { MagicStick, Plus } from '@element-plus/icons-vue'
+import { MagicStick } from '@element-plus/icons-vue'
 import type { AiTimelineItem, ChatMessage } from '../service/AiChat'
 import { useAiMessagePresentation } from '../composables/useAiMessagePresentation'
-import SaveSummaryButton from './SaveSummaryButton.vue'
 
 const props = defineProps<{
   messages: ChatMessage[]
   activeSessionId: number | null
   getTimeline: (messageId: number) => AiTimelineItem[]
-}>()
-
-const emit = defineEmits<{
-  'insert-code-block': [code: string, language?: string]
 }>()
 
 const scrollbarRef = ref<{ wrapRef?: HTMLElement } | null>(null)
@@ -34,8 +29,6 @@ const {
   showEarlierMessages,
   showNewerMessages,
   renderMarkdown,
-  extractCodeBlocks,
-  isSummaryMessage,
   timelineLabel
 } = useAiMessagePresentation(toRef(props, 'messages'))
 
@@ -106,14 +99,6 @@ defineExpose({ resetWindow, scrollToBottom })
           </div>
           <div v-else class="bubble ai markdown-body" v-html="renderMarkdown(message)"></div>
 
-          <div v-if="message.role === 'assistant' && message.status === 'completed'" class="msg-actions">
-            <template v-for="(block, index) in extractCodeBlocks(message)" :key="`${message.id}-${index}`">
-              <el-button size="small" text @click="emit('insert-code-block', block.code, block.language)">
-                <el-icon><Plus /></el-icon>插入代码块{{ block.language ? ` (${block.language})` : '' }}
-              </el-button>
-            </template>
-            <SaveSummaryButton v-if="isSummaryMessage(message)" :summary="message.content" />
-          </div>
         </div>
       </div>
     </div>

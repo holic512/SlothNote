@@ -2,10 +2,10 @@
  * @file useAiMessagePresentation
  * @project SlothNote
  * @module 用户端 / 笔记 AI 消息展示
- * @description 封装 AI 消息有界窗口、Markdown 净化缓存和代码块提取缓存。
+ * @description 封装 AI 消息有界窗口、Markdown 净化缓存和工具时间线展示文本。
  * @logic 1. 仅暴露当前消息窗口；2. 按消息 ID 和源文本复用渲染结果；3. 对缓存执行固定上限淘汰；4. 提供时间线展示文本。
  * @dependencies Vue, MarkdownIt, DOMPurify, Types: AiChat
- * @index_tags AI 消息, Markdown 缓存, 代码块缓存, 有界窗口
+ * @index_tags AI 消息, Markdown 缓存, 有界窗口, 工具时间线
  * @author holic512
  */
 import { computed, onScopeDispose, ref, watch, type Ref } from 'vue'
@@ -15,13 +15,6 @@ import type { AiTimelineItem, ChatMessage } from '../service/AiChat'
 
 const DEFAULT_WINDOW_SIZE = 80
 const DEFAULT_CACHE_LIMIT = 160
-const FENCED_BLOCK_REGEX = /```([\w-]*)\n([\s\S]*?)\n```/g
-
-export interface AiCodeBlock {
-  language: string
-  code: string
-}
-
 interface MessagePresentationOptions {
   windowSize?: number
   cacheLimit?: number
@@ -44,7 +37,6 @@ export const useAiMessagePresentation = (
   const windowOffset = ref(0)
   const markdown = new MarkdownIt({ html: false, breaks: true, linkify: true })
   const markdownCache = new Map<number, { source: string; html: string }>()
-  const codeBlockCache = new Map<number, { source: string; blocks: AiCodeBlock[] }>()
 
   const messageWindow = computed(() => {
     const total = messages.value.length
@@ -90,30 +82,6 @@ export const useAiMessagePresentation = (
     return html
   }
 
-  const extractCodeBlocks = (message: ChatMessage) => {
-    const source = message.content || ''
-    const cached = codeBlockCache.get(message.id)
-    if (cached?.source === source) {
-      return cached.blocks
-    }
-
-    const blocks: AiCodeBlock[] = []
-    for (const match of source.matchAll(FENCED_BLOCK_REGEX)) {
-      blocks.push({
-        language: (match[1] || '').trim(),
-        code: match[2] || ''
-      })
-    }
-
-    codeBlockCache.delete(message.id)
-    codeBlockCache.set(message.id, { source, blocks })
-    trimOldestEntry(codeBlockCache, cacheLimit)
-    return blocks
-  }
-
-  const isSummaryMessage = (message: ChatMessage) =>
-    message.role === 'assistant' && message.messageType === 'summary'
-
   const timelineLabel = (item: AiTimelineItem) => {
     if (item.kind === 'status') {
       return item.label || item.status || '处理中'
@@ -134,7 +102,6 @@ export const useAiMessagePresentation = (
 
   onScopeDispose(() => {
     markdownCache.clear()
-    codeBlockCache.clear()
   })
 
   return {
@@ -145,8 +112,6 @@ export const useAiMessagePresentation = (
     showEarlierMessages,
     showNewerMessages,
     renderMarkdown,
-    extractCodeBlocks,
-    isSummaryMessage,
     timelineLabel
   }
 }

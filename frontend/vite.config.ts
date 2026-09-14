@@ -24,6 +24,10 @@ const elementPlusIconResolver = (name: string) => {
 };
 
 export default defineConfig({
+  optimizeDeps: {
+    entries: ['index.html', 'src/**/*.{vue,ts,tsx}'],
+    holdUntilCrawlEnd: true,
+  },
   plugins: [
     vue(),
     AutoImport({

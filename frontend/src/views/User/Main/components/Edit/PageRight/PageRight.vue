@@ -24,8 +24,6 @@ const KnowledgeGraph = defineAsyncComponent(() => import(
 // 控制右侧边栏状态
 const rightPageState = useRightPageState();
 
-const editor = defineModel()
-
 // 用于存储 侧边栏长度
 let RightPageWidth = ref(0);
 
@@ -55,7 +53,7 @@ watch(() => rightPageState.model, (newValue) => {
 
       <NoteComment v-if="rightPageState.model == RightPageModeEnum.comment"/>
 
-      <NoteAI v-if="rightPageState.model == RightPageModeEnum.Ai" v-model="editor"/>
+      <NoteAI v-if="rightPageState.model == RightPageModeEnum.Ai"/>
 
       <KnowledgeGraph v-if="rightPageState.model == RightPageModeEnum.KnowledgeGraph"/>
   </div>

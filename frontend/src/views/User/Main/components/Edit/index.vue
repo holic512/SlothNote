@@ -186,7 +186,7 @@ onBeforeUnmount(() => {
         <TipTap v-model="editor"/>
 
 
-        <PageRight v-model="editor"/>
+        <PageRight/>
 
 
       </el-main>

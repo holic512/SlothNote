@@ -5,15 +5,11 @@ import java.util.List;
 public class ChatRequest {
     private Long sessionId;
     private String text;
-    private String messageType;
     private String selectedText;
     private List<Long> contextNoteIds;
     private Long currentNoteId;
     private String currentNoteTitle;
     private String currentNoteCover;
-    private Boolean allowCurrentNoteWrite;
-    private String plannedToolName;
-    private String plannedToolArgumentsJson;
 
     public Long getSessionId() {
         return sessionId;
@@ -29,14 +25,6 @@ public class ChatRequest {
 
     public void setText(String text) {
         this.text = text;
-    }
-
-    public String getMessageType() {
-        return messageType;
-    }
-
-    public void setMessageType(String messageType) {
-        this.messageType = messageType;
     }
 
     public String getSelectedText() {
@@ -79,27 +67,4 @@ public class ChatRequest {
         this.currentNoteCover = currentNoteCover;
     }
 
-    public Boolean getAllowCurrentNoteWrite() {
-        return allowCurrentNoteWrite;
-    }
-
-    public void setAllowCurrentNoteWrite(Boolean allowCurrentNoteWrite) {
-        this.allowCurrentNoteWrite = allowCurrentNoteWrite;
-    }
-
-    public String getPlannedToolName() {
-        return plannedToolName;
-    }
-
-    public void setPlannedToolName(String plannedToolName) {
-        this.plannedToolName = plannedToolName;
-    }
-
-    public String getPlannedToolArgumentsJson() {
-        return plannedToolArgumentsJson;
-    }
-
-    public void setPlannedToolArgumentsJson(String plannedToolArgumentsJson) {
-        this.plannedToolArgumentsJson = plannedToolArgumentsJson;
-    }
 }

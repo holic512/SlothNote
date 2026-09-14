@@ -2,6 +2,7 @@ import {beforeEach, describe, expect, it, vi} from 'vitest';
 
 const sessionMocks = vi.hoisted(() => ({
     aiReset: vi.fn(),
+    aiPermissionReset: vi.fn(),
     clearTreeCache: vi.fn(),
     clearLogId: vi.fn(),
     clearUserToken: vi.fn(),
@@ -55,6 +56,9 @@ vi.mock('@/views/User/Main/components/Edit/Main/SetCover/paina/NoteCoverState', 
 vi.mock('@/views/User/Main/components/Edit/PageRight/components/NoteAi/service/AiChat', () => ({
     useAiChatStore: () => ({resetClientState: sessionMocks.aiReset}),
 }));
+vi.mock('@/views/User/Main/components/Edit/PageRight/components/NoteAi/service/AiPermissions', () => ({
+    useAiPermissionStore: () => ({resetPermissions: sessionMocks.aiPermissionReset}),
+}));
 vi.mock('@/views/User/Main/components/Edit/PageRight/components/NoteComment/pinia/UpdateCommentState', () => ({
     UseUpdateCommentState: () => ({$reset: sessionMocks.resets.comments}),
 }));
@@ -93,6 +97,7 @@ const resetSpies = Object.values(sessionMocks.resets);
 describe('resetUserSessionState', () => {
     beforeEach(() => {
         sessionMocks.aiReset.mockClear();
+        sessionMocks.aiPermissionReset.mockClear();
         sessionMocks.clearTreeCache.mockClear();
         sessionMocks.clearLogId.mockClear();
         sessionMocks.clearUserToken.mockClear();
@@ -106,6 +111,7 @@ describe('resetUserSessionState', () => {
         resetUserSessionState();
 
         expect(sessionMocks.aiReset).toHaveBeenCalledOnce();
+        expect(sessionMocks.aiPermissionReset).toHaveBeenCalledOnce();
         expect(sessionMocks.clearTreeCache).toHaveBeenCalledOnce();
         resetSpies.forEach(reset => expect(reset).toHaveBeenCalledOnce());
         expect(sessionMocks.clearLogId).toHaveBeenCalledOnce();
@@ -120,6 +126,7 @@ describe('resetUserSessionState', () => {
         resetUserSessionState({clearToken: false});
 
         expect(sessionMocks.aiReset).toHaveBeenCalledOnce();
+        expect(sessionMocks.aiPermissionReset).toHaveBeenCalledOnce();
         expect(sessionMocks.clearTreeCache).toHaveBeenCalledOnce();
         resetSpies.forEach(reset => expect(reset).toHaveBeenCalledOnce());
         expect(sessionMocks.clearLogId).toHaveBeenCalledOnce();

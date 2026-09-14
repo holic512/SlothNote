@@ -80,9 +80,15 @@ class SqliteStorageIntegrationTest {
         assertThat(database).exists();
         assertThat(jdbcTemplate.queryForObject(
                 "SELECT COUNT(*) FROM sqlite_master WHERE type = 'table' AND name NOT LIKE 'sqlite_%'", Integer.class
-        )).isEqualTo(19);
+        )).isEqualTo(20);
+        assertThat(jdbcTemplate.queryForObject(
+                "SELECT COUNT(*) FROM sqlite_master WHERE type = 'table' AND name = 'user_ai_permissions'", Integer.class
+        )).isEqualTo(1);
         assertThat(jdbcTemplate.queryForObject("SELECT COUNT(*) FROM sqlite_master WHERE type = 'trigger'", Integer.class))
-                .isEqualTo(17);
+                .isEqualTo(18);
+        assertThat(jdbcTemplate.queryForObject(
+                "SELECT COUNT(*) FROM sqlite_master WHERE type = 'trigger' AND name = 'trg_user_ai_permissions_updated_at'", Integer.class
+        )).isEqualTo(1);
         assertThat(jdbcTemplate.queryForObject("PRAGMA foreign_keys", Integer.class)).isEqualTo(1);
         assertThat(jdbcTemplate.queryForObject("PRAGMA journal_mode", String.class)).isEqualTo("wal");
         assertThat(jdbcTemplate.queryForObject("SELECT COUNT(*) FROM system_ai_config", Integer.class)).isEqualTo(1);
@@ -140,6 +146,20 @@ class SqliteStorageIntegrationTest {
         jdbcTemplate.update("INSERT INTO users (uid, username, password, email, status) VALUES (?, ?, ?, ?, ?)",
                 "sqlite-user", "sqlite-user", "hashed-password", "sqlite-user@example.test", 0);
         Long userId = jdbcTemplate.queryForObject("SELECT id FROM users WHERE uid = ?", Long.class, "sqlite-user");
+        ResourceDatabasePopulator aiPermissionMigration = new ResourceDatabasePopulator(
+                new ClassPathResource("sql/sqlite/migrate-user-ai-permissions.sql")
+        );
+        aiPermissionMigration.setSeparator("@@");
+        aiPermissionMigration.execute(dataSource);
+        assertThat(jdbcTemplate.queryForObject(
+                "SELECT COUNT(*) FROM user_ai_permissions WHERE user_id = ?", Integer.class, userId
+        )).isEqualTo(1);
+        assertThat(jdbcTemplate.queryForObject(
+                "SELECT can_read_all_notes FROM user_ai_permissions WHERE user_id = ?", Integer.class, userId
+        )).isEqualTo(1);
+        assertThat(jdbcTemplate.queryForObject(
+                "SELECT can_write_note_content FROM user_ai_permissions WHERE user_id = ?", Integer.class, userId
+        )).isZero();
         jdbcTemplate.update("INSERT INTO note_info (user_id, note_title, note_type) VALUES (?, ?, ?)", userId, "SQLite note", 0);
         Long noteId = jdbcTemplate.queryForObject("SELECT id FROM note_info WHERE user_id = ?", Long.class, userId);
         jdbcTemplate.update("INSERT INTO note_content (note_id, content) VALUES (?, ?)", noteId, "A searchable SQLite needle");
@@ -154,7 +174,8 @@ class SqliteStorageIntegrationTest {
         ResourceDatabasePopulator populator = new ResourceDatabasePopulator(
                 new ClassPathResource("sql/sqlite/schema.sql"),
                 new ClassPathResource("sql/sqlite/data.sql"),
-                new ClassPathResource("sql/sqlite/migrate-legacy-timestamps.sql")
+                new ClassPathResource("sql/sqlite/migrate-legacy-timestamps.sql"),
+                new ClassPathResource("sql/sqlite/migrate-user-ai-permissions.sql")
         );
         populator.setSeparator("@@");
         populator.execute(dataSource);

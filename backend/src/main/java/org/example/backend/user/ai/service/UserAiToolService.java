@@ -24,6 +24,8 @@ import org.springframework.stereotype.Service;
 
 import java.time.LocalDateTime;
 import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collection;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -44,6 +46,17 @@ public class UserAiToolService {
     public static final String UPDATE_CURRENT_NOTE_TITLE = "update_current_note_title";
     public static final String SAVE_CURRENT_NOTE_SUMMARY = "save_current_note_summary";
     public static final String UPDATE_CURRENT_NOTE_COVER = "update_current_note_cover";
+    public static final List<String> ALL_TOOL_NAMES = List.of(
+            SEARCH_USER_NOTES,
+            READ_NOTE,
+            GET_CURRENT_NOTE,
+            REPLACE_SELECTED_TEXT,
+            APPEND_TO_CURRENT_NOTE,
+            INSERT_AFTER_SELECTED_TEXT,
+            UPDATE_CURRENT_NOTE_TITLE,
+            SAVE_CURRENT_NOTE_SUMMARY,
+            UPDATE_CURRENT_NOTE_COVER
+    );
 
     private static final List<String> NOTE_COVER_OPTIONS = List.of(
             "1-001", "1-002", "1-003", "1-004", "1-005", "1-006", "1-007",
@@ -79,7 +92,7 @@ public class UserAiToolService {
     }
 
     public List<AiToolDefinitionDto> listTools() {
-        return List.of(
+        return Arrays.asList(
                 new AiToolDefinitionDto(SEARCH_USER_NOTES, "搜索当前用户名下的笔记列表，返回标题、摘要和匹配片段"),
                 new AiToolDefinitionDto(READ_NOTE, "读取当前用户某篇笔记的标题、摘要和正文片段"),
                 new AiToolDefinitionDto(GET_CURRENT_NOTE, "读取当前正在编辑的笔记标题、摘要、正文片段和选中文本"),
@@ -90,6 +103,12 @@ public class UserAiToolService {
                 new AiToolDefinitionDto(SAVE_CURRENT_NOTE_SUMMARY, "更新当前打开笔记的摘要"),
                 new AiToolDefinitionDto(UPDATE_CURRENT_NOTE_COVER, "更新当前打开笔记的封面")
         );
+    }
+
+    public List<AiToolDefinitionDto> listTools(Collection<String> allowedToolNames) {
+        return listTools().stream()
+                .filter(tool -> allowedToolNames.contains(tool.getName()))
+                .toList();
     }
 
     public boolean isWriteTool(String tool) {

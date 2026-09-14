@@ -2,14 +2,14 @@
 @file UserSettingSidebar
 @project SlothNote
 @module 用户端 / 设置侧边栏
-@description 提供账号与系统设置面板切换入口。
+@description 提供账号、AI 权限与系统设置面板切换入口。
 @logic 1. 通过 defineModel 同步当前激活面板；2. 渲染设置分类导航；3. 使用 Element Plus 图标替代 PrimeIcons。
 @dependencies ElementPlus: el-icon, Vue: defineModel
-@index_tags 设置侧边栏, 账号设置, 系统设置, ElementPlus图标
+@index_tags 设置侧边栏, 账号设置, AI权限, 系统设置, ElementPlus图标
 @author holic512
 -->
 <script setup lang="ts">
-const activePanel = defineModel<'account' | 'system'>({default: 'account'})
+const activePanel = defineModel<'account' | 'ai' | 'system'>({default: 'account'})
 </script>
 
 <template>
@@ -25,6 +25,11 @@ const activePanel = defineModel<'account' | 'system'>({default: 'account'})
   <el-text size="small" tag="b" style="margin-top: 12px;">系统</el-text>
 
   <el-divider style="margin: 4px 0 4px 0"/>
+
+  <div class="sidebar-div" :class="{ active: activePanel === 'ai' }" @click="activePanel = 'ai'">
+    <el-icon class="setting-icon"><MagicStick /></el-icon>
+    <el-text style="color: #000;">AI 权限</el-text>
+  </div>
 
   <div class="sidebar-div" :class="{ active: activePanel === 'system' }" @click="activePanel = 'system'">
     <el-icon class="setting-icon"><Setting /></el-icon>

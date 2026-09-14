@@ -1,7 +1,11 @@
 import { effectScope, ref } from 'vue'
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import type { AiTimelineItem, ChatMessage } from '../service/AiChat'
 import { useAiMessagePresentation } from './useAiMessagePresentation'
+
+vi.mock('dompurify', () => ({
+  default: { sanitize: (html: string) => html }
+}))
 
 const createMessage = (id: number, content = `message-${id}`): ChatMessage => ({
   id,
@@ -38,20 +42,17 @@ describe('useAiMessagePresentation', () => {
     scope.stop()
   })
 
-  it('refreshes extracted code blocks when the source message changes', () => {
+  it('renders Markdown code blocks without exposing editor insertion data', () => {
     const scope = effectScope()
     const message = createMessage(1, '```ts\nconst value = 1\n```')
     const messages = ref([message])
     const presentation = scope.run(() => useAiMessagePresentation(messages))!
 
-    expect(presentation.extractCodeBlocks(message)).toEqual([
-      { language: 'ts', code: 'const value = 1' }
-    ])
+    expect(presentation.renderMarkdown(message)).toContain('<pre><code class="language-ts">const value = 1')
 
     message.content = '```js\nconst value = 2\n```'
-    expect(presentation.extractCodeBlocks(message)).toEqual([
-      { language: 'js', code: 'const value = 2' }
-    ])
+    message.renderedContent = message.content
+    expect(presentation.renderMarkdown(message)).toContain('<pre><code class="language-js">const value = 2')
     scope.stop()
   })
 

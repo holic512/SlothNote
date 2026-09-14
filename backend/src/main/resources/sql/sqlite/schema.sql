@@ -214,6 +214,21 @@ CREATE TABLE IF NOT EXISTS user_profiles (
 CREATE INDEX IF NOT EXISTS idx_user_profiles_nickname ON user_profiles (nickname)@@
 CREATE INDEX IF NOT EXISTS idx_user_profiles_user_deleted ON user_profiles (user_id, is_deleted)@@
 
+CREATE TABLE IF NOT EXISTS user_ai_permissions (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id INTEGER NOT NULL,
+    can_read_all_notes INTEGER NOT NULL DEFAULT 1,
+    can_write_note_content INTEGER NOT NULL DEFAULT 0,
+    can_write_note_title INTEGER NOT NULL DEFAULT 0,
+    can_write_note_summary INTEGER NOT NULL DEFAULT 0,
+    can_write_note_cover INTEGER NOT NULL DEFAULT 0,
+    created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE (user_id),
+    FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE ON UPDATE CASCADE
+)@@
+CREATE INDEX IF NOT EXISTS idx_user_ai_permissions_user ON user_ai_permissions (user_id)@@
+
 CREATE TABLE IF NOT EXISTS comments (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     note_id INTEGER NOT NULL,
@@ -381,6 +396,12 @@ CREATE TRIGGER IF NOT EXISTS trg_user_profiles_updated_at
 AFTER UPDATE ON user_profiles FOR EACH ROW WHEN NEW.updated_at = OLD.updated_at
 BEGIN
     UPDATE user_profiles SET updated_at = CURRENT_TIMESTAMP WHERE id = NEW.id;
+END@@
+
+CREATE TRIGGER IF NOT EXISTS trg_user_ai_permissions_updated_at
+AFTER UPDATE ON user_ai_permissions FOR EACH ROW WHEN NEW.updated_at = OLD.updated_at
+BEGIN
+    UPDATE user_ai_permissions SET updated_at = CURRENT_TIMESTAMP WHERE id = NEW.id;
 END@@
 
 CREATE TRIGGER IF NOT EXISTS trg_comments_updated_at

@@ -19,6 +19,7 @@ import {useRightPageState} from "@/views/User/Main/components/Edit/Pinia/RightPa
 import {useFavoriteDialogStore} from "@/views/User/Main/components/Edit/Pinia/FavoriteDialogStore";
 import {useNoteCoverState} from "@/views/User/Main/components/Edit/Main/SetCover/paina/NoteCoverState";
 import {useAiChatStore} from "@/views/User/Main/components/Edit/PageRight/components/NoteAi/service/AiChat";
+import {useAiPermissionStore} from "@/views/User/Main/components/Edit/PageRight/components/NoteAi/service/AiPermissions";
 import {UseUpdateCommentState} from "@/views/User/Main/components/Edit/PageRight/components/NoteComment/pinia/UpdateCommentState";
 import {useTodoState} from "@/views/User/Main/components/TodoList/Pinia/TodoState";
 import {useTodoCategoryState} from "@/views/User/Main/components/TodoList/Pinia/TodoCategoryState";
@@ -36,6 +37,7 @@ export interface ResetUserSessionOptions {
 
 export const resetUserSessionState = ({clearToken = true}: ResetUserSessionOptions = {}): void => {
     useAiChatStore().resetClientState();
+    useAiPermissionStore().resetPermissions();
     clearUserAllTreeDataCache();
 
     useCurrentNoteInfoStore().$reset();
