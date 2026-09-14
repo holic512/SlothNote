@@ -17,6 +17,7 @@ import org.example.backend.user.note.note.enums.GContextEnum;
 import org.example.backend.user.note.note.service.NoteVersionService;
 import org.example.backend.user.note.note.service.GUNoteService;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -50,21 +51,21 @@ public class GUNoteController {
         // 判断状态
         switch (result.a) {
             case Success -> {
-                return ResponseEntity.ok(new ApiResponse.Builder<>()
+                return noStoreOk().body(new ApiResponse.Builder<>()
                         .status(200)
                         .message("查询成功")
                         .data(result.b)
                         .build());
             }
             case NoteOwnerNotMatch -> {
-                return ResponseEntity.ok(new ApiResponse.Builder<>()
+                return noStoreOk().body(new ApiResponse.Builder<>()
                         .status(403)
                         .message("查询失败")
                         .data(result.b)
                         .build());
             }
             default -> {
-                return ResponseEntity.ok(200);
+                return noStoreOk().body(200);
             }
 
 
@@ -77,7 +78,7 @@ public class GUNoteController {
         Long userId = (Long) StpKit.USER.getSession().get("id");
         var data = guNoteService.getShareInfo(userId, noteId);
 
-        return ResponseEntity.ok(new ApiResponse.Builder<>()
+        return noStoreOk().body(new ApiResponse.Builder<>()
                 .status(data == null ? 404 : 200)
                 .message(data == null ? "笔记不存在" : "获取分享信息成功")
                 .data(data)
@@ -147,7 +148,7 @@ public class GUNoteController {
     @GetMapping("versions")
     public ResponseEntity<Object> versions(@RequestParam Long noteId) {
         Long userId = (Long) StpKit.USER.getSession().get("id");
-        return ResponseEntity.ok(new ApiResponse.Builder<>()
+        return noStoreOk().body(new ApiResponse.Builder<>()
                 .status(200)
                 .message("获取历史版本成功")
                 .data(noteVersionService.listVersions(userId, noteId))
@@ -158,11 +159,17 @@ public class GUNoteController {
     public ResponseEntity<Object> versionDetail(@RequestParam Long noteId, @RequestParam Long versionId) {
         Long userId = (Long) StpKit.USER.getSession().get("id");
         var data = noteVersionService.getVersionDetail(userId, noteId, versionId);
-        return ResponseEntity.ok(new ApiResponse.Builder<>()
+        return noStoreOk().body(new ApiResponse.Builder<>()
                 .status(data == null ? 404 : 200)
                 .message(data == null ? "历史版本不存在" : "获取历史版本成功")
                 .data(data)
                 .build());
+    }
+
+    private ResponseEntity.BodyBuilder noStoreOk() {
+        return ResponseEntity.ok()
+                .header(HttpHeaders.CACHE_CONTROL, "no-store, max-age=0")
+                .header(HttpHeaders.PRAGMA, "no-cache");
     }
 
 }

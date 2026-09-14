@@ -17,10 +17,15 @@ import { fetchNoteVersionDetail, fetchNoteVersions, restoreNoteVersion, type Not
 
 const visible = defineModel<boolean>('visible', { required: true })
 const editor = defineModel<any>('editor')
+const emit = defineEmits<{
+  restored: [noteId: number]
+}>()
 const currentNoteInfo = useCurrentNoteInfoStore()
 const saveState = useSaveNoteState()
 
 const loading = ref(false)
+const detailLoading = ref(false)
+const restoring = ref(false)
 const versions = ref<NoteVersionRow[]>([])
 const selectedVersionId = ref<number | null>(null)
 const detail = ref<NoteVersionDetail | null>(null)
@@ -28,6 +33,13 @@ let versionsRequestId = 0
 let detailRequestId = 0
 
 const selectedVersion = computed(() => versions.value.find(item => item.id === selectedVersionId.value) || null)
+const canRestore = computed(() => Boolean(
+  selectedVersion.value
+  && detail.value?.id === selectedVersionId.value
+  && !loading.value
+  && !detailLoading.value
+  && !restoring.value
+))
 
 const loadVersions = async () => {
   const noteId = currentNoteInfo.noteId
@@ -63,49 +75,71 @@ const loadDetail = async () => {
 
   if (!noteId || !versionId) {
     detail.value = null
+    detailLoading.value = false
     return
   }
 
-  const nextDetail = await fetchNoteVersionDetail(noteId, versionId)
-  if (
-    requestId !== detailRequestId
-    || !visible.value
-    || noteId !== currentNoteInfo.noteId
-    || versionId !== selectedVersionId.value
-  ) return
+  detailLoading.value = true
+  try {
+    const nextDetail = await fetchNoteVersionDetail(noteId, versionId)
+    if (
+      requestId !== detailRequestId
+      || !visible.value
+      || noteId !== currentNoteInfo.noteId
+      || versionId !== selectedVersionId.value
+    ) return
 
-  detail.value = nextDetail
+    detail.value = nextDetail
+  } catch (error) {
+    if (requestId === detailRequestId) {
+      detail.value = null
+      ElMessage.error('历史版本详情加载失败')
+    }
+  } finally {
+    if (requestId === detailRequestId) detailLoading.value = false
+  }
 }
 
 const restore = async () => {
   const noteId = currentNoteInfo.noteId
   const versionId = selectedVersionId.value
-  if (!noteId || !versionId || detail.value?.id !== versionId) {
-    return
-  }
-
-  await ElMessageBox.confirm(
-    `确定恢复到 V${detail.value.versionNo} 吗？当前内容将被该版本覆盖。`,
-    '恢复历史版本',
-    { type: 'warning' }
-  )
-
-  if (noteId !== currentNoteInfo.noteId || versionId !== selectedVersionId.value) return
-
-  const response = await restoreNoteVersion(noteId, versionId)
-  if (response?.status !== 200) {
-    ElMessage.error(response?.message || '恢复失败')
+  if (!noteId || !versionId || !canRestore.value) {
     return
   }
 
   try {
-    const parsed = JSON.parse(detail.value.contentJson)
-    editor.value?.commands?.setContent(parsed)
+    await ElMessageBox.confirm(
+      `确定恢复到 V${detail.value!.versionNo} 吗？当前内容将被该版本覆盖。`,
+      '恢复历史版本',
+      { type: 'warning' }
+    )
+  } catch {
+    return
+  }
+
+  if (noteId !== currentNoteInfo.noteId || versionId !== selectedVersionId.value || !canRestore.value) return
+
+  restoring.value = true
+  try {
+    const response = await restoreNoteVersion(noteId, versionId)
+    if (response?.status !== 200 || typeof response.data?.content !== 'string') {
+      ElMessage.error(response?.message || '恢复失败')
+      return
+    }
+
+    if (noteId !== currentNoteInfo.noteId || versionId !== selectedVersionId.value) return
+
+    const parsed = JSON.parse(response.data.content)
+    editor.value?.commands?.setContent(parsed, false)
     saveState.saveContent()
     ElMessage.success('历史版本恢复成功')
+    emit('restored', noteId)
     visible.value = false
-  } catch {
-    ElMessage.error('恢复成功，但内容解析失败')
+  } catch (error) {
+    console.error(error)
+    ElMessage.error('恢复失败，请稍后重试')
+  } finally {
+    restoring.value = false
   }
 }
 
@@ -116,6 +150,7 @@ watch([visible, () => currentNoteInfo.noteId], async ([newVisible]) => {
     versionsRequestId += 1
     detailRequestId += 1
     loading.value = false
+    detailLoading.value = false
   }
 })
 
@@ -161,13 +196,13 @@ onBeforeUnmount(() => {
             <pre class="detail-json">{{ detail.contentJson }}</pre>
           </el-scrollbar>
         </template>
-        <el-empty v-else description="请选择一个版本" :image-size="80" />
+        <el-empty v-else-if="!detailLoading" description="请选择一个版本" :image-size="80" />
       </div>
     </div>
 
     <template #footer>
       <el-button @click="visible = false">关闭</el-button>
-      <el-button type="primary" :disabled="!selectedVersion" @click="restore">恢复此版本</el-button>
+      <el-button type="primary" :loading="restoring" :disabled="!canRestore" @click="restore">恢复此版本</el-button>
     </template>
   </el-dialog>
 </template>

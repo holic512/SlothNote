@@ -17,13 +17,14 @@ import {useRoute, useRouter} from "vue-router";
 
 import {createEditorInstance} from "@/views/User/Main/components/Edit/editor/editor";
 import {useCurrentNoteInfoStore} from "@/views/User/Main/components/Edit/Pinia/currentNoteInfo";
-import {getNoteContent} from "@/views/User/Main/components/Edit/service/GetNoteContent";
+import {getNoteContent, type NoteContentPayload} from "@/views/User/Main/components/Edit/service/GetNoteContent";
 import PageRight from "@/views/User/Main/components/Edit/PageRight/PageRight.vue";
-import {getNoteShareInfo} from "@/views/User/Main/components/Edit/PageHeader/service/getNoteShareInfo";
+import {getNoteShareInfo, type NoteShareInfo} from "@/views/User/Main/components/Edit/PageHeader/service/getNoteShareInfo";
 import {ElMessage} from "element-plus";
 import {useAiChatStore} from "@/views/User/Main/components/Edit/PageRight/components/NoteAi/service/AiChat";
 import {useSaveNoteState} from "@/views/User/Main/components/Edit/Pinia/SaveNoteState";
 import {provideNoteEditorContext} from "@/views/User/Main/components/Edit/editor/editorContext";
+import {useNoteTreeUpdate} from "@/views/User/Main/components/Sidebar/Pinia/isNoteTreeUpdated";
 
 
 // 创建 editor 实例
@@ -38,7 +39,6 @@ const route = useRoute();
 const router = useRouter();
 
 let lastLoadRequestId = 0;
-let lastRouteSyncRequestId = 0;
 
 const normalizeNoteId = (value: unknown): number | null => {
   if (typeof value !== "string" || value.trim() === "") {
@@ -49,31 +49,62 @@ const normalizeNoteId = (value: unknown): number | null => {
   return Number.isInteger(parsed) && parsed > 0 ? parsed : null;
 }
 
-const syncNoteInfoFromRoute = async () => {
-  const routeNoteId = normalizeNoteId(route.query.noteId ?? route.query.id);
+const getRouteNoteId = () => normalizeNoteId(route.query.noteId ?? route.query.id);
+
+const isLatestLoad = (requestId: number, noteId: number) => {
+  return requestId === lastLoadRequestId && getRouteNoteId() === noteId;
+}
+
+const clearCurrentNote = () => {
+  currentNoteInfo.clearNoteInfo();
+  editor.value?.commands.clearContent(false);
+  saveNoteState.saveContent();
+}
+
+/**
+ * 路由、AI 写入和版本恢复都必须经过同一个服务端新鲜加载流程，避免持久化 Pinia 或 HTTP 缓存覆盖最新笔记。
+ */
+const loadCurrentRouteNote = async () => {
+  const routeNoteId = getRouteNoteId();
+  const requestId = ++lastLoadRequestId;
 
   if (routeNoteId == null) {
+    clearCurrentNote();
     return;
   }
 
   if (route.query.noteId == null) {
     const nextQuery = {...route.query};
     delete nextQuery.id;
-    await router.replace({
+    void router.replace({
       path: route.path,
       query: {...nextQuery, noteId: String(routeNoteId)},
     });
   }
 
-  if (currentNoteInfo.noteId === routeNoteId) return;
+  if (currentNoteInfo.noteId !== routeNoteId) {
+    clearCurrentNote();
+  }
 
-  const requestId = ++lastRouteSyncRequestId;
+  let shareInfo: NoteShareInfo | null;
+  let context: NoteContentPayload | null;
+  try {
+    [shareInfo, context] = await Promise.all([
+      getNoteShareInfo(routeNoteId),
+      getNoteContent(routeNoteId),
+    ]);
+  } catch (error) {
+    if (isLatestLoad(requestId, routeNoteId)) {
+      console.error(error);
+      ElMessage.error("笔记加载失败，请稍后重试");
+    }
+    return;
+  }
 
-  const shareInfo = await getNoteShareInfo(routeNoteId);
-
-  if (requestId !== lastRouteSyncRequestId) return;
+  if (!isLatestLoad(requestId, routeNoteId)) return;
 
   if (shareInfo == null) {
+    clearCurrentNote();
     ElMessage.warning("分享链接对应的笔记不存在或无权访问");
     await router.replace({path: route.path});
     return;
@@ -86,19 +117,13 @@ const syncNoteInfoFromRoute = async () => {
       shareInfo.avatar,
       shareInfo.cover
   );
-}
+  useNoteTreeUpdate().patchNode("NOTE", shareInfo.noteId, {
+    label: shareInfo.noteName,
+    avatar: shareInfo.avatar,
+    cover: shareInfo.cover,
+  });
 
-const applyEditorContent = async (noteId: number | null | undefined) => {
-  const requestId = ++lastLoadRequestId;
-
-  if (noteId == null || !editor.value) {
-    editor.value?.commands.clearContent(false);
-    return;
-  }
-
-  const context = await getNoteContent(noteId);
-
-  if (requestId !== lastLoadRequestId || !editor.value) {
+  if (!editor.value) {
     return;
   }
 
@@ -111,44 +136,47 @@ const applyEditorContent = async (noteId: number | null | undefined) => {
       ElMessage.error("笔记内容解析失败，已保留空白编辑器");
       editor.value.commands.clearContent(false);
     }
-    return;
+  } else {
+    editor.value?.commands.clearContent(false);
   }
 
-  editor.value.commands.clearContent(false);
+  saveNoteState.saveContent();
 }
 
 
 // 钩子函数
 onMounted(async () => {
-  await syncNoteInfoFromRoute();
-  await applyEditorContent(currentNoteInfo.noteId);
+  await loadCurrentRouteNote();
 })
-
-// 监听 当前笔记数据是否发生改变 -> 获取新笔记的  context
-watch(
-    () => [currentNoteInfo.noteId],
-    async ([newNoteId]) => {
-      await applyEditorContent(newNoteId);
-    })
 
 watch(
     () => [route.query.noteId, route.query.id],
     async () => {
-      await syncNoteInfoFromRoute();
+      await loadCurrentRouteNote();
     }
 )
 
 watch(
-    () => aiChat.lastNoteMutation?.timestamp,
+    () => aiChat.lastNoteMutation,
     async () => {
-      if (!aiChat.lastNoteMutation || aiChat.lastNoteMutation.noteId !== currentNoteInfo.noteId) {
-        return;
-      }
-      await applyEditorContent(currentNoteInfo.noteId);
-      saveNoteState.saveContent();
-      ElMessage.success(aiChat.lastNoteMutation.summary || "AI 已同步更新当前笔记");
-    }
+  const routeNoteId = getRouteNoteId();
+  if (
+      !aiChat.lastNoteMutation
+      || aiChat.lastNoteMutation.noteId !== currentNoteInfo.noteId
+      || aiChat.lastNoteMutation.noteId !== routeNoteId
+  ) {
+    return;
+  }
+  await loadCurrentRouteNote();
+  ElMessage.success(aiChat.lastNoteMutation.summary || "AI 已同步更新当前笔记");
+}
 )
+
+const refreshAfterVersionRestore = async (noteId: number) => {
+  if (noteId === currentNoteInfo.noteId && noteId === getRouteNoteId()) {
+    await loadCurrentRouteNote();
+  }
+}
 
 // ui  适配
 const mainHeight = ref(window.innerHeight - 48);
@@ -164,7 +192,6 @@ onMounted(() => {
 });
 
 onBeforeUnmount(() => {
-  lastRouteSyncRequestId += 1;
   lastLoadRequestId += 1;
   window.removeEventListener('resize', onWindowResize);
 });
@@ -177,7 +204,7 @@ onBeforeUnmount(() => {
 
       <!--  标题头  -->
       <el-header class="common-header">
-        <PageHeader v-model="editor"/>
+        <PageHeader v-model="editor" @version-restored="refreshAfterVersionRestore"/>
       </el-header>
 
       <!--  编辑器  -->

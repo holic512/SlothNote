@@ -10,9 +10,9 @@
 -->
 <script setup lang="ts">
 import { nextTick, ref, toRef, watch } from 'vue'
-import { MagicStick } from '@element-plus/icons-vue'
+import { Loading, MagicStick } from '@element-plus/icons-vue'
 import type { AiTimelineItem, ChatMessage } from '../service/AiChat'
-import { useAiMessagePresentation } from '../composables/useAiMessagePresentation'
+import { getAiProgressLabel, useAiMessagePresentation } from '../composables/useAiMessagePresentation'
 
 const props = defineProps<{
   messages: ChatMessage[]
@@ -48,6 +48,10 @@ const showNewer = () => {
   if (isLatestWindow.value) {
     scrollToBottom()
   }
+}
+
+const progressLabel = (message: ChatMessage) => {
+  return getAiProgressLabel(props.getTimeline(message.id))
 }
 
 watch(() => props.messages.map(message => message.id).join(','), () => {
@@ -93,6 +97,15 @@ defineExpose({ resetWindow, scrollToBottom })
             >
               {{ timelineLabel(item) }}
             </div>
+          </div>
+          <div
+            v-if="message.role === 'assistant' && message.status === 'streaming'"
+            class="progress-indicator"
+            role="status"
+            aria-live="polite"
+          >
+            <el-icon class="is-loading"><Loading /></el-icon>
+            <span>{{ progressLabel(message) }}</span>
           </div>
           <div v-if="message.role === 'user'" class="bubble user">
             {{ message.content }}
@@ -233,6 +246,23 @@ defineExpose({ resetWindow, scrollToBottom })
     background: #fef2f2;
     color: #b91c1c;
   }
+}
+
+.progress-indicator {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  width: fit-content;
+  min-height: 26px;
+  color: #4f46e5;
+  font-size: 12px;
+  line-height: 1.4;
+  animation: progress-fade 1.5s ease-in-out infinite;
+}
+
+@keyframes progress-fade {
+  0%, 100% { opacity: 0.72; }
+  50% { opacity: 1; }
 }
 
 .bubble {

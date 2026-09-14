@@ -28,6 +28,14 @@ const trimOldestEntry = <T>(cache: Map<number, T>, limit: number) => {
   }
 }
 
+export const getAiProgressLabel = (timeline: AiTimelineItem[]): string => {
+  const latestProgress = [...timeline]
+    .reverse()
+    .find(item => item.kind === 'status' || item.kind === 'tool_call')
+
+  return latestProgress?.label || latestProgress?.summary || '正在思考…'
+}
+
 export const useAiMessagePresentation = (
   messages: Ref<ChatMessage[]>,
   options: MessagePresentationOptions = {}

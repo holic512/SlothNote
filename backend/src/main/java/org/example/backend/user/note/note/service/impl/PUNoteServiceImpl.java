@@ -18,6 +18,7 @@ import org.example.backend.user.note.note.service.NoteVersionService;
 import org.example.backend.user.note.note.service.PUNoteService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 
@@ -80,6 +81,7 @@ public class PUNoteServiceImpl implements PUNoteService {
     }
 
     @Override
+    @Transactional
     public Note restoreVersion(Long userId, Long noteId, Long versionId) {
         if (!uNoteInfoRep.existsById(noteId)) {
             return null;

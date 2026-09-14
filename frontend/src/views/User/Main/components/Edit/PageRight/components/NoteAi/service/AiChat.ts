@@ -516,18 +516,21 @@ export const useAiChatStore = defineStore('aiChat', () => {
           }
 
           if (payload.type === 'tool_result' && payload.assistantMessageId) {
+            const writeTool = payload.writeTool === true || WRITE_TOOLS.includes(payload.tool)
+            const targetNoteId = Number(payload.noteId)
             pushTimeline(payload.assistantMessageId, {
               id: nextTimelineId(),
               kind: 'tool_result',
               tool: payload.tool,
               summary: payload.summary,
               success: !!payload.success,
+              writeTool,
               createdAt: new Date().toISOString()
             })
-            if (payload.success && currentNoteInfo.noteId && WRITE_TOOLS.includes(payload.tool)) {
+            if (payload.success && writeTool && Number.isInteger(targetNoteId) && targetNoteId > 0) {
               selectedText.value = ''
               lastNoteMutation.value = {
-                noteId: currentNoteInfo.noteId,
+                noteId: targetNoteId,
                 timestamp: Date.now(),
                 summary: payload.summary || 'AI 已修改当前笔记'
               }

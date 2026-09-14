@@ -1,7 +1,7 @@
 import { effectScope, ref } from 'vue'
 import { describe, expect, it, vi } from 'vitest'
 import type { AiTimelineItem, ChatMessage } from '../service/AiChat'
-import { useAiMessagePresentation } from './useAiMessagePresentation'
+import { getAiProgressLabel, useAiMessagePresentation } from './useAiMessagePresentation'
 
 vi.mock('dompurify', () => ({
   default: { sanitize: (html: string) => html }
@@ -71,5 +71,14 @@ describe('useAiMessagePresentation', () => {
       '工具执行失败'
     ])
     scope.stop()
+  })
+
+  it('prefers the latest AI stage or concrete tool action while streaming', () => {
+    expect(getAiProgressLabel([])).toBe('正在思考…')
+    expect(getAiProgressLabel([
+      { id: '1', kind: 'status', label: '正在规划是否需要调用工具', createdAt: '' },
+      { id: '2', kind: 'tool_call', summary: '准备向当前笔记末尾追加内容。', createdAt: '' },
+      { id: '3', kind: 'tool_result', summary: '已追加到当前笔记末尾。', success: true, createdAt: '' }
+    ])).toBe('准备向当前笔记末尾追加内容。')
   })
 })

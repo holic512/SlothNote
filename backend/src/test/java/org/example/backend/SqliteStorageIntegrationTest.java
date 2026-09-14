@@ -11,10 +11,13 @@
 package org.example.backend;
 
 import org.example.backend.admin.setting.service.AdminSettingService;
+import org.example.backend.common.domain.Note;
 import org.example.backend.common.entity.Admin;
 import org.example.backend.common.mapper.NoteMapper;
 import org.example.backend.common.repository.AdminRepository;
 import org.example.backend.common.util.StpKit;
+import org.example.backend.user.note.note.service.NoteVersionService;
+import org.example.backend.user.note.note.service.PUNoteService;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -64,6 +67,12 @@ class SqliteStorageIntegrationTest {
 
     @Autowired
     private NoteMapper noteMapper;
+
+    @Autowired
+    private PUNoteService puNoteService;
+
+    @Autowired
+    private NoteVersionService noteVersionService;
 
     @Autowired
     private MockMvc mockMvc;
@@ -166,6 +175,30 @@ class SqliteStorageIntegrationTest {
         assertThat(noteMapper.findByContentLike("needle"))
                 .extracting(note -> note.getNoteId())
                 .containsExactly(noteId);
+
+        String versionOneContent = "{\"type\":\"doc\",\"content\":[{\"type\":\"paragraph\",\"content\":[{\"type\":\"text\",\"text\":\"version one\"}]}]}";
+        String versionTwoContent = "{\"type\":\"doc\",\"content\":[{\"type\":\"paragraph\",\"content\":[{\"type\":\"text\",\"text\":\"version two\"}]}]}";
+        Note saveVersionOne = new Note();
+        saveVersionOne.setNoteId(noteId);
+        saveVersionOne.setContent(versionOneContent);
+        Note saveVersionTwo = new Note();
+        saveVersionTwo.setNoteId(noteId);
+        saveVersionTwo.setContent(versionTwoContent);
+
+        assertThat(puNoteService.SaveNote(userId, saveVersionOne)).isEqualTo("success");
+        assertThat(puNoteService.SaveNote(userId, saveVersionTwo)).isEqualTo("success");
+        Long firstVersionId = noteVersionService.listVersions(userId, noteId).stream()
+                .filter(version -> version.getVersionNo() == 1)
+                .findFirst()
+                .orElseThrow()
+                .getId();
+
+        Note restored = puNoteService.restoreVersion(userId, noteId, firstVersionId);
+        assertThat(restored).isNotNull();
+        assertThat(restored.getContent()).isEqualTo(versionOneContent);
+        assertThat(noteVersionService.listVersions(userId, noteId))
+                .extracting(version -> version.getSourceType())
+                .containsExactly("RESTORE", "SAVE", "SAVE");
 
         assertThatThrownBy(() -> jdbcTemplate.update(
                 "INSERT INTO folder_info (user_id, folder_name) VALUES (?, ?)", 999999L, "invalid foreign key"))

@@ -14,19 +14,28 @@ import {ElMessage} from "element-plus";
 import {useSaveNoteState} from "../Pinia/SaveNoteState";
 import {resolveEditor, type MaybeEditorRef} from "@/views/User/Main/components/Edit/editor/editorContext";
 
-export const SaveNote = async (editorInput: MaybeEditorRef): Promise<boolean> => {
+export interface SaveNoteOptions {
+    silent?: boolean;
+}
+
+export const SaveNote = async (editorInput: MaybeEditorRef, options: SaveNoteOptions = {}): Promise<boolean> => {
     const editor = resolveEditor(editorInput);
+    const notify = (type: "success" | "warning" | "error", message: string) => {
+        if (!options.silent) {
+            ElMessage[type](message);
+        }
+    };
 
     // 笔记信息 pinia 实例
     const currentNoteInfo = useCurrentNoteInfoStore()
 
     if (!editor) {
-        ElMessage.warning("编辑器尚未初始化，无法保存");
+        notify("warning", "编辑器尚未初始化，无法保存");
         return false;
     }
 
     if (currentNoteInfo.noteId == null) {
-        ElMessage.warning("请先打开一篇笔记");
+        notify("warning", "请先打开一篇笔记");
         return false;
     }
 
@@ -52,16 +61,16 @@ export const SaveNote = async (editorInput: MaybeEditorRef): Promise<boolean> =>
             const SaveNoteState = useSaveNoteState();
             SaveNoteState.saveContent();
 
-            ElMessage.success("笔记保存成功");
+            notify("success", "笔记保存成功");
             return true;
         } else {
-            ElMessage.error("笔记保存失败");
+            notify("error", "笔记保存失败");
             return false;
         }
 
     } catch (e) {
         console.error(e);
-        ElMessage.error("笔记保存失败");
+        notify("error", "笔记保存失败");
         return false;
     }
 }

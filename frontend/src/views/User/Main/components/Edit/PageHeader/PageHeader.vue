@@ -26,6 +26,9 @@ import type {Editor} from "@tiptap/vue-3";
 import {Connection} from "@element-plus/icons-vue";
 
 const editor = defineModel<Editor>()
+const emit = defineEmits<{
+  'version-restored': [noteId: number]
+}>()
 
 // 获取当前笔记 的 基础信息
 const currentNoteInfo = useCurrentNoteInfoStore()
@@ -209,7 +212,11 @@ const copyShareLink = async () => {
     </el-col>
   </el-row>
 
-  <VersionDialog v-model:visible="versionDialogVisible" v-model:editor="editor"/>
+  <VersionDialog
+      v-model:visible="versionDialogVisible"
+      v-model:editor="editor"
+      @restored="emit('version-restored', $event)"
+  />
 </template>
 
 <style scoped>

@@ -416,16 +416,18 @@ public class UserAiService {
             }
             log.info("AI tool planning selected: sessionId={}, step={}, tool={}, arguments={}",
                     sessionId, i + 1, plan.tool(), plan.arguments());
+            boolean writeTool = userAiToolService.isWriteTool(plan.tool());
+            Long targetNoteId = resolveToolTargetNoteId(plan.arguments(), request, writeTool);
             if (!permissionService.canUseTool(plannerPermissions, plan.tool())) {
                 String deniedMessage = "AI 权限未允许执行工具：" + plan.tool();
                 log.warn("AI tool plan denied by current permissions: sessionId={}, step={}, tool={}",
                         sessionId, i + 1, plan.tool());
-                emitToolResult(progressEmitter, currentAssistantMessageId, plan.tool(), false, deniedMessage);
+                emitToolResult(progressEmitter, currentAssistantMessageId, plan.tool(), targetNoteId, writeTool, false, deniedMessage);
                 messages.add(Map.of("role", "system", "content", "工具未执行：" + deniedMessage));
                 break;
             }
             emitStatus(progressEmitter, currentAssistantMessageId, mapToolStatus(plan.tool()), "正在执行工具：" + plan.tool());
-            emitToolCall(progressEmitter, currentAssistantMessageId, plan.tool(), plan.arguments(), request, userAiToolService.isWriteTool(plan.tool()));
+            emitToolCall(progressEmitter, currentAssistantMessageId, plan.tool(), plan.arguments(), request, writeTool);
             String toolResult = executeToolPlan(userId, plan, request);
             if (toolResult == null || toolResult.isBlank() || toolResult.startsWith(TOOL_EXECUTION_FAILURE_PREFIX)) {
                 String failureMessage = toolResult == null || toolResult.isBlank()
@@ -433,13 +435,13 @@ public class UserAiService {
                         : toolResult.substring(TOOL_EXECUTION_FAILURE_PREFIX.length());
                 log.warn("AI tool execution failed: sessionId={}, step={}, tool={}, reason={}",
                         sessionId, i + 1, plan.tool(), failureMessage);
-                emitToolResult(progressEmitter, currentAssistantMessageId, plan.tool(), false, failureMessage);
+                emitToolResult(progressEmitter, currentAssistantMessageId, plan.tool(), targetNoteId, writeTool, false, failureMessage);
                 messages.add(Map.of("role", "system", "content", "工具未执行：" + failureMessage));
                 break;
             }
             log.debug("AI tool execution result: sessionId={}, step={}, tool={}, resultPreview={}",
                     sessionId, i + 1, plan.tool(), previewText(toolResult));
-            emitToolResult(progressEmitter, currentAssistantMessageId, plan.tool(), true, previewText(toolResult));
+            emitToolResult(progressEmitter, currentAssistantMessageId, plan.tool(), targetNoteId, writeTool, true, previewText(toolResult));
             messages.add(Map.of(
                     "role", "system",
                     "content", "以下是工具调用结果，请仅在相关时引用，并明确说明这是你基于工具检索得到的信息：\n" + toolResult
@@ -917,10 +919,10 @@ public class UserAiService {
             Map<String, Object> currentNote = userAiToolService.getCurrentNote(userId, request, MAX_CURRENT_NOTE_CHARS);
             String snapshot = formatCurrentNoteSnapshot(currentNote, initialSync);
             messages.add(Map.of("role", "system", "content", snapshot));
-            emitToolResult(progressEmitter, assistantMessageId, UserAiToolService.GET_CURRENT_NOTE, true, initialSync ? "已获取当前笔记最新内容" : "已同步更新后的最新笔记内容");
+            emitToolResult(progressEmitter, assistantMessageId, UserAiToolService.GET_CURRENT_NOTE, request.getCurrentNoteId(), false, true, initialSync ? "已获取当前笔记最新内容" : "已同步更新后的最新笔记内容");
         } catch (Exception e) {
             log.warn("AI current note sync failed: noteId={}, error={}", request.getCurrentNoteId(), e.getMessage());
-            emitToolResult(progressEmitter, assistantMessageId, UserAiToolService.GET_CURRENT_NOTE, false, "当前笔记最新内容同步失败：" + e.getMessage());
+            emitToolResult(progressEmitter, assistantMessageId, UserAiToolService.GET_CURRENT_NOTE, request.getCurrentNoteId(), false, false, "当前笔记最新内容同步失败：" + e.getMessage());
         }
     }
 
@@ -977,6 +979,10 @@ public class UserAiService {
         payload.put("assistantMessageId", assistantMessageId);
         payload.put("tool", tool);
         payload.put("writeTool", writeTool);
+        Long targetNoteId = resolveToolTargetNoteId(arguments, request, writeTool);
+        if (targetNoteId != null) {
+            payload.put("noteId", targetNoteId);
+        }
         payload.put("summary", userAiToolService.summarizePlan(tool, arguments, request));
         payload.put("arguments", arguments == null ? Map.of() : objectMapper.convertValue(arguments, Map.class));
         emitter.accept(payload);
@@ -985,18 +991,34 @@ public class UserAiService {
     private void emitToolResult(Consumer<Map<String, Object>> emitter,
                                 Long assistantMessageId,
                                 String tool,
+                                Long noteId,
+                                boolean writeTool,
                                 boolean success,
                                 String summary) {
         if (emitter == null) {
             return;
         }
-        emitter.accept(Map.of(
-                "type", "tool_result",
-                "assistantMessageId", assistantMessageId,
-                "tool", tool,
-                "success", success,
-                "summary", summary
-        ));
+        Map<String, Object> payload = new LinkedHashMap<>();
+        payload.put("type", "tool_result");
+        payload.put("assistantMessageId", assistantMessageId);
+        payload.put("tool", tool);
+        payload.put("writeTool", writeTool);
+        payload.put("success", success);
+        payload.put("summary", summary);
+        if (noteId != null) {
+            payload.put("noteId", noteId);
+        }
+        emitter.accept(payload);
+    }
+
+    private Long resolveToolTargetNoteId(JsonNode arguments, ChatRequest request, boolean writeTool) {
+        if (writeTool) {
+            return request == null ? null : request.getCurrentNoteId();
+        }
+        if (arguments != null && arguments.hasNonNull("noteId")) {
+            return arguments.get("noteId").asLong();
+        }
+        return request == null ? null : request.getCurrentNoteId();
     }
 
     private String mapToolStatus(String tool) {

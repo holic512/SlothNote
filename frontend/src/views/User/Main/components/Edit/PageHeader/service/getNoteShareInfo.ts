@@ -10,7 +10,14 @@ export interface NoteShareInfo {
 
 export const getNoteShareInfo = async (noteId: number): Promise<NoteShareInfo | null> => {
   const response = await axios.get("user/note/share/info", {
-    params: {noteId}
+    params: {
+      noteId,
+      _fresh: Date.now()
+    },
+    headers: {
+      "Cache-Control": "no-cache",
+      Pragma: "no-cache"
+    }
   });
 
   if (response.data?.status !== 200) {

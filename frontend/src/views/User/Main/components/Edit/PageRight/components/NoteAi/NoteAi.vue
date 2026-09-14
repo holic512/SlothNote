@@ -15,6 +15,9 @@ import {Close, MagicStick, Plus, Position, Search, VideoPause, Clock, Link, Docu
 import {useAiChatStore, type ContextNote} from '@/views/User/Main/components/Edit/PageRight/components/NoteAi/service/AiChat'
 import {useAiPermissionStore} from '@/views/User/Main/components/Edit/PageRight/components/NoteAi/service/AiPermissions'
 import { useCurrentNoteInfoStore } from '@/views/User/Main/components/Edit/Pinia/currentNoteInfo'
+import {useSaveNoteState} from '@/views/User/Main/components/Edit/Pinia/SaveNoteState'
+import {SaveNote} from '@/views/User/Main/components/Edit/service/SaveNote'
+import {useNoteEditorContext} from '@/views/User/Main/components/Edit/editor/editorContext'
 import AiMessageList from './components/AiMessageList.vue'
 import AiSessionHistory from './components/AiSessionHistory.vue'
 import { useContextNoteSearch } from './composables/useContextNoteSearch'
@@ -22,6 +25,8 @@ import { useContextNoteSearch } from './composables/useContextNoteSearch'
 const aiChat = useAiChatStore()
 const aiPermissions = useAiPermissionStore()
 const currentNoteInfo = useCurrentNoteInfoStore()
+const saveNoteState = useSaveNoteState()
+const {editor} = useNoteEditorContext()
 const inputText = ref('')
 const messageListRef = ref<{ resetWindow: () => void } | null>(null)
 const {
@@ -89,6 +94,18 @@ const removeContextNote = async (noteId: number) => {
   }
 }
 
+const saveDirtyCurrentNoteBeforeAi = async (): Promise<boolean> => {
+  if (!canReadAllNotes.value || !currentNoteInfo.noteId || saveNoteState.isSaved) {
+    return true
+  }
+
+  const saved = await SaveNote(editor, {silent: true})
+  if (!saved) {
+    ElMessage.error('当前笔记保存失败，AI 请求未发送')
+  }
+  return saved
+}
+
 const send = async () => {
   if (aiChat.loading || sendPreparing.value) return
   if (Date.now() - lastSendAt.value < SEND_DEBOUNCE_MS) return
@@ -98,6 +115,9 @@ const send = async () => {
 
   sendPreparing.value = true
   try {
+    if (!await saveDirtyCurrentNoteBeforeAi()) {
+      return
+    }
     await aiChat.sendMessage(inputText.value, canReadAllNotes.value)
     inputText.value = ''
   } finally {
