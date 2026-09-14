@@ -1,3 +1,13 @@
+/**
+ * @file AdminAuthApi
+ * @project SlothNote
+ * @module 管理后台 / 认证请求
+ * @description 集中调用管理员初始化状态、首次初始化、登录和验证码验证接口。
+ * @logic 1. 读取服务端初始化状态；2. 登录或初始化成功时保存管理员令牌；3. 统一将网络异常转换为页面可展示的响应。
+ * @dependencies Axios, TokenStore, LogIdStore
+ * @index_tags 管理员认证, 初始化状态, 登录请求, 初始化请求
+ * @author holic512
+ */
 import axios from "../../../../axios";
 import { logIDStore } from "@/pinia/logIDStore";
 import { tokenStore } from "@/pinia/token";
@@ -15,6 +25,19 @@ type AuthResponse = {
     message: string;
     data?: AuthPayload;
 };
+
+async function getInitializationStatus(): Promise<AuthResponse> {
+    try {
+        const response = await axios.get("admin/auth/status");
+        return {
+            status: response.data.status,
+            message: response.data.message,
+            data: response.data?.data as AuthPayload | undefined,
+        };
+    } catch (error) {
+        return {status: 500, message: "无法检测管理员初始化状态"};
+    }
+}
 
 async function login(username: string, password: string): Promise<AuthResponse> {
     try {
@@ -82,4 +105,4 @@ async function verCode(code: string): Promise<AuthResponse> {
     }
 }
 
-export { login, initAdmin, verCode };
+export { getInitializationStatus, login, initAdmin, verCode };

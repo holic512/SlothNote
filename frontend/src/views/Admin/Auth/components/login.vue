@@ -2,16 +2,16 @@
 @file AdminLoginPage
 @project SlothNote
 @module 管理后台 / 登录认证
-@description 提供管理员登录、验证码校验和初始化管理员入口。
-@logic 1. 提交账号密码登录；2. 根据后端返回切换验证码或初始化流程；3. 登录成功后进入后台仪表盘子路由。
-@dependencies API: admin/auth/login, admin/auth/init, admin/auth/verLogin, VueRouter: useRouter
+@description 在进入管理端时检测管理员初始化状态，并提供管理员登录、验证码校验和首次初始化入口。
+@logic 1. 页面加载时读取服务端初始化状态并切换独立初始化路由；2. 表单只使用 submit 事件，避免重复认证请求；3. 初始化竞争后重新检查状态并引导登录。
+@dependencies API: admin/auth/status, admin/auth/login, admin/auth/init, admin/auth/verLogin, VueRouter: useRouter
 @index_tags 管理员登录, 后台认证, 初始化管理员, 登录跳转
 @author holic512
 -->
 <script setup lang="ts">
-import { computed, ref } from 'vue';
+import { computed, onMounted, ref } from 'vue';
 import { ElMessage } from 'element-plus';
-import { initAdmin, login, verCode } from "../services/login";
+import { getInitializationStatus, initAdmin, login, verCode } from "../services/login";
 import { useRoute, useRouter } from 'vue-router';
 import { Lock, Message, Monitor } from '@element-plus/icons-vue';
 import { ROUTE_PATHS } from '@/router/paths';
@@ -20,6 +20,8 @@ const router = useRouter();
 const route = useRoute();
 const currentView = ref<'login' | 'otp' | 'init'>('login');
 const isLoading = ref(false);
+const isCheckingInitialization = ref(true);
+const initializationCheckError = ref('');
 
 const username = ref('');
 const password = ref('');
@@ -32,6 +34,43 @@ const initEmail = ref('');
 
 const initEmailHint = computed(() => initEmail.value.trim() ? '已配置邮箱，后续可用于安全通知。' : '邮箱可暂时留空，后续可在设置页补录。');
 
+const replaceAuthRoute = async (name: 'admin-auth-login' | 'admin-auth-init') => {
+  if (route.name === name) return;
+  await router.replace({name, query: route.query});
+};
+
+const showInitialization = async () => {
+  currentView.value = 'init';
+  await replaceAuthRoute('admin-auth-init');
+};
+
+const showLogin = async () => {
+  codeValue.value = '';
+  currentView.value = 'login';
+  await replaceAuthRoute('admin-auth-login');
+};
+
+const checkInitializationStatus = async () => {
+  isCheckingInitialization.value = true;
+  initializationCheckError.value = '';
+  try {
+    const result = await getInitializationStatus();
+    if (result.status !== 200 || typeof result.data?.needInit !== 'boolean') {
+      initializationCheckError.value = result.message || '无法检测管理员初始化状态';
+      return;
+    }
+
+    if (result.data.needInit) {
+      await showInitialization();
+      return;
+    }
+
+    await showLogin();
+  } finally {
+    isCheckingInitialization.value = false;
+  }
+};
+
 const enterAdmin = async () => {
   const redirect = route.query.redirect;
   await router.push(
@@ -42,6 +81,7 @@ const enterAdmin = async () => {
 };
 
 const sendLogin = async () => {
+  if (isLoading.value || isCheckingInitialization.value) return;
   if (!username.value || !password.value) {
     ElMessage.warning('请输入完整的账号和密码');
     return;
@@ -56,8 +96,7 @@ const sendLogin = async () => {
       return;
     }
     if (result.data?.needInit) {
-      initUsername.value = username.value;
-      currentView.value = 'init';
+      await showInitialization();
       ElMessage.warning(result.message || '系统尚未初始化管理员');
       return;
     }
@@ -93,6 +132,7 @@ const verifyLogin = async () => {
 };
 
 const submitInit = async () => {
+  if (isLoading.value || isCheckingInitialization.value) return;
   if (!initUsername.value || !initPassword.value) {
     ElMessage.warning('请输入管理员账号和密码');
     return;
@@ -110,8 +150,12 @@ const submitInit = async () => {
       await enterAdmin();
       return;
     }
-    if (result.status === 409 && !result.data?.needInit) {
-      currentView.value = 'login';
+    if (result.status === 409) {
+      await checkInitializationStatus();
+      if (!initializationCheckError.value) {
+        ElMessage.warning(result.message || '管理员已初始化，请使用该账号登录');
+      }
+      return;
     }
     ElMessage.error(result.message || '管理员初始化失败');
   } finally {
@@ -120,9 +164,12 @@ const submitInit = async () => {
 };
 
 const backToLogin = () => {
-  codeValue.value = '';
-  currentView.value = 'login';
+  void showLogin();
 };
+
+onMounted(() => {
+  void checkInitializationStatus();
+});
 </script>
 
 <template>
@@ -145,7 +192,18 @@ const backToLogin = () => {
       <!-- 动画过渡容器 -->
       <Transition name="fade-slide" mode="out-in">
 
-        <div class="form-card" v-if="currentView === 'login'" key="step1">
+        <div class="form-card" v-if="isCheckingInitialization" key="initialization-check">
+          <h3 class="card-title">正在检查系统状态</h3>
+          <p class="otp-desc">正在确认管理员初始化状态，请稍候。</p>
+        </div>
+
+        <div class="form-card" v-else-if="initializationCheckError" key="initialization-error">
+          <h3 class="card-title">无法检测系统状态</h3>
+          <p class="otp-desc">{{ initializationCheckError }}</p>
+          <el-button type="primary" class="submit-btn" @click="checkInitializationStatus">重新检测</el-button>
+        </div>
+
+        <div class="form-card" v-else-if="currentView === 'login'" key="step1">
           <h3 class="card-title">身份验证</h3>
           <el-form @submit.prevent="sendLogin">
             <div class="input-item">
@@ -166,15 +224,14 @@ const backToLogin = () => {
                   placeholder="••••••••"
                   show-password
                   class="custom-input"
-                  @keyup.enter="sendLogin"
               />
             </div>
 
             <el-button
                 type="primary"
+                native-type="submit"
                 class="submit-btn"
                 :loading="isLoading"
-                @click="sendLogin"
             >
               登录后台
             </el-button>
@@ -213,7 +270,6 @@ const backToLogin = () => {
         </div>
 
         <div class="form-card" v-else key="step3">
-          <div class="back-btn" @click="backToLogin">← 返回登录</div>
           <div class="otp-header">
             <div class="lock-icon">
               <el-icon :size="28"><Monitor /></el-icon>
@@ -246,9 +302,9 @@ const backToLogin = () => {
 
             <el-button
                 type="primary"
+                native-type="submit"
                 class="submit-btn"
                 :loading="isLoading"
-                @click="submitInit"
             >
               创建并进入后台
             </el-button>

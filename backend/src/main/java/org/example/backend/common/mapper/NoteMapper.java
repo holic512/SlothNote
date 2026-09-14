@@ -13,7 +13,7 @@ public interface NoteMapper extends BaseMapper<Note> {
     @Select("""
             SELECT note_id, content, last_saved_at, created_at, updated_at
             FROM note_content
-            WHERE content LIKE CONCAT('%', #{q}, '%')
+            WHERE content LIKE '%' || #{q} || '%'
             """)
     List<Note> findByContentLike(String q);
 }

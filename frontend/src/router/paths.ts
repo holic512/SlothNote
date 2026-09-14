@@ -17,5 +17,6 @@ export const ROUTE_PATHS = {
     userMain: '/user/main',
     userEdit: '/user/main/edit',
     adminLogin: '/admin/auth/login',
+    adminInit: '/admin/auth/init',
     adminMain: '/admin/main',
 } as const;

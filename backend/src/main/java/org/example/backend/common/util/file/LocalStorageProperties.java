@@ -1,3 +1,13 @@
+/**
+ * @file LocalStorageProperties
+ * @project SlothNote
+ * @module Local storage configuration
+ * @description Binds public upload storage settings and supplies safe local defaults shared by uploads and SQLite persistence.
+ * @logic Provides an application-relative storage root when no external configuration is supplied; SQLite appends its private base directory beneath this root.
+ * @dependencies Spring Boot ConfigurationProperties
+ * @index_tags local storage, uploads, SQLite, configuration
+ * @author holic512
+ */
 package org.example.backend.common.util.file;
 
 import lombok.Data;
@@ -16,14 +26,14 @@ public class LocalStorageProperties {
      * 文件在服务器上的根目录
      * 例如：D:/flower-files 或 /data/flower-files
      */
-    private String rootDir;
+    private String rootDir = "./file";
 
     /**
      * 对外访问的基础 URL 前缀
      * 例如：http://localhost:8080/files/
      * 或 Nginx 反向代理后的 https://cdn.xxx.com/files/
      */
-    private String publicBaseUrl;
+    private String publicBaseUrl = "http://localhost:8080/files";
 
     /**
      * 是否按照日期分目录存储，如 /image/2025/11/15/xxx.jpg

@@ -20,13 +20,14 @@ public class WebConfig implements WebMvcConfigurer {
     public void addResourceHandlers(ResourceHandlerRegistry registry) {
         String root = props.getRootDir();
         if (root == null) return;
-        String location = normalize(root);
-        registry.addResourceHandler("/files/**")
-                .addResourceLocations(location);
+        registry.addResourceHandler("/files/avatar/**")
+                .addResourceLocations(resolveLocation(root, "avatar"));
+        registry.addResourceHandler("/files/noteImage/**")
+                .addResourceLocations(resolveLocation(root, "noteImage"));
     }
 
-    private String normalize(String p) {
-        String path = p.replace('\\', '/');
+    private String resolveLocation(String root, String publicDirectory) {
+        String path = root.replace('\\', '/') + "/" + publicDirectory;
         if (!path.endsWith("/")) path = path + "/";
         if (!path.startsWith("file:")) path = "file:" + path;
         return path;

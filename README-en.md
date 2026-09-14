@@ -43,13 +43,33 @@
 
 ## Deployment
 
-### Docker Compose (Recommended)
+The backend uses SQLite by default; MySQL is not required. On first start it automatically creates the database and safe system defaults:
 
-Coming soon
+- Default database location: `file/base/slothnote.db`
+- Upload locations: `file/avatar/` and `file/noteImage/`
+- Set `STORAGE_LOCAL_ROOT_DIR` to change the storage root, or `SQLITE_DB_PATH` to provide an absolute or working-directory-relative database file.
+
+Create the first administrator through the Admin initialization screen or `POST /admin/auth/init` after the service starts. No administrator credentials or example business data are seeded.
+
+Start the backend locally:
+
+```bash
+cd backend
+mvn spring-boot:run
+```
+
+SQLite persists in a single database file. Back up `file/base/slothnote.db` while the service is stopped, retaining its adjacent `-wal` and `-shm` files when they exist. Do not publish `file/base/` as static content or commit it to source control.
+
+For containers, mount `/app/file` to persist both SQLite data and uploads:
+
+```bash
+docker build -t slothnote-backend ./backend
+docker run --rm -p 8080:8080 -v "$(pwd)/file:/app/file" slothnote-backend
+```
 
 ## Technologies Used
 
-- Backend: Java 17 + SpringBoot + Sa-token + Mysql + Redis + Swagger
+- Backend: Java 17 + SpringBoot + SQLite + JPA + MyBatis-Plus + Sa-token + Swagger
 - Frontend: Vue 3 + TypeScript + Axios + Router + Element Plus + TipTap
 
 ## Links

@@ -48,13 +48,33 @@
 
 ## 部署
 
-### docker-compose (推荐)
+后端默认使用 SQLite，不需要安装或配置 MySQL。首次启动会自动创建数据库和系统基础配置：
 
-待做
+- 数据库默认路径：`file/base/slothnote.db`
+- 上传文件路径：`file/avatar/`、`file/noteImage/`
+- 可通过 `STORAGE_LOCAL_ROOT_DIR` 修改根目录；可通过 `SQLITE_DB_PATH` 指定数据库文件的绝对或相对路径。
+
+启动后，请通过管理端首次初始化流程或 `POST /admin/auth/init` 创建首个管理员。不会预置管理员账号、密码或演示业务数据。
+
+本地启动后端：
+
+```bash
+cd backend
+mvn spring-boot:run
+```
+
+SQLite 以单个数据库文件持久化；停机后备份 `file/base/slothnote.db`（同时保留同目录的 `-wal`、`-shm` 文件，如存在）即可。请勿将 `file/base/` 作为静态资源目录或提交到版本库。
+
+容器部署时挂载整个 `/app/file` 以同时持久化 SQLite 数据库和上传文件：
+
+```bash
+docker build -t slothnote-backend ./backend
+docker run --rm -p 8080:8080 -v "$(pwd)/file:/app/file" slothnote-backend
+```
 
 ## 所用技术
 
-- 后端: Java 17 + SpringBoot + Sa-token + Mysql + Redis + Swagger
+- 后端: Java 17 + SpringBoot + SQLite + JPA + MyBatis-Plus + Sa-token + Swagger
 - 前端: Vue3 + Ts + Axios + Router + ElementPlus + TipTap
 
 ## 链接

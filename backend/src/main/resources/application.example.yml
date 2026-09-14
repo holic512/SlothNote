@@ -11,16 +11,20 @@ spring:
       max-file-size: 5MB
       max-request-size: 10MB
 
-  datasource:
-    url: "${DB_URL:jdbc:mysql://localhost:3306/slothnote?useUnicode=true&characterEncoding=utf8&serverTimezone=Asia/Shanghai}"
-    username: "${DB_USERNAME:root}"
-    password: "${DB_PASSWORD:TODO_DB_PASSWORD}"
-    driver-class-name: com.mysql.cj.jdbc.Driver
-
   jpa:
     open-in-view: false
     hibernate:
       ddl-auto: none
+    properties:
+      hibernate:
+        dialect: org.hibernate.community.dialect.SQLiteDialect
+
+  sql:
+    init:
+      mode: always
+      schema-locations: classpath:sql/sqlite/schema.sql
+      data-locations: classpath:sql/sqlite/data.sql,classpath:sql/sqlite/migrate-legacy-timestamps.sql
+      separator: "@@"
 
 # AI provider config is stored in the database table `system_ai_config`.
 # Edit it from Admin / System Settings after applying the SQL migration.
@@ -46,3 +50,8 @@ storage:
     public-base-url: "${STORAGE_PUBLIC_BASE_URL:http://localhost:8080/files}"
     enable-date-path: true
     keep-extension: true
+  sqlite:
+    # Defaults to <storage.local.root-dir>/base/slothnote.db when unset.
+    path: "${SQLITE_DB_PATH:}"
+    busy-timeout-ms: ${SQLITE_BUSY_TIMEOUT_MS:5000}
+    maximum-pool-size: ${SQLITE_MAXIMUM_POOL_SIZE:4}

@@ -1,11 +1,12 @@
 /**
- * File Name: AuthService.java
- * Description: 管理员 授权 服务类
- * Author: holic512
- * Created Date: 2024-09-04
- * Version: 1.0
- * Usage:
- * 用于管理员授权的 服务类
+ * @file AdminAuthService
+ * @project SlothNote
+ * @module 管理后台 / 认证
+ * @description 提供管理员初始化、登录和二次验证的核心业务逻辑。
+ * @logic 1. 查询管理员初始化状态；2. 初始化时校验输入并处理并发创建竞争；3. 验证登录凭据并建立管理员会话。
+ * @dependencies AdminRepository, AuthTicketService, MailCodeService, Sa-Token
+ * @index_tags 管理员认证, 首次初始化, 并发安全, 登录, 验证码
+ * @author holic512
  */
 package org.example.backend.admin.auth;
 
@@ -25,6 +26,7 @@ import org.example.backend.common.util.StpKit;
 import org.example.backend.common.util.UuidUtil;
 import org.example.backend.common.util.VerificationCodeUtil;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.dao.DataAccessException;
 import org.springframework.stereotype.Service;
 
 import java.util.HashMap;
@@ -126,7 +128,17 @@ public class AdminAuthService {
         admin.setPassword(SCryptUtil.hashPassword(password));
         admin.setEmail(normalizedEmail);
         admin.setIsDeleted(0);
-        Admin saved = adminRepository.save(admin);
+        Admin saved;
+        try {
+            saved = adminRepository.save(admin);
+        } catch (DataAccessException exception) {
+            // The pre-insert existence check is necessarily racy. SQLite serializes writers,
+            // so a unique-key failure here means another request finished initialization first.
+            if (hasInitializedAdmin()) {
+                return new Pair<>(AuthServiceEnum.AdminAlreadyInitialized, null);
+            }
+            throw exception;
+        }
         StpKit.ADMIN.login(saved.getId());
         return new Pair<>(AuthServiceEnum.Success, StpKit.ADMIN.getTokenValue());
     }

@@ -2,8 +2,8 @@
  * @file AdminRouter
  * @project SlothNote
  * @module 管理后台 / 路由配置
- * @description 定义管理端认证页、主框架与各管理模块的路由映射。
- * @logic 1. /admin/main 作为无名布局路由并重定向到仪表盘；2. 管理页按模块懒加载；3. 保留历史 dashboardMm 路径重定向。
+ * @description 定义管理端认证页、首次初始化入口、主框架与各管理模块的路由映射。
+ * @logic 1. 提供独立的管理员初始化路径；2. /admin/main 作为无名布局路由并重定向到仪表盘；3. 管理页按模块懒加载并保留历史路径重定向。
  * @dependencies VueRouter: route records, Component: Admin/Main/index.vue
  * @index_tags 后台路由, 管理端菜单, 懒加载, 仪表盘路由
  * @author holic512
@@ -43,6 +43,11 @@ export default [
                     {
                         path: 'login',
                         name: 'admin-auth-login',
+                        component: () => import('./Auth/components/login.vue'),
+                    },
+                    {
+                        path: 'init',
+                        name: 'admin-auth-init',
                         component: () => import('./Auth/components/login.vue'),
                     }
                 ]

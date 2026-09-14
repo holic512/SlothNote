@@ -26,7 +26,7 @@ public class AiChatMessage {
     @Column(name = "message_type", nullable = false, length = 32)
     private String messageType;
 
-    @Column(name = "content_md", nullable = false, columnDefinition = "LONGTEXT")
+    @Column(name = "content_md", nullable = false)
     private String contentMd;
 
     @Column(nullable = false, length = 16)

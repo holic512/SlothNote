@@ -74,7 +74,7 @@ public class AdminSettingService {
             jdbcTemplate.update("DELETE FROM " + table);
             resetTables.add(table);
             if (supportsAutoIncrement(table)) {
-                jdbcTemplate.execute("ALTER TABLE " + table + " AUTO_INCREMENT = 1");
+                jdbcTemplate.update("DELETE FROM sqlite_sequence WHERE name = ?", table);
             }
         }
 
@@ -106,7 +106,7 @@ public class AdminSettingService {
 
     private boolean tableExists(String tableName) {
         Integer count = jdbcTemplate.queryForObject(
-                "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = DATABASE() AND table_name = ?",
+                "SELECT COUNT(*) FROM sqlite_master WHERE type = 'table' AND name = ?",
                 Integer.class,
                 tableName
         );

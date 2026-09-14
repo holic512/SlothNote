@@ -1,11 +1,12 @@
 /**
- * File Name: AuthController.java
- * Description: 管理员身份验证 控制器
- * Author: holic512
- * Created Date: 2024-09-04
- * Version: 1.0
- * Usage:
- * 前端调用 restful接口 进行身份验证
+ * @file AdminAuthController
+ * @project SlothNote
+ * @module 管理后台 / 认证
+ * @description 暴露管理员初始化状态、首次初始化、登录和验证码验证接口。
+ * @logic 1. 公开读取初始化状态供认证页进入时跳转；2. 返回统一认证载荷；3. 将并发初始化结果转换为可处理的业务状态。
+ * @dependencies AdminAuthService, ApiResponse
+ * @index_tags 管理员认证, 初始化状态, 首次初始化, 登录接口
+ * @author holic512
  */
 package org.example.backend.admin.auth;
 
@@ -17,6 +18,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -37,6 +39,16 @@ public class AdminAuthController {
     @Autowired
     public AdminAuthController(AdminAuthService adminAuthService) {
         this.adminAuthService = adminAuthService;
+    }
+
+    @GetMapping("status")
+    public ResponseEntity<Object> status() {
+        boolean needInit = !adminAuthService.hasInitializedAdmin();
+        return ResponseEntity.ok(new ApiResponse<>(
+                200,
+                needInit ? "系统尚未初始化管理员" : "管理员已初始化",
+                authPayload(null, false, null, false, needInit)
+        ));
     }
 
     @PostMapping("login")

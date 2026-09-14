@@ -23,7 +23,7 @@ public class NoteVersion {
     @Column(name = "version_no", nullable = false)
     private Integer versionNo;
 
-    @Column(name = "content_json", nullable = false, columnDefinition = "LONGTEXT")
+    @Column(name = "content_json", nullable = false)
     private String contentJson;
 
     @Column(name = "content_preview", length = 500)
